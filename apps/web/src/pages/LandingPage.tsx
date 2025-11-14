@@ -1,4 +1,7 @@
+import React, { useRef, useEffect, useState } from 'react';
+import { useScroll, useTransform, motion, MotionValue } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, Avatar, Badge } from '@fanmeet/ui';
+import SphereImageGrid, { type ImageData } from '../components/SphereImageGrid';
 
 const featuredCreators = [
   {
@@ -50,6 +53,28 @@ const featuredCreators = [
     highlight: 'At-home workouts & accountability',
   },
 ];
+
+const creatorImageUrls = [
+  'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181670/pexels-photo-1181670.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181681/pexels-photo-1181681.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181672/pexels-photo-1181672.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181680/pexels-photo-1181680.jpeg?auto=compress&cs=tinysrgb&w=800',
+];
+
+const featuredCreatorImages: ImageData[] = Array.from({ length: 32 }).map((_, index) => {
+  const creator = featuredCreators[index % featuredCreators.length];
+  const imageUrl = creatorImageUrls[index % creatorImageUrls.length];
+
+  return {
+    id: `featured-${index}`,
+    src: imageUrl,
+    alt: creator.name,
+    title: creator.name,
+    description: `${creator.category} · ${creator.highlight}`,
+  };
+});
 
 const processSteps = [
   {
@@ -156,6 +181,15 @@ const photoReviews = [
     quote: 'He reviewed my vlog setup 📹',
     context: 'Got technical tips + motivation',
   },
+];
+
+const realFanmeetImageUrls = [
+  'https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1183266/pexels-photo-1183266.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181670/pexels-photo-1181670.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=800',
 ];
 
 const textReviews = [
@@ -529,6 +563,92 @@ const footerLinks = {
 
 const paymentLogos = ['Razorpay', 'Visa', 'Mastercard', 'UPI'];
 
+const ContainerScroll: React.FC<{
+  titleComponent: string | React.ReactNode;
+  children: React.ReactNode;
+}> = ({ titleComponent, children }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: containerRef,
+  });
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      if (typeof window !== 'undefined') {
+        setIsMobile(window.innerWidth <= 768);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
+
+  const scaleRange = isMobile ? [0.9, 1] : [1.05, 1];
+
+  const rotate = useTransform(scrollYProgress, [0, 1], [20, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], scaleRange);
+  const translate = useTransform(scrollYProgress, [0, 1], [0, -80]);
+
+  return (
+    <div
+      className="h-[38rem] md:h-[49rem] flex justify-center relative px-2 md:px-16"
+      ref={containerRef}
+    >
+      <div
+        className="py-5 md:py-8 w-full relative"
+        style={{ perspective: '1000px' }}
+      >
+        <Header translate={translate} titleComponent={titleComponent} />
+        <ScrollCard rotate={rotate} scale={scale}>
+          {children}
+        </ScrollCard>
+      </div>
+    </div>
+  );
+};
+
+const Header: React.FC<{
+  translate: MotionValue<number>;
+  titleComponent: React.ReactNode;
+}> = ({ translate, titleComponent }) => {
+  return (
+    <motion.div
+      style={{
+        translateY: translate,
+      }}
+      className="max-w-5xl mx-auto text-center mb-6 md:mb-8"
+    >
+      {titleComponent}
+    </motion.div>
+  );
+};
+
+const ScrollCard: React.FC<{
+  rotate: MotionValue<number>;
+  scale: MotionValue<number>;
+  children: React.ReactNode;
+}> = ({ rotate, scale, children }) => {
+  return (
+    <motion.div
+      style={{
+        rotateX: rotate,
+        scale,
+        boxShadow:
+          '0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a, 0 233px 65px #00000003',
+      }}
+      className="max-w-5xl mx-auto h-[28rem] md:h-[38rem] w-full border-4 border-[#6C6C6C] p-3 md:p-6 bg-[#222222] rounded-[30px] shadow-2xl"
+    >
+      <div className="h-full w-full overflow-hidden rounded-2xl bg-gray-100 dark:bg-zinc-900 flex">
+        {children}
+      </div>
+    </motion.div>
+  );
+};
 
 export function LandingPage() {
   return (
@@ -713,34 +833,22 @@ export function LandingPage() {
 
       {/* SECTION 5: FEATURED CREATORS */}
       <section className="bg-white px-6 py-20 md:px-16" id="featured">
-        <div className="mx-auto flex max-w-6xl flex-col gap-10">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-10">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Who Can You Meet on FanMeet?</h2>
             <p className="mt-2 text-base text-[#6C757D]">We have creators from every field!</p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {featuredCreators.map((creator) => (
-              <Card key={creator.name} elevated className="overflow-hidden border border-[#F1F3F5]">
-                <CardContent className="flex h-full flex-col gap-5 p-6">
-                  <div className="flex items-center gap-4">
-                    <Avatar initials={creator.avatar} size="lg" className="border-[3px] border-[#FF6B35]" />
-                    <div className="flex flex-col text-left">
-                      <span className="text-lg font-semibold text-[#212529]">{creator.name}</span>
-                      <span className="text-sm text-[#6C757D]">{creator.followers}</span>
-                    </div>
-                    <Badge variant="primary" className="ml-auto text-xs uppercase tracking-wide">
-                      {creator.priceRange}
-                    </Badge>
-                  </div>
-                  <div className="rounded-[12px] bg-[#F8F9FA] p-4 text-left">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">{creator.category}</p>
-                    <p className="mt-2 text-sm text-[#6C757D]">{creator.highlight}</p>
-                  </div>
-                  <Button className="mt-auto w-full">Meet Them</Button>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="flex w-full flex-col items-center justify-center">
+            <SphereImageGrid
+              images={featuredCreatorImages}
+              containerSize={420}
+              sphereRadius={190}
+              autoRotate
+              autoRotateSpeed={0.35}
+              dragSensitivity={0.7}
+              className="mx-auto"
+            />
           </div>
         </div>
       </section>
@@ -795,7 +903,7 @@ export function LandingPage() {
                         ▶️ Watch
                       </span>
                     </div>
-                    <div className="rounded-[18px] bg-white/90 p-4 text-left shadow-lg">
+                    <div className="rounded-[18px] bg-white/95 p-4 text-left shadow-lg">
                       <p className="text-sm font-semibold text-[#212529]">{video.name}</p>
                       <p className="mt-2 text-xs text-[#6C757D]">{video.context}</p>
                     </div>
@@ -839,29 +947,69 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 9: PHOTO REVIEWS WITH CARDS */}
-      <section className="bg-white px-6 py-20 md:px-16">
+      <section className="bg-white px-6 py-16 md:px-16">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-[#212529]">Screenshots From Real FanMeets</h2>
-            <p className="mt-2 text-base text-[#6C757D]">Real smiles, real advice, real memories</p>
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold text-[#212529]">Real FanMeets</h2>
+            <p className="mt-2 text-base text-[#6C757D]">
+              Real moments and reactions captured from live FanMeet calls.
+            </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
-            {photoReviews.map((photo) => (
-              <Card key={photo.id} elevated className="overflow-hidden border border-[#F1F3F5]">
-                <div className="flex h-56 items-end justify-center bg-gradient-to-br from-[#FFE5D9] to-[#FFBFA3] p-4 text-center">
-                  <div className="w-full rounded-[16px] bg-white/95 p-4 shadow-lg">
-                    <div className="flex items-center justify-center gap-1 text-yellow-400">
-                      {'★★★★★'.split('').map((star, index) => (
-                        <span key={`${photo.id}-star-${index}`}>{star}</span>
-                      ))}
+          <div className="flex flex-col gap-6 md:gap-8">
+            {Array.from({ length: 6 }).map((_, index) => {
+              const photo = photoReviews[index % photoReviews.length];
+              const fullReview = textReviews[index % textReviews.length];
+              const imageUrl = realFanmeetImageUrls[index % realFanmeetImageUrls.length];
+
+              return (
+                <ContainerScroll
+                  key={`${photo.id}-scroll-${index}`}
+                  titleComponent={
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
+                        Real FanMeet #{index + 1}
+                      </p>
+                      <p className="mt-1 text-sm text-[#6C757D]">{photo.context}</p>
                     </div>
-                    <p className="mt-3 text-sm font-semibold text-[#212529]">“{photo.quote}”</p>
-                    <p className="mt-2 text-xs text-[#6C757D]">{photo.context}</p>
+                  }
+                >
+                  <div className="flex h-full">
+                    <div className="flex h-full flex-col md:flex-row gap-4 rounded-2xl bg-white p-3 md:p-4 shadow-md border border-[#F1F3F5] w-full">
+                      <div className="w-full md:w-1/2">
+                        <div className="h-full w-full overflow-hidden rounded-xl">
+                          <img
+                            src={imageUrl}
+                            alt={photo.context}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
+                            Full Review
+                          </p>
+                          <p className="mt-2 text-sm font-semibold text-[#212529]">
+                            “{fullReview.quote}”
+                          </p>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-1 text-xs text-[#6C757D]">
+                          <span className="font-semibold text-[#212529]">{fullReview.name}</span>
+                          <span>{fullReview.met}</span>
+                          <span className="text-[11px] text-[#868E96]">Moment: {photo.context}</span>
+                          <span className="flex items-center gap-1 text-yellow-400">
+                            {'★★★★★'.split('').map((star, starIndex) => (
+                              <span key={`${photo.id}-star-${starIndex}`}>{star}</span>
+                            ))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </Card>
-            ))}
+                </ContainerScroll>
+              );
+            })}
           </div>
         </div>
       </section>
