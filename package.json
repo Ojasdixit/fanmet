@@ -1,0 +1,31 @@
+{
+  "name": "fanmeet-platform",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@10.8.1",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace apps/web\" \"npm run dev --workspace apps/api\"",
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:api": "npm run dev --workspace apps/api",
+    "build": "npm run build --workspaces",
+    "lint": "eslint \"**/*.{ts,tsx}\"",
+    "format": "prettier --write .",
+    "typecheck": "tsc --build tsconfig.base.json",
+    "prisma:migrate": "npm run migrate --workspace apps/api"
+  },
+  "devDependencies": {
+    "@types/node": "20.12.7",
+    "concurrently": "8.2.2",
+    "eslint": "8.57.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-import": "2.29.1",
+    "eslint-plugin-react": "7.35.0",
+    "eslint-plugin-react-hooks": "4.6.0",
+    "prettier": "3.3.3",
+    "typescript": "5.4.5"
+  }
+}

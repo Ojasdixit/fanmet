@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    "target": "ES2021",
+    "lib": ["ES2021", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
+    "baseUrl": ".",
+    "paths": {
+      "@fanmeet/ui": ["packages/ui/src"],
+      "@fanmeet/theme": ["packages/theme/src"],
+      "@fanmeet/api-types": ["packages/api-types/src"],
+      "@fanmeet/utils": ["packages/utils/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}
