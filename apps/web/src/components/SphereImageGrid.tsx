@@ -426,10 +426,10 @@ const SphereImageGrid: React.FC<SphereImageGridProps> = ({
           key={image.id}
           className="absolute cursor-pointer select-none transition-transform duration-200 ease-out"
           style={{
-            width: `${imageSize}px`,
-            height: `${imageSize}px`,
-            left: `${containerSize / 2 + position.x}px`,
-            top: `${containerSize / 2 + position.y}px`,
+            width: `${(baseImageSize / containerSize) * 100}%`,
+            height: `${(baseImageSize / containerSize) * 100}%`,
+            left: `${50 + (position.x / containerSize) * 100}%`,
+            top: `${50 + (position.y / containerSize) * 100}%`,
             opacity: position.fadeOpacity,
             transform: `translate(-50%, -50%) scale(${finalScale})`,
             zIndex: position.zIndex,
@@ -536,10 +536,8 @@ const SphereImageGrid: React.FC<SphereImageGridProps> = ({
 
       <div
         ref={containerRef}
-        className={`relative select-none cursor-grab active:cursor-grabbing ${className}`}
+        className={`relative select-none cursor-grab active:cursor-grabbing w-full h-full max-w-[250px] max-h-[250px] md:max-w-[420px] md:max-h-[420px] ${className}`}
         style={{
-          width: containerSize,
-          height: containerSize,
           perspective: `${perspective}px`,
         }}
         onMouseDown={handleMouseDown}

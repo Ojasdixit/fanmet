@@ -840,15 +840,17 @@ export function LandingPage() {
           </div>
 
           <div className="flex w-full flex-col items-center justify-center">
-            <SphereImageGrid
-              images={featuredCreatorImages}
-              containerSize={420}
-              sphereRadius={190}
-              autoRotate
-              autoRotateSpeed={0.35}
-              dragSensitivity={0.7}
-              className="mx-auto"
-            />
+            <div className="w-[250px] h-[250px] md:w-[420px] md:h-[420px] flex items-center justify-center">
+              <SphereImageGrid
+                images={featuredCreatorImages}
+                containerSize={280}
+                sphereRadius={130}
+                autoRotate
+                autoRotateSpeed={0.35}
+                dragSensitivity={0.7}
+                className="mx-auto"
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -966,7 +968,7 @@ export function LandingPage() {
                 <ContainerScroll
                   key={`${photo.id}-scroll-${index}`}
                   titleComponent={
-                    <div>
+                    <div className="mt-6 md:mt-0">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
                         Real FanMeet #{index + 1}
                       </p>
