@@ -75,7 +75,7 @@ export function AdminSystemLogs() {
               <p className="mt-2 text-[#6C757D]">{log.time} · {log.source}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <Badge variant="primary">{log.id}</Badge>
-                <Badge variant="secondary">{log.correlationId}</Badge>
+                <Badge variant="default">{log.correlationId}</Badge>
                 <Button size="sm" variant="ghost">
                   View JSON
                 </Button>
