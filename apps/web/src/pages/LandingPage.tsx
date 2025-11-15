@@ -654,16 +654,16 @@ export function LandingPage() {
   return (
     <div className="flex flex-col">
       {/* SECTION 1: HERO */}
-      <section className="px-6 py-20 md:px-16 md:py-24">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-6">
-            <h1 className="text-4xl font-bold leading-tight text-[#212529] md:text-5xl">
+      <section className="px-6 py-12 md:px-16 md:py-24">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 md:gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          <div className="flex flex-col gap-4 md:gap-6 order-2 md:order-1">
+            <h1 className="hidden md:block order-2 md:order-1 text-4xl font-bold leading-tight text-[#212529] md:text-5xl">
               Meet Your Favorite Creators Face-to-Face!
             </h1>
-            <p className="text-xl text-[#6C757D] leading-relaxed">
+            <p className="hidden md:block order-3 md:order-2 text-xl text-[#6C757D] leading-relaxed">
               Bid to win a real video call with the creators you love. It's like winning a golden ticket to meet your hero!
             </p>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="order-1 md:order-3 flex flex-col gap-4 sm:flex-row sm:items-center">
               <Button size="lg" className="px-12 text-lg">
                 Browse Events Now
               </Button>
@@ -671,12 +671,12 @@ export function LandingPage() {
                 ▶️ Watch How It Works (30 sec)
               </Button>
             </div>
-            <div className="flex items-center gap-2 text-sm text-[#6C757D]">
+            <div className="order-4 flex items-center gap-2 text-sm text-[#6C757D]">
               <span>👇</span>
               <span>Scroll to see who you can meet</span>
             </div>
           </div>
-          <div className="relative flex h-full items-center justify-center">
+          <div className="relative flex h-full items-center justify-center order-1 md:order-2">
             <div className="relative flex h-[320px] w-full max-w-[400px] items-center justify-center overflow-hidden rounded-[24px] bg-white p-6 shadow-[var(--shadow-lg)]">
               <div className="absolute inset-0 bg-gradient-to-br from-[#FFE5D9] via-white to-[#FFE5D9]" />
               <div className="relative z-10 flex flex-col items-center gap-4 text-center">
@@ -702,105 +702,25 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 2: THE PROBLEM (Empathy) */}
-      <section className="bg-[#F8F9FA] px-6 py-16 md:px-16">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="grid gap-8 md:grid-cols-3">
-            <div className="flex flex-col items-center gap-4">
-              <div className="text-4xl">😔</div>
-              <h3 className="text-lg font-semibold text-[#212529]">
-                Ever wished you could talk to your favorite YouTuber?
-              </h3>
-              <p className="text-sm text-[#6C757D]">
-                But they have millions of followers
-              </p>
-            </div>
-            <div className="flex flex-col items-center gap-4">
-              <div className="text-4xl">❓</div>
-              <h3 className="text-lg font-semibold text-[#212529]">
-                Want to ask your burning questions?
-              </h3>
-              <p className="text-sm text-[#6C757D]">
-                But comments get lost in thousands of replies
-              </p>
-            </div>
-            <div className="flex flex-col items-center gap-4">
-              <div className="text-4xl">💭</div>
-              <h3 className="text-lg font-semibold text-[#212529]">
-                Need advice from someone you admire?
-              </h3>
-              <p className="text-sm text-[#6C757D]">
-                But they're too busy or too far away
-              </p>
-            </div>
-          </div>
-          <div className="mt-12 rounded-[20px] bg-white p-8 shadow-[var(--shadow-md)]">
-            <p className="text-lg text-[#212529] font-medium">
-              We felt the same way. That's why we built FanMeet! 💝
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 3: HOW IT WORKS (3 Simple Steps) */}
-      <section className="bg-[#F8F9FA] px-6 py-20 md:px-16" id="how-it-works">
-        <div className="mx-auto flex max-w-5xl flex-col gap-12">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-[#212529]">How It Works</h2>
-            <p className="mt-2 text-lg text-[#6C757D]">
-              Three simple steps to meet your favorite creators
-            </p>
-          </div>
-          <div className="relative flex flex-col items-stretch gap-12 md:flex-row md:items-start md:justify-between">
-            <div className="hidden flex-1 border-t-2 border-dashed border-[#FF6B35] md:block" />
-            {processSteps.map((step, index) => (
-              <div
-                key={step.title}
-                className="relative mx-auto flex w-full max-w-[280px] flex-col items-center gap-4 text-center"
-              >
-                <div className="relative">
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full bg-[#FF6B35] text-4xl shadow-lg">
-                    {step.icon}
-                  </div>
-                  <div className="absolute -top-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#FF6B35] bg-white text-sm font-bold text-[#FF6B35] shadow-md">
-                    {step.step}
-                  </div>
-                </div>
-                <h3 className="text-xl font-semibold text-[#212529]">{step.title}</h3>
-                <p className="text-sm text-[#6C757D] leading-relaxed">{step.description}</p>
-                {index === processSteps.length - 1 && (
-                  <div className="mt-4">
-                    <Button variant="secondary" size="sm">
-                      Watch Real Examples →
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ))}
-            <div className="hidden flex-1 border-t-2 border-dashed border-[#FF6B35] md:block" />
-          </div>
-        </div>
-      </section>
-
       {/* SECTION 4: ANIMATED EXPLAINER VIDEO */}
-      <section className="bg-white px-6 py-20 md:px-16">
+      <section className="bg-white px-4 py-12 md:px-16 md:py-20">
         <div className="mx-auto max-w-4xl text-center">
-          <div className="mb-12">
-            <h2 className="mb-4 text-3xl font-bold text-[#212529]">See FanMeet in Action!</h2>
-            <p className="text-lg text-[#6C757D]">Watch Rahul bid and win a call with his favorite creator</p>
+          <div className="mb-8 md:mb-12">
+            <h2 className="mb-3 text-2xl md:text-3xl font-bold text-[#212529]">See FanMeet in Action!</h2>
+            <p className="text-base md:text-lg text-[#6C757D]">Watch Rahul bid and win a call with his favorite creator</p>
           </div>
 
-          <div className="relative group">
-            <div className="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#FFE5D9] to-[#FF6B35] p-1 shadow-2xl transition-transform duration-300 group-hover:scale-105">
-              <div className="relative aspect-video w-full overflow-hidden rounded-[20px] bg-white">
+          <div className="relative group mx-auto max-w-md md:max-w-2xl">
+            <div className="relative overflow-hidden rounded-[20px] md:rounded-[24px] bg-gradient-to-br from-[#FFE5D9] to-[#FF6B35] p-[2px] md:p-1 shadow-xl md:shadow-2xl transition-transform duration-300 group-hover:scale-105">
+              <div className="relative aspect-video w-full overflow-hidden rounded-[18px] md:rounded-[20px] bg-white">
                 <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#F8F9FA] to-[#FFE5D9]">
-                  <div className="text-center">
-                    <div className="mb-4 text-6xl">▶️</div>
-                    <h3 className="mb-2 text-xl font-semibold text-[#212529]">2-Minute Demo Video</h3>
-                    <p className="mb-4 text-sm text-[#6C757D]">
+                  <div className="text-center px-4 py-4 md:px-6 md:py-6">
+                    <div className="mb-3 text-4xl md:mb-4 md:text-6xl">▶️</div>
+                    <h3 className="mb-1 text-lg md:mb-2 md:text-xl font-semibold text-[#212529]">2-Minute Demo Video</h3>
+                    <p className="mb-3 text-xs sm:text-sm text-[#6C757D]">
                       "Hi, I'm Rahul. Let me show you how I met my favorite gaming creator..."
                     </p>
-                    <Button size="lg" className="px-8">
+                    <Button size="lg" className="mt-1 w-full sm:w-auto px-6">
                       ▶️ Play Demo Video
                     </Button>
                   </div>
