@@ -2,15 +2,16 @@ import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import clsx from 'clsx';
 
-const baseStyles = 'inline-flex items-center justify-center rounded-[12px] font-semibold transition-transform duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed';
+const baseStyles =
+  'inline-flex items-center justify-center rounded-[12px] font-semibold transition-transform duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed';
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-[#FF6B35] text-white shadow-[var(--shadow-md)] hover:bg-[#FF8C42] hover:shadow-[var(--shadow-lg)] active:bg-[#E63946] disabled:bg-[#E9ECEF] disabled:text-[#6C757D] hover:-translate-y-[1px]',
+    'bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-white shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] hover:-translate-y-[1px] active:brightness-110 disabled:bg-[#E9ECEF] disabled:text-[#6C757D]',
   secondary:
-    'bg-white text-[#FF6B35] border-2 border-[#FF6B35] hover:bg-[#FFE5D9] active:bg-[#FF8C42] active:text-white disabled:text-[#6C757D] disabled:border-[#E9ECEF] disabled:bg-transparent',
+    'bg-white text-[#C045FF] border-2 border-[#C045FF] hover:bg-[#F4E6FF] hover:text-[#8B3FFF] active:bg-[#8B3FFF] active:text-white disabled:text-[#6C757D] disabled:border-[#E9ECEF] disabled:bg-transparent',
   ghost:
-    'bg-transparent text-[#FF6B35] hover:bg-[#FFE5D9] active:bg-[#FF8C42] active:text-white disabled:text-[#6C757D]',
+    'bg-transparent text-[#C045FF] hover:bg-[#F4E6FF] hover:text-[#8B3FFF] active:bg-[#8B3FFF] active:text-white disabled:text-[#6C757D]',
   danger:
     'bg-[#DC3545] text-white hover:bg-[#C82333] shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] disabled:bg-[#E9ECEF] disabled:text-[#6C757D]'
 };

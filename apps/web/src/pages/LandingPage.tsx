@@ -1,7 +1,10 @@
 import React, { useRef, useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useScroll, useTransform, motion, MotionValue } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, Avatar, Badge } from '@fanmeet/ui';
 import SphereImageGrid, { type ImageData } from '../components/SphereImageGrid';
+import heroImage from '../../Ready-to-Share Social Media Posts to Amplify Your Brand on Pinterest.jpeg';
 
 const featuredCreators = [
   {
@@ -563,6 +566,75 @@ const footerLinks = {
 
 const paymentLogos = ['Razorpay', 'Visa', 'Mastercard', 'UPI'];
 
+interface GradientBarsProps {
+  numBars?: number;
+  gradientFrom?: string;
+  gradientTo?: string;
+  animationDuration?: number;
+  className?: string;
+}
+
+const GradientBars: React.FC<GradientBarsProps> = ({
+  numBars = 18,
+  gradientFrom = 'rgba(192,69,255,0.9)',
+  gradientTo = 'rgba(255,255,255,0)',
+  animationDuration = 2.2,
+  className = '',
+}) => {
+  const calculateHeight = (index: number, total: number) => {
+    const position = index / (total - 1);
+    const maxHeight = 100;
+    const minHeight = 30;
+    const center = 0.5;
+    const distanceFromCenter = Math.abs(position - center);
+    const heightPercentage = Math.pow(distanceFromCenter * 2, 1.2);
+
+    return minHeight + (maxHeight - minHeight) * heightPercentage;
+  };
+
+  return (
+    <>
+      <style>{`
+        @keyframes pulseBar {
+          0% { transform: scaleY(var(--initial-scale)); }
+          100% { transform: scaleY(calc(var(--initial-scale) * 0.7)); }
+        }
+      `}</style>
+      <div className={`absolute inset-0 z-0 overflow-hidden pointer-events-none ${className}`}>
+        <div
+          className="flex h-full"
+          style={{
+            width: '100%',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
+            WebkitFontSmoothing: 'antialiased',
+          }}
+        >
+          {Array.from({ length: numBars }).map((_, index) => {
+            const height = calculateHeight(index, numBars);
+            const barStyle: CSSProperties & { ['--initial-scale']: number } = {
+              flex: `1 0 calc(100% / ${numBars})`,
+              maxWidth: `calc(100% / ${numBars})`,
+              height: '100%',
+              background: `linear-gradient(to top, ${gradientFrom}, ${gradientTo})`,
+              transform: `scaleY(${height / 100})`,
+              transformOrigin: 'bottom',
+              transition: 'transform 0.5s ease-in-out',
+              animation: `pulseBar ${animationDuration}s ease-in-out infinite alternate`,
+              animationDelay: `${index * 0.1}s`,
+              outline: '1px solid rgba(0, 0, 0, 0)',
+              boxSizing: 'border-box',
+              ['--initial-scale']: height / 100,
+            };
+
+            return <div key={index} style={barStyle} />;
+          })}
+        </div>
+      </div>
+    </>
+  );
+};
+
 const ContainerScroll: React.FC<{
   titleComponent: string | React.ReactNode;
   children: React.ReactNode;
@@ -651,108 +723,281 @@ const ScrollCard: React.FC<{
 };
 
 export function LandingPage() {
+  const navigate = useNavigate();
+  const [activeCreatorCategory, setActiveCreatorCategory] = useState<string>('All');
+  const [videoPlaying, setVideoPlaying] = useState(false);
+
+  const filteredCreators =
+    activeCreatorCategory === 'All'
+      ? featuredCreators
+      : featuredCreators.filter((creator) =>
+          creator.category.toLowerCase().includes(activeCreatorCategory.toLowerCase()),
+        );
+
   return (
     <div className="flex flex-col">
       {/* SECTION 1: HERO */}
-      <section className="px-6 py-12 md:px-16 md:py-24">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 md:gap-12 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-4 md:gap-6 order-2 md:order-1">
-            <h1 className="hidden md:block order-2 md:order-1 text-4xl font-bold leading-tight text-[#212529] md:text-5xl">
-              Meet Your Favorite Creators Face-to-Face!
-            </h1>
-            <p className="hidden md:block order-3 md:order-2 text-xl text-[#6C757D] leading-relaxed">
-              Bid to win a real video call with the creators you love. It's like winning a golden ticket to meet your hero!
-            </p>
-            <div className="order-1 md:order-3 flex flex-col gap-4 sm:flex-row sm:items-center">
-              <Button size="lg" className="px-12 text-lg">
-                Browse Events Now
-              </Button>
-              <Button variant="secondary" size="lg" className="px-8">
-                ▶️ Watch How It Works (30 sec)
-              </Button>
+      <section className="relative overflow-hidden bg-[#050014] text-white">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,213,255,0.32)_0,_transparent_55%),radial-gradient(circle_at_bottom,_rgba(236,72,153,0.32)_0,_transparent_55%)]" />
+        <div className="relative z-10 mx-auto flex max-w-none flex-col px-2 pb-4 pt-6 md:max-w-7xl md:px-8 md:pb-6 md:pt-8">
+          <div className="flex items-center justify-between text-white">
+            <div className="flex items-center gap-6 md:gap-10">
+              <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
+                <span className="h-8 w-8 rounded-2xl bg-gradient-to-br from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] shadow-[0_0_25px_rgba(192,69,255,0.6)]" />
+                <span>FanMeet</span>
+              </div>
+              <nav className="hidden items-center gap-6 text-sm font-medium text-white/80 md:flex">
+                <button
+                  type="button"
+                  onClick={() => navigate('/fan')}
+                  className="transition-colors hover:text-white"
+                >
+                  Browse Events
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('how-it-works');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className="transition-colors hover:text-white"
+                >
+                  How It Works
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/creator')}
+                  className="transition-colors hover:text-white"
+                >
+                  For Creators
+                </button>
+              </nav>
             </div>
-            <div className="order-4 flex items-center gap-2 text-sm text-[#6C757D]">
-              <span>👇</span>
-              <span>Scroll to see who you can meet</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="hidden rounded-full border border-white/30 bg-black/40 px-4 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:border-white hover:bg-black/60 hover:shadow-[0_0_25px_rgba(255,255,255,0.6)] md:inline-flex"
+                onClick={() => navigate('/auth')}
+              >
+                Log in
+              </button>
+              <button
+                type="button"
+                className="rounded-full border border-transparent bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-[0_0_35px_rgba(192,69,255,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#E6FF00]"
+                onClick={() => navigate('/auth')}
+              >
+                Sign up
+              </button>
             </div>
           </div>
-          <div className="relative flex h-full items-center justify-center order-1 md:order-2">
-            <div className="relative flex h-[320px] w-full max-w-[400px] items-center justify-center overflow-hidden rounded-[24px] bg-white p-6 shadow-[var(--shadow-lg)]">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#FFE5D9] via-white to-[#FFE5D9]" />
-              <div className="relative z-10 flex flex-col items-center gap-4 text-center">
-                <Avatar initials="PS" size="lg" />
-                <h3 className="text-xl font-semibold text-[#212529]">Live Meet with Priya</h3>
-                <p className="text-sm text-[#6C757D]">
-                  "Ask me anything about building your creator business!"
+          <motion.div
+            className="mt-6 flex flex-col gap-8 md:mt-12 md:flex-row md:items-stretch"
+            initial={{ opacity: 0, y: 32 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+          >
+            <div className="flex w-full flex-col md:w-1/2 lg:w-3/5">
+              <div className="max-w-xl space-y-6">
+                <p
+                  className="inline-block text-xl font-normal text-white/90 drop-shadow-[0_8px_30px_rgba(0,0,0,0.8)] sm:text-2xl"
+                  style={{ fontFamily: 'cursive' }}
+                >
+                  meet your favourite creators on fanmet
                 </p>
-                <div className="rounded-[16px] bg-white px-6 py-3 shadow-[var(--shadow-md)]">
-                  <div className="text-sm text-[#6C757D]">Current Bid</div>
-                  <div className="text-2xl font-bold text-[#FF6B35]">₹280</div>
+                <h1 className="text-4xl font-extrabold leading-tight sm:text-5xl lg:text-6xl">
+                  Live 1:1 video calls
+                  <span className="block text-[#FACC15]">with the people you actually care about.</span>
+                </h1>
+                <div className="h-1 w-24 rounded-full bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF]" />
+                <p className="max-w-lg text-sm text-white/80 sm:text-base">
+                  Bid in tiny live auctions to win 5–10 minute video hangs with creators, gamers, chefs, coaches and other
+                  internet favourites. If you don&apos;t win, you get most of your money back.
+                </p>
+                <div className="flex flex-wrap items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/fan')}
+                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-7 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(0,0,0,0.7)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(192,69,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E6FF00] focus-visible:ring-offset-2"
+                  >
+                    Explore live meets
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById('how-it-works');
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }}
+                    className="inline-flex items-center justify-center rounded-full border border-white/40 bg-black/40 px-5 py-2.5 text-sm font-medium text-white shadow-md backdrop-blur-xl transition-transform duration-200 hover:-translate-y-0.5 hover:bg-black/70"
+                  >
+                    <span className="mr-2 text-base">▶️</span>
+                    How FanMeet works
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-4 text-xs text-white/80 sm:grid-cols-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#22C55E]/20 text-sm">🔒</span>
+                  <span>90% refund if you don&apos;t win the bid.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#00D5FF]/20 text-sm">✅</span>
+                  <span>Verified creators, safe payments, no fake profiles.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#EC4899]/20 text-sm">🇮🇳</span>
+                  <span>Built in India for Indian fans &amp; creators.</span>
                 </div>
               </div>
             </div>
-            <div className="absolute -bottom-6 -left-6 hidden flex-col gap-2 rounded-[16px] bg-white px-4 py-3 shadow-[var(--shadow-md)] md:flex">
-              <span className="text-xs uppercase tracking-wide text-[#6C757D]">🔥  Live Bids</span>
-              <span className="text-lg font-semibold text-[#FF6B35]">23 people bidding now</span>
-            </div>
-            <div className="absolute -top-8 -right-6 hidden rounded-[16px] bg-white px-4 py-3 text-sm text-[#212529] shadow-[var(--shadow-md)] md:block">
-              ⏱️ Ends in <span className="font-semibold text-[#FF6B35]">02:12:45</span>
-            </div>
-          </div>
+            <motion.div
+              className="w-full h-[280px] md:h-[440px] md:w-1/2 lg:h-[530px] lg:w-2/5"
+              initial={{ clipPath: 'polygon(100% 0, 100% 0, 100% 100%, 100% 100%)' }}
+              animate={{ clipPath: 'polygon(25% 0, 100% 0, 100% 100%, 0% 100%)' }}
+              transition={{ duration: 1.2, ease: 'circOut' }}
+            >
+              <div className="h-full w-full overflow-hidden rounded-[32px] shadow-[0_28px_80px_rgba(0,0,0,0.85)]">
+                <img
+                  src={heroImage}
+                  alt="FanMeet colourful hero"
+                  className="h-full w-full object-cover"
+                />
+                <div className="hidden h-full w-full rounded-[32px] bg-gradient-to-t from-black/60 via-black/10 to-transparent md:block" />
+              </div>
+            </motion.div>
+          </motion.div>
         </div>
       </section>
 
       {/* SECTION 4: ANIMATED EXPLAINER VIDEO */}
-      <section className="bg-white px-4 py-12 md:px-16 md:py-20">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="mb-8 md:mb-12">
-            <h2 className="mb-3 text-2xl md:text-3xl font-bold text-[#212529]">See FanMeet in Action!</h2>
-            <p className="text-base md:text-lg text-[#6C757D]">Watch Rahul bid and win a call with his favorite creator</p>
+      <section id="how-it-works" className="bg-white px-6 py-16 md:px-16 md:py-24">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-10 text-center">
+            <h2 className="text-3xl font-bold text-[#140423]">Scroll through how FanMeet works</h2>
+            <p className="mt-2 text-base text-[#4A3B78]">
+              Cards stack as you scroll, revealing every piece of the fan-meet journey – from bidding to posting your own events.
+            </p>
           </div>
 
-          <div className="relative group mx-auto max-w-md md:max-w-2xl">
-            <div className="relative overflow-hidden rounded-[20px] md:rounded-[24px] bg-gradient-to-br from-[#FFE5D9] to-[#FF6B35] p-[2px] md:p-1 shadow-xl md:shadow-2xl transition-transform duration-300 group-hover:scale-105">
-              <div className="relative aspect-video w-full overflow-hidden rounded-[18px] md:rounded-[20px] bg-white">
-                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#F8F9FA] to-[#FFE5D9]">
-                  <div className="text-center px-4 py-4 md:px-6 md:py-6">
-                    <div className="mb-3 text-4xl md:mb-4 md:text-6xl">▶️</div>
-                    <h3 className="mb-1 text-lg md:mb-2 md:text-xl font-semibold text-[#212529]">2-Minute Demo Video</h3>
-                    <p className="mb-3 text-xs sm:text-sm text-[#6C757D]">
-                      "Hi, I'm Rahul. Let me show you how I met my favorite gaming creator..."
-                    </p>
-                    <Button size="lg" className="mt-1 w-full sm:w-auto px-6">
-                      ▶️ Play Demo Video
-                    </Button>
-                  </div>
-                </div>
+          <div className="mt-8 grid gap-6 md:grid-cols-3">
+            <motion.article
+              className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF6B9D] via-[#FFC46B] to-[#E6FF00] p-[1px] shadow-[0_18px_45px_rgba(255,107,157,0.55)]"
+              whileHover={{ y: -12, rotateX: 3, rotateY: -3 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+            >
+              <div className="flex h-full flex-col rounded-[26px] bg-white/95 p-5 text-left">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#C045FF]">Step 1</p>
+                <h3 className="text-lg font-semibold text-[#140423]">How it works</h3>
+                <p className="mt-2 text-sm text-[#4A3B78]">
+                  Browse upcoming events, pick your creator, and place a bid to win a live 1:1 video call.
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-[#4A3B78]">
+                  {processSteps.map((step) => (
+                    <li key={step.step} className="flex gap-2">
+                      <span className="mt-0.5 text-base">{step.icon}</span>
+                      <div>
+                        <p className="font-medium text-[#140423]">{step.title}</p>
+                        <p className="text-xs text-[#6C5A9C]">{step.description}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
+            </motion.article>
 
-            {/* Floating testimonial cards */}
-            <div className="absolute -left-4 top-1/4 hidden lg:block">
-              <div className="max-w-[200px] rounded-[16px] border border-[#E9ECEF] bg-white p-4 shadow-lg">
-                <div className="mb-2 flex items-center gap-2">
-                  <Avatar initials="R" size="sm" />
-                  <span className="text-sm font-medium text-[#212529]">Rahul</span>
-                </div>
-                <p className="text-xs text-[#6C757D]">"10 minutes that changed my life!"</p>
-              </div>
-            </div>
+            <motion.article
+              className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-br from-[#FFE66B] via-[#E6FF00] to-[#00F0FF] p-[1px] shadow-[0_18px_45px_rgba(0,240,255,0.45)]"
+              whileHover={{ y: -12, rotateX: 3, rotateY: 3 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+            >
+              <div className="flex h-full flex-col rounded-[26px] bg-white/95 p-5 text-left">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#00A3FF]">Step 2</p>
+                <h3 className="text-lg font-semibold text-[#140423]">Featured creators</h3>
+                <p className="mt-2 text-sm text-[#4A3B78]">
+                  Discover creators across categories. Tap a chip to filter the grid.
+                </p>
 
-            <div className="absolute -right-4 bottom-1/4 hidden lg:block">
-              <div className="max-w-[200px] rounded-[16px] border border-[#E9ECEF] bg-white p-4 shadow-lg">
-                <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
-                  LIVE REACTION
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  {['All', 'Beauty', 'Cosplay', 'Fitness', 'Music', 'Sports', 'Gaming'].map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => setActiveCreatorCategory(category)}
+                      className={
+                        'rounded-full px-3 py-1 font-medium transition-colors ' +
+                        (activeCreatorCategory === category
+                          ? 'bg-[#140423] text-white'
+                          : 'bg-white/80 text-[#4A3B78] hover:bg-white')
+                      }
+                    >
+                      {category}
+                    </button>
+                  ))}
                 </div>
-                <p className="text-xs text-[#6C757D]">"I can't believe this actually worked! 🤩"</p>
+
+                <div className="mt-4 grid gap-3 text-xs text-[#4A3B78] md:grid-cols-2">
+                  {filteredCreators.slice(0, 4).map((creator) => (
+                    <div
+                      key={creator.name}
+                      className="flex items-center gap-2 rounded-2xl bg-[#F8F5FF] px-3 py-2"
+                    >
+                      <Avatar initials={creator.avatar} size="sm" />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1">
+                          <p className="text-xs font-semibold text-[#140423]">{creator.name}</p>
+                          <Badge variant="primary" className="px-2 py-0.5 text-[9px] leading-tight">
+                            Verified
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-[#6C5A9C]">
+                          {creator.category} · {creator.followers}
+                        </p>
+                        <p className="text-[11px] text-[#C045FF]">From {creator.priceRange}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            </motion.article>
+
+            <motion.article
+              className="relative w-full overflow-hidden rounded-3xl bg-gradient-to-br from-[#00F0FF] via-[#6B6BFF] to-[#C045FF] p-[1px] shadow-[0_18px_45px_rgba(107,107,255,0.55)]"
+              whileHover={{ y: -12, rotateX: -3, rotateY: 3 }}
+              transition={{ type: 'spring', stiffness: 220, damping: 20 }}
+            >
+              <div className="flex h-full flex-col rounded-[26px] bg-white/95 p-5 text-left">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#C045FF]">Step 3</p>
+                <h3 className="text-lg font-semibold text-[#140423]">Get verified as a creator</h3>
+                <p className="mt-2 text-sm text-[#4A3B78]">
+                  Apply once, get verified, and start hosting paid or free fan meets from anywhere.
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-[#4A3B78]">
+                  <li>• 1K+ followers or a unique skill people want to learn</li>
+                  <li>• Simple KYC & social verification by our team</li>
+                  <li>• 90% payout on every winning bid · no hidden fees</li>
+                </ul>
+                <button
+                  type="button"
+                  onClick={() => navigate('/creator')}
+                  className="mt-4 inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-xs font-semibold text-[#140423] shadow-md transition-transform hover:-translate-y-0.5"
+                >
+                  Apply to get verified
+                </button>
+              </div>
+            </motion.article>
+
           </div>
         </div>
       </section>
 
       {/* SECTION 5: FEATURED CREATORS */}
-      <section className="bg-white px-6 py-20 md:px-16" id="featured">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        id="featured"
+      >
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-10">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Who Can You Meet on FanMeet?</h2>
@@ -776,7 +1021,7 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 6: SOCIAL PROOF NUMBERS */}
-      <section className="bg-[#212529] px-6 py-16 md:px-16">
+      <section className="bg-[radial-gradient(circle_at_top,_#00D5FF_0,_#050014_50%),radial-gradient(circle_at_bottom,_#F97316_0,_#050014_55%)] px-6 py-16 md:px-16">
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
             <h2 className="mb-4 text-3xl font-bold text-white">Join Thousands of Happy Fans! 🎉</h2>
@@ -786,7 +1031,7 @@ export function LandingPage() {
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
             {socialProofStatsTop.map((stat) => (
               <div key={stat.label} className="text-center">
-                <div className="mb-2 flex items-center justify-center gap-2 text-4xl font-bold text-[#FF6B35]">
+                <div className="mb-2 flex items-center justify-center gap-2 text-4xl font-bold text-[#FACC15]">
                   <span>{stat.value}</span>
                   {stat.suffix ? <span className="text-2xl text-yellow-300">{stat.suffix}</span> : null}
                 </div>
@@ -798,7 +1043,7 @@ export function LandingPage() {
           <div className="mt-8 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
             {socialProofStatsBottom.map((stat) => (
               <div key={stat.label} className="text-center">
-                <div className="mb-2 text-4xl font-bold text-[#FF6B35]">{stat.value}</div>
+                <div className="mb-2 text-4xl font-bold text-[#22C55E]">{stat.value}</div>
                 <div className="text-sm text-[#ADB5BD]">{stat.label}</div>
               </div>
             ))}
@@ -806,42 +1051,73 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 7: VIDEO TESTIMONIALS - FANS */}
-      <section className="bg-white px-6 py-20 md:px-16">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-12 text-center">
-            <h2 className="text-3xl font-bold text-[#212529]">Fans Are Having Life-Changing Conversations</h2>
-            <p className="mt-2 text-base text-[#6C757D]">Short, honest clips from real fans across India</p>
+      {/* SECTION 7: OVERVIEW VIDEO (FULL-WIDTH) */}
+      <section className="relative overflow-hidden bg-[#050014] px-6 py-16 text-white md:px-16 md:py-24">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(0,213,255,0.32)_0,_transparent_55%),radial-gradient(circle_at_bottom,_rgba(236,72,153,0.32)_0,_transparent_55%)]" />
+
+        <div className="relative z-10 mx-auto flex max-w-6xl flex-col gap-10 md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.1fr)] md:items-center">
+          <div className="space-y-4 text-left text-white">
+            <p className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.16em] text-[#E6FF00] backdrop-blur-md">
+              LIVE DEMO
+            </p>
+            <h2 className="text-3xl font-extrabold leading-tight sm:text-4xl lg:text-[2.6rem]">
+              See how a real FanMeet feels in under 2 minutes
+            </h2>
+            <p className="max-w-xl text-sm text-white/80 sm:text-base">
+              Watch a real fan bid, win, and jump into a live video call with their favourite creator. No scripts, no actors
+              – just genuine reactions.
+            </p>
+            <ul className="mt-4 space-y-2 text-sm text-white/80">
+              <li>• What the bidding screen looks like in action</li>
+              <li>• How we keep calls safe, timed, and high-quality</li>
+              <li>• The moment a fan realises their call is actually happening</li>
+            </ul>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-3">
-            {fanVideoTestimonials.map((video) => (
-              <Card key={video.name} elevated className="overflow-hidden border border-[#F1F3F5]">
-                <div className="relative aspect-[4/5] bg-gradient-to-br from-[#FFE5D9] via-white to-[#FFE5D9]">
-                  <div className="absolute inset-0 flex flex-col justify-between p-6">
-                    <div className="flex items-center justify-between text-xs text-[#6C757D]">
-                      <span>{video.duration}</span>
-                      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-[#FF6B35] shadow-sm">
-                        ▶️ Watch
-                      </span>
+          <div className="relative mx-auto w-full max-w-3xl">
+            <div className="relative overflow-hidden rounded-[28px] bg-black/40 p-[2px] shadow-[0_20px_60px_rgba(5,0,20,0.7)]">
+              <div className="relative aspect-video w-full overflow-hidden rounded-[24px] bg-black">
+                {!videoPlaying ? (
+                  <button
+                    type="button"
+                    onClick={() => setVideoPlaying(true)}
+                    className="group relative h-full w-full"
+                  >
+                    <img
+                      src="https://cdn.prod.website-files.com/62c48d78ef34931f8a604ef5/67630876396363c467036ede_video-poster.webp"
+                      alt="FanMeet overview video preview"
+                      className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center text-white">
+                      <div className="inline-flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 text-xs font-medium backdrop-blur-md">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#C045FF] shadow-lg">
+                          ▶
+                        </span>
+                        <span className="text-xs sm:text-sm">Play 2 min overview</span>
+                      </div>
+                      <p className="max-w-md text-xs text-white/80 sm:text-sm">
+                        "This feels like a private show with your favourite creator. I forgot we were on camera." – real fan
+                      </p>
                     </div>
-                    <div className="rounded-[18px] bg-white/95 p-4 text-left shadow-lg">
-                      <p className="text-sm font-semibold text-[#212529]">{video.name}</p>
-                      <p className="mt-2 text-xs text-[#6C757D]">{video.context}</p>
-                    </div>
-                  </div>
-                </div>
-                <CardContent className="flex flex-col gap-3 p-6">
-                  <p className="text-sm text-[#212529]">“{video.quote}”</p>
-                </CardContent>
-              </Card>
-            ))}
+                  </button>
+                ) : (
+                  <iframe
+                    className="h-full w-full"
+                    src="https://www.youtube.com/embed/S5IQtZlgNC8?autoplay=1&rel=0&modestbranding=1"
+                    title="FanMeet overview video"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* SECTION 8: VIDEO TESTIMONIALS - CREATORS */}
-      <section className="bg-[#F8F9FA] px-6 py-20 md:px-16">
+      <section className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#F8F9FA_55%)] px-6 py-20 md:px-16">
         <div className="mx-auto max-w-5xl">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Creators Love FanMeet Too</h2>
@@ -853,7 +1129,7 @@ export function LandingPage() {
               <Card key={video.name} elevated className="overflow-hidden border border-[#E9ECEF]">
                 <div className="relative aspect-[16/9] bg-gradient-to-br from-[#212529] via-[#343A40] to-[#212529]">
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#FF6B35] shadow">
+                    <span className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#C045FF] shadow">
                       ▶️ {video.duration}
                     </span>
                   </div>
@@ -869,7 +1145,7 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 9: PHOTO REVIEWS WITH CARDS */}
-      <section className="bg-white px-6 py-16 md:px-16">
+      <section className="bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-16 md:px-16">
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Real FanMeets</h2>
@@ -889,7 +1165,7 @@ export function LandingPage() {
                   key={`${photo.id}-scroll-${index}`}
                   titleComponent={
                     <div className="mt-6 md:mt-0">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#C045FF]">
                         Real FanMeet #{index + 1}
                       </p>
                       <p className="mt-1 text-sm text-[#6C757D]">{photo.context}</p>
@@ -909,7 +1185,7 @@ export function LandingPage() {
                       </div>
                       <div className="flex-1 flex flex-col justify-between">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[#C045FF]">
                             Full Review
                           </p>
                           <p className="mt-2 text-sm font-semibold text-[#212529]">
@@ -920,7 +1196,7 @@ export function LandingPage() {
                           <span className="font-semibold text-[#212529]">{fullReview.name}</span>
                           <span>{fullReview.met}</span>
                           <span className="text-[11px] text-[#868E96]">Moment: {photo.context}</span>
-                          <span className="flex items-center gap-1 text-yellow-400">
+                          <span className="flex items-center gap-1 text-[#C045FF]">
                             {'★★★★★'.split('').map((star, starIndex) => (
                               <span key={`${photo.id}-star-${starIndex}`}>{star}</span>
                             ))}
@@ -937,39 +1213,40 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 10: TEXT REVIEWS CAROUSEL */}
-      <section className="bg-[#F8F9FA] px-6 py-20 md:px-16">
+      <section className="bg-[radial-gradient(circle_at_top,_#ECFEFF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#F8F9FA_55%)] px-6 py-20 md:px-16">
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Stories That Make You Hit “Bid”</h2>
             <p className="mt-2 text-base text-[#6C757D]">Swipe through heartfelt reviews from fans just like you</p>
           </div>
 
-          <div className="overflow-x-auto">
-            <div className="flex gap-6 pb-4">
-              {textReviews.map((review, index) => (
-                <Card key={review.name} elevated className="min-w-[280px] flex-1 border border-[#E9ECEF] bg-white">
-                  <CardContent className="flex h-full flex-col gap-4 p-6">
-                    <div className="flex items-center gap-2 text-sm text-[#FF6B35]">
-                      <span className="rounded-full border border-[#FF6B35] px-3 py-1 text-xs font-semibold uppercase">
-                        {index + 1} / {textReviews.length}
-                      </span>
-                      <span>Fan Story</span>
-                    </div>
-                    <p className="text-sm text-[#212529] leading-relaxed">“{review.quote}”</p>
-                    <div className="mt-auto flex flex-col gap-1 text-sm text-[#6C757D]">
-                      <span className="font-semibold text-[#212529]">{review.name}</span>
-                      <span>{review.met}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            {textReviews.map((review, index) => (
+              <Card key={review.name} elevated className="border border-[#E9ECEF] bg-white">
+                <CardContent className="flex h-full flex-col gap-4 p-6">
+                  <div className="flex items-center gap-2 text-sm text-[#C045FF]">
+                    <span className="rounded-full border border-[#C045FF] px-3 py-1 text-xs font-semibold uppercase">
+                      {index + 1} / {textReviews.length}
+                    </span>
+                    <span>Fan Story</span>
+                  </div>
+                  <p className="text-sm text-[#212529] leading-relaxed">“{review.quote}”</p>
+                  <div className="mt-auto flex flex-col gap-1 text-sm text-[#6C757D]">
+                    <span className="font-semibold text-[#212529]">{review.name}</span>
+                    <span>{review.met}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
 
       {/* SECTION 11: TRUST & SAFETY */}
-      <section className="bg-white px-6 py-20 md:px-16" id="trust">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        id="trust"
+      >
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Trust Comes First</h2>
@@ -980,7 +1257,7 @@ export function LandingPage() {
             {trustPillars.map((pillar) => (
               <Card key={pillar.title} elevated className="h-full border border-[#F1F3F5]">
                 <CardContent className="flex h-full flex-col gap-4 p-6">
-                  <div className="flex items-center gap-3 text-[#FF6B35]">
+                  <div className="flex items-center gap-3 text-[#C045FF]">
                     <span className="text-2xl">{pillar.icon}</span>
                     <span className="text-sm font-semibold uppercase tracking-wide text-[#6C757D]">{pillar.badge}</span>
                   </div>
@@ -988,7 +1265,7 @@ export function LandingPage() {
                   <ul className="space-y-2 text-sm text-[#6C757D]">
                     {pillar.bullets.map((bullet) => (
                       <li key={bullet} className="flex gap-2">
-                        <span className="text-[#FF6B35]">•</span>
+                        <span className="text-[#C045FF]">•</span>
                         <span>{bullet}</span>
                       </li>
                     ))}
@@ -1001,7 +1278,10 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 12: PRICING EXPLAINED */}
-      <section className="bg-[#F8F9FA] px-6 py-20 md:px-16" id="pricing">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#ECFEFF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#F8F9FA_55%)] px-6 py-20 md:px-16"
+        id="pricing"
+      >
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Two Ways to Meet Your Heroes</h2>
@@ -1016,7 +1296,7 @@ export function LandingPage() {
                   <ul className="space-y-3 text-sm text-[#212529]">
                     {option.highlights.map((highlight) => (
                       <li key={highlight} className="flex gap-2">
-                        <span className="text-[#FF6B35]">✔</span>
+                        <span className="text-[#C045FF]">✔</span>
                         <span>{highlight}</span>
                       </li>
                     ))}
@@ -1033,7 +1313,10 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 13: FOR CREATORS CTA */}
-      <section className="bg-white px-6 py-20 md:px-16" id="creators">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        id="creators"
+      >
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 flex flex-col gap-4 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Are You a Creator? Join FanMeet!</h2>
@@ -1058,7 +1341,7 @@ export function LandingPage() {
                   <ul className="space-y-2 text-sm text-[#6C757D]">
                     {benefit.bullets.map((bullet) => (
                       <li key={bullet} className="flex gap-2">
-                        <span className="text-[#FF6B35]">•</span>
+                        <span className="text-[#C045FF]">•</span>
                         <span>{bullet}</span>
                       </li>
                     ))}
@@ -1078,11 +1361,14 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 14: MEET THE TEAM */}
-      <section className="bg-[#F8F9FA] px-6 py-20 md:px-16" id="team">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#F8F9FA_55%)] px-6 py-20 md:px-16"
+        id="team"
+      >
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 grid gap-6 md:grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)] md:items-start">
             <div className="rounded-[20px] bg-white p-6 shadow-[var(--shadow-md)]">
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#FF6B35]">Our Story</p>
+              <p className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Our Story</p>
               <p className="mt-4 text-sm text-[#6C757D]">
                 Hi! 👋 We are a tiny team of five fans-turned-builders from Bangalore. Back in June 2024 we wished we could simply thank our
                 favourite tech reviewer. That “what if?” sparked six months of chai-fuelled evenings, a cramped apartment workspace, and a lot of
@@ -1120,7 +1406,10 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 15: FAQ */}
-      <section className="bg-white px-6 py-20 md:px-16" id="faq">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        id="faq"
+      >
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Questions? We Already Answered Them.</h2>
@@ -1131,7 +1420,7 @@ export function LandingPage() {
             {faqItems.map((faq) => (
               <details key={`${faq.category}-${faq.question}`} className="group rounded-[16px] border border-[#E9ECEF] bg-[#F8F9FA] p-5">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-left text-sm font-semibold text-[#212529]">
-                  <span className="text-[#FF6B35]">[{faq.category}]</span>
+                  <span className="text-[#C045FF]">[{faq.category}]</span>
                   <span className="flex-1 text-[#212529]">{faq.question}</span>
                   <span className="text-[#ADB5BD] transition-transform group-open:rotate-45">+</span>
                 </summary>
@@ -1143,7 +1432,10 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 16: PRESS & SOCIAL LOVE */}
-      <section className="bg-[#212529] px-6 py-20 text-white md:px-16" id="press">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#00D5FF_0,_#050014_50%),radial-gradient(circle_at_bottom,_#EC4899_0,_#050014_55%)] px-6 py-20 text-white md:px-16"
+        id="press"
+      >
         <div className="mx-auto max-w-6xl">
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold">People Are Talking About FanMeet</h2>
@@ -1154,12 +1446,12 @@ export function LandingPage() {
             {pressEntries.map((entry) => (
               <Card key={`${entry.type}-${entry.name}`} className="border border-[#343A40] bg-[#2C3036]">
                 <CardContent className="flex flex-col gap-3 p-6">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-[#FF6B35]">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#C045FF]">
                     {entry.type === 'press' ? 'As Seen In' : 'From the Community'}
                   </span>
-                  <h3 className="text-lg font-semibold text-white">{entry.name}</h3>
-                  <p className="text-sm text-[#CED4DA]">{entry.quote}</p>
-                  <Button variant="ghost" className="self-start px-0 text-sm text-[#FF6B35]">
+                  <h3 className="text-lg font-semibold text-[#212529]">{entry.name}</h3>
+                  <p className="text-sm text-[#212529]">{entry.quote}</p>
+                  <Button variant="ghost" className="self-start px-0 text-sm text-[#C045FF]">
                     Read more →
                   </Button>
                 </CardContent>
@@ -1170,7 +1462,10 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 17: HOW WE'RE DIFFERENT */}
-      <section className="bg-white px-6 py-20 md:px-16" id="comparison">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#ECFEFF_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        id="comparison"
+      >
         <div className="mx-auto max-w-5xl">
           <div className="mb-8 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Why FanMeet Beats DMs and Cameo</h2>
@@ -1182,7 +1477,7 @@ export function LandingPage() {
               <thead className="bg-[#F8F9FA] text-sm uppercase tracking-wide text-[#6C757D]">
                 <tr>
                   <th className="px-4 py-3 text-left">Feature</th>
-                  <th className="px-4 py-3 text-left text-[#FF6B35]">FanMeet</th>
+                  <th className="px-4 py-3 text-left text-[#C045FF]">FanMeet</th>
                   <th className="px-4 py-3 text-left">Commenting</th>
                   <th className="px-4 py-3 text-left">Paid Shoutouts</th>
                 </tr>
@@ -1204,7 +1499,10 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 18: SUCCESS STORIES */}
-      <section className="bg-[#F8F9FA] px-6 py-20 md:px-16" id="success-stories">
+      <section
+        className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#FFF7ED_0,_#F8F9FA_55%)] px-6 py-20 md:px-16"
+        id="success-stories"
+      >
         <div className="mx-auto max-w-5xl">
           <div className="mb-10 text-center">
             <h2 className="text-3xl font-bold text-[#212529]">Three Stories You Will Brag About Later</h2>
@@ -1235,8 +1533,8 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 19: FINAL CTA */}
-      <section className="bg-white px-6 py-20 md:px-16">
-        <div className="mx-auto max-w-4xl rounded-[24px] border border-[#F1F3F5] bg-[#FDF2EC] p-10 text-center shadow-[var(--shadow-lg)]">
+      <section className="bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16">
+        <div className="mx-auto max-w-4xl rounded-[24px] border border-[#F1F3F5] bg-[radial-gradient(circle_at_top,_#FDF2EC_0,_#FFFFFF_70%)] p-10 text-center shadow-[var(--shadow-lg)]">
           <h2 className="text-3xl font-bold text-[#212529]">Ready to Meet Your Hero?</h2>
           <p className="mt-3 text-base text-[#6C757D]">Join 1,247 people who already had life-changing conversations.</p>
 
@@ -1273,7 +1571,7 @@ export function LandingPage() {
           <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,3fr)]">
             <div className="space-y-6">
               <div>
-                <div className="text-2xl font-bold text-[#FF6B35]">FanMeet</div>
+                <div className="text-2xl font-bold text-[#C045FF]">FanMeet</div>
                 <p className="mt-2 text-sm text-[#ADB5BD]">{footerLinks.fanmeet.tagline}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-[#ADB5BD]">
@@ -1294,7 +1592,7 @@ export function LandingPage() {
 
             <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
               <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#FF6B35]">For Fans</h4>
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">For Fans</h4>
                 <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
                   {footerLinks.fans.map((item) => (
                     <li key={item.label}>{item.label}</li>
@@ -1302,7 +1600,7 @@ export function LandingPage() {
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#FF6B35]">For Creators</h4>
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">For Creators</h4>
                 <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
                   {footerLinks.creators.map((item) => (
                     <li key={item.label}>{item.label}</li>
@@ -1310,7 +1608,7 @@ export function LandingPage() {
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#FF6B35]">Company</h4>
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Company</h4>
                 <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
                   {footerLinks.company.map((item) => (
                     <li key={item.label}>{item.label}</li>
@@ -1318,7 +1616,7 @@ export function LandingPage() {
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#FF6B35]">Support</h4>
+                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Support</h4>
                 <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
                   {footerLinks.support.map((item) => (
                     <li key={item.label}>{item.label}</li>

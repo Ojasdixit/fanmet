@@ -12,6 +12,7 @@ import { FanWallet } from './pages/fan/FanWallet';
 import { FanHistory } from './pages/fan/FanHistory';
 import { FanNotifications } from './pages/fan/FanNotifications';
 import { FanSettings } from './pages/fan/FanSettings';
+import { FanMessages } from './pages/fan/FanMessages';
 import { CreatorOverview } from './pages/creator/CreatorOverview';
 import { CreatorEvents } from './pages/creator/CreatorEvents';
 import { CreatorCreateEvent } from './pages/creator/CreatorCreateEvent';
@@ -20,6 +21,7 @@ import { CreatorWithdrawals } from './pages/creator/CreatorWithdrawals';
 import { CreatorMeets } from './pages/creator/CreatorMeets';
 import { CreatorNotifications } from './pages/creator/CreatorNotifications';
 import { CreatorSettings } from './pages/creator/CreatorSettings';
+import { CreatorMessages } from './pages/creator/CreatorMessages';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminCreators } from './pages/admin/AdminCreators';
@@ -74,6 +76,7 @@ export default function App() {
           <Route path="meets" element={<FanMeets />} />
           <Route path="wallet" element={<FanWallet />} />
           <Route path="history" element={<FanHistory />} />
+          <Route path="messages" element={<FanMessages />} />
           <Route path="notifications" element={<FanNotifications />} />
           <Route path="settings" element={<FanSettings />} />
           <Route path="*" element={<Navigate to="." replace />} />
@@ -86,6 +89,7 @@ export default function App() {
           <Route path="earnings" element={<CreatorEarnings />} />
           <Route path="withdrawals" element={<CreatorWithdrawals />} />
           <Route path="meets" element={<CreatorMeets />} />
+          <Route path="messages" element={<CreatorMessages />} />
           <Route path="notifications" element={<CreatorNotifications />} />
           <Route path="settings" element={<CreatorSettings />} />
           <Route path="*" element={<Navigate to="." replace />} />
