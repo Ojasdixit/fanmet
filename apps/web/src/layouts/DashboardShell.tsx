@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Button, Avatar, Badge } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
 
@@ -106,6 +106,58 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
 
   const basePath = useMemo(() => `/${role}`, [role]);
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const renderNavItems = (options?: { closeOnSelect?: boolean }) =>
+    config.menu.map((item) => {
+      if ('type' in item && item.type === 'section') {
+        return (
+          <div
+            key={item.label}
+            className="mt-4 mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#ADB5BD]"
+          >
+            {item.label}
+          </div>
+        );
+      }
+
+      const link = item as NavLinkItem;
+      const isDisabled = Boolean(link.disabled);
+      const shouldUseExact = link.to === basePath;
+
+      return (
+        <NavLink
+          key={link.to}
+          to={link.to}
+          end={shouldUseExact}
+          onClick={(event) => {
+            if (isDisabled) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+            if (options?.closeOnSelect) {
+              setIsSidebarOpen(false);
+            }
+          }}
+          className={({ isActive }) =>
+            classNames(
+              'flex items-center gap-3 rounded-[12px] border border-transparent bg-white px-5 py-3 text-base transition-all shadow-[var(--shadow-sm)]',
+              isDisabled
+                ? 'cursor-not-allowed text-[#ADB5BD] opacity-70'
+                : isActive
+                ? 'border-[#FF6B35] text-[#212529] shadow-[var(--shadow-md)]'
+                : 'text-[#6C757D] hover:border-[#FFE5D9] hover:text-[#212529]'
+            )
+          }
+        >
+          <span className="text-lg">{link.icon}</span>
+          <span className="flex-1">{link.label}</span>
+          {!isDisabled && link.badge ? <Badge variant="danger">{link.badge}</Badge> : null}
+        </NavLink>
+      );
+    });
+
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
       <aside className="sticky top-0 hidden h-screen max-h-screen w-[260px] flex-shrink-0 border-r border-[#E9ECEF] bg-white md:flex md:flex-col">
@@ -116,47 +168,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
             <Badge variant="primary">Premium</Badge>
           </div>
           <nav className="mt-8 flex flex-1 flex-col gap-1">
-            {config.menu.map((item) => {
-              if ('type' in item && item.type === 'section') {
-                return (
-                  <div key={item.label} className="mt-4 mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#ADB5BD]">
-                    {item.label}
-                  </div>
-                );
-              }
-
-              const link = item as NavLinkItem;
-              const isDisabled = Boolean(link.disabled);
-              const shouldUseExact = link.to === basePath;
-
-              return (
-                <NavLink
-                  key={link.to}
-                  to={link.to}
-                  end={shouldUseExact}
-                  onClick={(event) => {
-                    if (isDisabled) {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }
-                  }}
-                  className={({ isActive }) =>
-                    classNames(
-                      'flex items-center gap-3 rounded-[12px] border border-transparent bg-white px-5 py-3 text-base transition-all shadow-[var(--shadow-sm)]',
-                      isDisabled
-                        ? 'cursor-not-allowed text-[#ADB5BD] opacity-70'
-                        : isActive
-                        ? 'border-[#FF6B35] text-[#212529] shadow-[var(--shadow-md)]'
-                        : 'text-[#6C757D] hover:border-[#FFE5D9] hover:text-[#212529]'
-                    )
-                  }
-                >
-                  <span className="text-lg">{link.icon}</span>
-                  <span className="flex-1">{link.label}</span>
-                  {!isDisabled && link.badge ? <Badge variant="danger">{link.badge}</Badge> : null}
-                </NavLink>
-              );
-            })}
+            {renderNavItems()}
           </nav>
         </div>
         <div className="px-6 pb-6">
@@ -165,9 +177,52 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           </Button>
         </div>
       </aside>
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-40 flex md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <div className="relative z-10 flex h-full w-[260px] flex-col border-r border-[#E9ECEF] bg-white">
+            <div className="flex items-center justify-between border-b border-[#E9ECEF] px-4 py-3">
+              <span className="text-sm font-semibold text-[#212529]">{config.title}</span>
+              <button
+                type="button"
+                className="rounded-md border border-[#E9ECEF] p-1 text-[#343A40]"
+                onClick={() => setIsSidebarOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
+              <nav className="flex flex-1 flex-col gap-1">{renderNavItems({ closeOnSelect: true })}</nav>
+              <div className="mt-4">
+                <Button variant="ghost" size="sm" className="w-full justify-start text-[#6C757D]">
+                  Logout
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex w-full flex-col">
         <header className="sticky top-0 z-40 flex h-[70px] items-center justify-between border-b border-[#E9ECEF] bg-white px-6 shadow-sm">
-          <div className="text-xl font-semibold text-[#212529]">{config.title}</div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="flex items-center justify-center rounded-md border border-[#E9ECEF] p-2 text-[#343A40] md:hidden"
+              onClick={() => setIsSidebarOpen((open) => !open)}
+            >
+              <span className="sr-only">Open sidebar</span>
+              <div className="flex flex-col gap-[3px]">
+                <span className="h-[2px] w-4 bg-[#343A40]" />
+                <span className="h-[2px] w-4 bg-[#343A40]" />
+                <span className="h-[2px] w-4 bg-[#343A40]" />
+              </div>
+            </button>
+            <div className="text-xl font-semibold text-[#212529]">{config.title}</div>
+          </div>
           <div className="flex items-center gap-4">
             <div className="relative hidden md:block">
               <input
