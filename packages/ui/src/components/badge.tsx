@@ -5,7 +5,7 @@ export type BadgeVariant = 'default' | 'primary' | 'success' | 'danger' | 'warni
 
 const variantStyles: Record<BadgeVariant, string> = {
   default: 'bg-[#F8F9FA] text-[#6C757D]',
-  primary: 'bg-[#FFE5D9] text-[#FF6B35]',
+  primary: 'bg-[#F4E6FF] text-[#C045FF]',
   success: 'bg-[#D4EDDA] text-[#155724]',
   danger: 'bg-[#F8D7DA] text-[#721C24]',
   warning: 'bg-[#FFF3CD] text-[#856404]',

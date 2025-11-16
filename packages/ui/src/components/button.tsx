@@ -7,7 +7,7 @@ const baseStyles =
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
-    'bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-white shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] hover:-translate-y-[1px] active:brightness-110 disabled:bg-[#E9ECEF] disabled:text-[#6C757D]',
+    'bg-[#050014] text-white shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] hover:-translate-y-[1px] hover:bg-[#140423] active:brightness-110 disabled:bg-[#E9ECEF] disabled:text-[#6C757D]',
   secondary:
     'bg-white text-[#C045FF] border-2 border-[#C045FF] hover:bg-[#F4E6FF] hover:text-[#8B3FFF] active:bg-[#8B3FFF] active:text-white disabled:text-[#6C757D] disabled:border-[#E9ECEF] disabled:bg-transparent',
   ghost:

@@ -30,7 +30,7 @@ export const Avatar = ({
   <div className="relative inline-flex items-center justify-center">
     <div
       className={clsx(
-        'flex items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#FF6B35] font-semibold uppercase text-white shadow-[var(--shadow-sm)]',
+        'flex items-center justify-center overflow-hidden rounded-full border-4 border-white bg-[#C045FF] font-semibold uppercase text-white shadow-[var(--shadow-sm)]',
         sizeMap[size],
         className
       )}
