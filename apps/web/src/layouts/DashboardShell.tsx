@@ -105,6 +105,7 @@ interface DashboardShellProps {
 
 export const DashboardShell = ({ role }: DashboardShellProps) => {
   const config = roleConfig[role];
+  const navigate = useNavigate();
 
   const basePath = useMemo(() => `/${role}`, [role]);
 
@@ -112,6 +113,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
+  const [activeRightPanel, setActiveRightPanel] = useState<'none' | 'notifications' | 'profile'>('none');
 
   useEffect(() => {
     if (!isResizing) return;
@@ -193,6 +195,110 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       );
     });
 
+  const renderRightPanelContent = () => {
+    if (activeRightPanel === 'notifications') {
+      return (
+        <>
+          <div className="flex items-center justify-between border-b border-[#E9ECEF] px-5 py-4">
+            <div>
+              <div className="text-sm font-semibold text-[#212529]">Notifications</div>
+              <div className="text-xs text-[#6C757D]">Latest updates on your bids and meets.</div>
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="border-none bg-[#050014] text-white hover:bg-[#140423]"
+            >
+              Mark all read
+            </Button>
+          </div>
+          <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
+              <div className="text-sm font-semibold text-[#212529]">You won a bid!</div>
+              <div className="text-xs text-[#6C757D]">Meet Priya Sharma tomorrow at 4:00 PM.</div>
+            </div>
+            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
+              <div className="text-sm font-semibold text-[#212529]">New live event starting soon</div>
+              <div className="text-xs text-[#6C757D]">Rohan Gupta goes live in 30 minutes.</div>
+            </div>
+            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
+              <div className="text-sm font-semibold text-[#212529]">Refund processed</div>
+              <div className="text-xs text-[#6C757D]">90% refund for an event you did not win.</div>
+            </div>
+          </div>
+          <div className="border-t border-[#E9ECEF] p-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full border-none bg-white text-[#050014] hover:bg-[#F8F9FA]"
+              onClick={() => navigate(`/${role}/notifications`)}
+            >
+              View all notifications
+            </Button>
+          </div>
+        </>
+      );
+    }
+
+    if (activeRightPanel === 'profile') {
+      return (
+        <>
+          <div className="flex items-center gap-3 border-b border-[#E9ECEF] px-5 py-4">
+            <Avatar initials="RK" size="md" />
+            <div>
+              <div className="text-sm font-semibold text-[#212529]">Rahul Kumar</div>
+              <div className="text-xs text-[#6C757D]">Fan account • Premium</div>
+            </div>
+          </div>
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">Wallet</div>
+              <div className="mt-1 text-lg font-semibold text-[#212529]">₹1,250 balance</div>
+              <div className="mt-1 text-xs text-[#6C757D]">Quick access to bids and refunds.</div>
+            </div>
+            <div className="grid gap-2 text-sm text-[#343A40]">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-[10px] bg-white/90 px-3 py-2 text-left shadow-sm hover:bg-[#F8F9FA]"
+                onClick={() => navigate(`/${role}/wallet`)}
+              >
+                <span>Wallet & refunds</span>
+                <span>→</span>
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-[10px] bg-white/90 px-3 py-2 text-left shadow-sm hover:bg-[#F8F9FA]"
+                onClick={() => navigate(`/${role}/meets`)}
+              >
+                <span>Upcoming meets</span>
+                <span>→</span>
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between rounded-[10px] bg-white/90 px-3 py-2 text-left shadow-sm hover:bg-[#F8F9FA]"
+                onClick={() => navigate(`/${role}/settings`)}
+              >
+                <span>Profile & settings</span>
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+          <div className="border-t border-[#E9ECEF] p-4">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full border-none bg-[#050014] text-white hover:bg-[#140423]"
+            >
+              Switch account
+            </Button>
+          </div>
+        </>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
       <aside
@@ -273,6 +379,14 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           </div>
         </div>
       )}
+      {activeRightPanel !== 'none' && (
+        <div
+          className="fixed inset-y-0 right-0 z-30 hidden w-80 flex-col border-l border-[#E9ECEF] bg-gradient-to-b from-[#FFF7FF] via-[#F4E6FF] to-[#F5F0FF] shadow-[0_0_45px_rgba(15,23,42,0.25)] backdrop-blur-xl md:flex"
+          onMouseLeave={() => setActiveRightPanel('none')}
+        >
+          {renderRightPanelContent()}
+        </div>
+      )}
       <div className="flex w-full flex-col">
         <header className="sticky top-0 z-40 flex h-[70px] items-center justify-between border-b border-[#E9ECEF] bg-white px-6 shadow-sm">
           <div className="flex items-center gap-3">
@@ -298,14 +412,34 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg text-[#6C757D]">🔍</span>
             </div>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="bg-black text-white border-none hover:bg-black/90"
+            <div
+              className="hidden md:block"
+              onMouseEnter={() => setActiveRightPanel('notifications')}
             >
-              🔔
-            </Button>
-            <Avatar initials="RK" size="sm" />
+              <Button
+                variant="secondary"
+                size="icon"
+                className="bg-black text-white border-none hover:bg-black/90"
+              >
+                🔔
+              </Button>
+            </div>
+            <div
+              className="hidden md:block"
+              onMouseEnter={() => setActiveRightPanel('profile')}
+            >
+              <Avatar initials="RK" size="sm" />
+            </div>
+            <div className="flex items-center gap-2 md:hidden">
+              <Button
+                variant="secondary"
+                size="icon"
+                className="bg-black text-white border-none hover:bg-black/90"
+              >
+                🔔
+              </Button>
+              <Avatar initials="RK" size="sm" />
+            </div>
           </div>
         </header>
         <main className="flex-1 px-4 py-6 md:px-12 md:py-10">
