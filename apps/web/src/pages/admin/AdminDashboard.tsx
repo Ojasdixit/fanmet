@@ -99,12 +99,16 @@ export function AdminDashboard() {
             <ul className="flex flex-col gap-2 text-sm text-[#212529]">
               {quickStats.map((item) => (
                 <li key={item} className="flex items-start gap-2">
-                  <span className="mt-1 text-[#FF6B35]">•</span>
+                  <span className="mt-1 text-[#C045FF]">•</span>
                   <span>{item}</span>
                 </li>
               ))}
             </ul>
-            <Button variant="ghost" className="self-start" size="sm">
+            <Button
+              variant="primary"
+              className="self-start bg-[#050014] text-white hover:bg-[#140423]"
+              size="sm"
+            >
               View detailed reports →
             </Button>
           </CardContent>
@@ -115,12 +119,19 @@ export function AdminDashboard() {
           <CardContent className="gap-3">
             <div className="flex flex-col gap-3">
               {alertFeed.map((alert) => (
-                <div key={alert} className="rounded-[12px] border border-[#FFE5D9] bg-[#FFE5D9]/60 px-4 py-3 text-sm text-[#D9480F]">
+                <div
+                  key={alert}
+                  className="rounded-[12px] border border-[#F4E6FF] bg-[#F4E6FF]/60 px-4 py-3 text-sm text-[#C045FF]"
+                >
                   {alert}
                 </div>
               ))}
             </div>
-            <Button variant="secondary" size="sm" className="self-start">
+            <Button
+              variant="primary"
+              size="sm"
+              className="self-start bg-[#050014] text-white hover:bg-[#140423]"
+            >
               Open moderation queue
             </Button>
           </CardContent>
@@ -147,7 +158,11 @@ export function AdminDashboard() {
             {activityFeed.map((item) => (
               <div key={item} className="flex items-center justify-between py-3 text-sm text-[#212529]">
                 <span>{item}</span>
-                <Button variant="ghost" size="sm" className="text-[#6C757D]">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-[#050014] text-white hover:bg-[#140423]"
+                >
                   Details
                 </Button>
               </div>
@@ -158,16 +173,32 @@ export function AdminDashboard() {
         <Card className="border-[#F0F1F3] bg-white">
           <CardHeader title="Quick Actions" subtitle="Jump to critical modules" />
           <CardContent className="gap-3">
-            <Button size="sm" className="justify-start gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              className="justify-start gap-2 bg-[#050014] text-white hover:bg-[#140423]"
+            >
               🔍 Review audit logs
             </Button>
-            <Button size="sm" className="justify-start gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              className="justify-start gap-2 bg-[#050014] text-white hover:bg-[#140423]"
+            >
               🎧 Open support queue
             </Button>
-            <Button size="sm" className="justify-start gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              className="justify-start gap-2 bg-[#050014] text-white hover:bg-[#140423]"
+            >
               💳 Monitor failed payments
             </Button>
-            <Button size="sm" className="justify-start gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              className="justify-start gap-2 bg-[#050014] text-white hover:bg-[#140423]"
+            >
               🧾 Export revenue summary
             </Button>
           </CardContent>

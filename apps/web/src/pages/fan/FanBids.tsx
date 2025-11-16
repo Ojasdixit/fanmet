@@ -65,7 +65,7 @@ export function FanBids() {
                   Your Bid: <strong className="text-[#212529]">{formatCurrency(bid.yourBid)}</strong>
                 </span>
                 <span>
-                  Current: <strong className="text-[#FF6B35]">{formatCurrency(bid.currentBid)}</strong>
+                  Current: <strong className="text-[#C045FF]">{formatCurrency(bid.currentBid)}</strong>
                 </span>
                 <span>⏱️ {bid.timeLeft}</span>
               </div>

@@ -83,15 +83,15 @@ export function CreatorNotifications() {
         <CardContent className="gap-4">
           <div className="flex flex-col gap-4 text-sm text-[#212529]">
             <label className="flex items-center gap-3">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Email alerts for new bids and bid surges
             </label>
             <label className="flex items-center gap-3">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Push reminders 2 hours before sessions
             </label>
             <label className="flex items-center gap-3">
-              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Monthly product and analytics digest
             </label>
           </div>

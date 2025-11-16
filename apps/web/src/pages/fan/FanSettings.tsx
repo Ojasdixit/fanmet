@@ -56,15 +56,15 @@ export function FanSettings() {
           <CardHeader title="Communication" subtitle="Choose how we keep you informed." />
           <CardContent className="gap-4 text-sm text-[#212529]">
             <label className="flex items-center gap-3">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Email me when I’m outbid on an event
             </label>
             <label className="flex items-center gap-3">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Remind me 24 hours before a meet
             </label>
             <label className="flex items-center gap-3">
-              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Send me creator spotlights and platform updates
             </label>
             <Button variant="secondary" className="self-start">

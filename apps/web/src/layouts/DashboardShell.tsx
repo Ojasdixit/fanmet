@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Avatar, Badge } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
 
@@ -109,6 +109,32 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const basePath = useMemo(() => `/${role}`, [role]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(320);
+  const [isResizing, setIsResizing] = useState(false);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const minWidth = 220;
+      const maxWidth = 420;
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, event.clientX));
+      setSidebarWidth(nextWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   const renderNavItems = (options?: { closeOnSelect?: boolean }) =>
     config.menu.map((item) => {
@@ -116,7 +142,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
         return (
           <div
             key={item.label}
-            className="mt-4 mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-[#ADB5BD]"
+            className="mt-4 mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-white/60"
           >
             {item.label}
           </div>
@@ -144,17 +170,24 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           }}
           className={({ isActive }) =>
             classNames(
-              'flex items-center gap-3 rounded-[12px] border border-transparent bg-white px-5 py-3 text-base transition-all shadow-[var(--shadow-sm)]',
+              'flex items-center gap-3 rounded-[12px] border border-transparent px-5 py-3 text-base transition-all',
               isDisabled
-                ? 'cursor-not-allowed text-[#ADB5BD] opacity-70'
+                ? 'cursor-not-allowed text-white/40 opacity-60'
                 : isActive
-                ? 'border-[#FF6B35] text-[#212529] shadow-[var(--shadow-md)]'
-                : 'text-[#6C757D] hover:border-[#FFE5D9] hover:text-[#212529]'
+                ? 'bg-white/10 text-white font-semibold shadow-[0_18px_45px_rgba(0,0,0,0.65)]'
+                : 'text-white/75 hover:bg-white/5 hover:text-white'
             )
           }
         >
-          <span className="text-lg">{link.icon}</span>
-          <span className="flex-1">{link.label}</span>
+          <span
+            className={classNames(
+              'flex-1',
+              role === 'admin' ? 'font-semibold tracking-wide' : '',
+              isSidebarCollapsed ? 'hidden' : ''
+            )}
+          >
+            {link.label}
+          </span>
           {!isDisabled && link.badge ? <Badge variant="danger">{link.badge}</Badge> : null}
         </NavLink>
       );
@@ -162,21 +195,50 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
-      <aside className="sticky top-0 hidden h-screen max-h-screen w-[260px] flex-shrink-0 border-r border-[#E9ECEF] bg-white md:flex md:flex-col">
-        <div className="flex flex-1 flex-col overflow-y-auto px-6 py-8">
+      <aside
+        className="sticky top-0 hidden h-screen max-h-screen flex-shrink-0 border-r border-[#1F2933] bg-gradient-to-b from-[#050014] via-[#050014] to-[#140423] text-white md:flex md:flex-col relative"
+        style={{ width: isSidebarCollapsed ? 80 : sidebarWidth }}
+      >
+        <div
+          className={classNames(
+            'flex flex-1 flex-col overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-8',
+            isSidebarCollapsed ? 'px-3' : 'px-6'
+          )}
+        >
           <div className="flex flex-col items-center gap-3 text-center">
             <Avatar initials="RK" size="lg" />
-            <div className="text-lg font-semibold text-[#212529]">Hey, Rahul!</div>
-            <Badge variant="primary">Premium</Badge>
+            <div
+              className={classNames(
+                'text-lg font-semibold text-white',
+                isSidebarCollapsed ? 'hidden' : ''
+              )}
+            >
+              Hey, Rahul!
+            </div>
+            {!isSidebarCollapsed ? <Badge variant="primary">Premium</Badge> : null}
           </div>
           <nav className="mt-8 flex flex-1 flex-col gap-1">
             {renderNavItems()}
           </nav>
         </div>
+        <button
+          type="button"
+          onClick={() => setIsSidebarCollapsed((prev) => !prev)}
+          className="absolute -right-3 top-24 hidden h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-[#050014] text-xs text-white shadow-md transition hover:bg-white hover:text-[#050014] md:flex"
+        >
+          {isSidebarCollapsed ? '»' : '«'}
+        </button>
+        <div
+          className="absolute right-0 top-0 hidden h-full w-1 cursor-col-resize md:block"
+          onMouseDown={() => setIsResizing(true)}
+        />
         <div className="px-6 pb-6">
-          <Button variant="ghost" size="sm" className="w-full justify-start text-[#6C757D]">
+          <button
+            type="button"
+            className="inline-flex h-10 w-full items-center justify-start rounded-[8px] bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-black/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
             Logout
-          </Button>
+          </button>
         </div>
       </aside>
       {isSidebarOpen && (
@@ -186,23 +248,26 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
             className="absolute inset-0 bg-black/40"
             onClick={() => setIsSidebarOpen(false)}
           />
-          <div className="relative z-10 flex h-full w-[260px] flex-col border-r border-[#E9ECEF] bg-white">
-            <div className="flex items-center justify-between border-b border-[#E9ECEF] px-4 py-3">
-              <span className="text-sm font-semibold text-[#212529]">{config.title}</span>
+          <div className="relative z-10 flex h-full w-[260px] flex-col border-r border-[#1F2933] bg-gradient-to-b from-[#050014] via-[#050014] to-[#140423] text-white">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="text-sm font-semibold text-white">{config.title}</span>
               <button
                 type="button"
-                className="rounded-md border border-[#E9ECEF] p-1 text-[#343A40]"
+                className="rounded-md border border-white/30 p-1 text-white"
                 onClick={() => setIsSidebarOpen(false)}
               >
                 ✕
               </button>
             </div>
-            <div className="flex flex-1 flex-col overflow-y-auto px-4 py-4">
+            <div className="flex flex-1 flex-col overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 py-4">
               <nav className="flex flex-1 flex-col gap-1">{renderNavItems({ closeOnSelect: true })}</nav>
               <div className="mt-4">
-                <Button variant="ghost" size="sm" className="w-full justify-start text-[#6C757D]">
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-full items-center justify-start rounded-[8px] bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-black/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
                   Logout
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -233,7 +298,11 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg text-[#6C757D]">🔍</span>
             </div>
-            <Button variant="ghost" size="icon">
+            <Button
+              variant="secondary"
+              size="icon"
+              className="bg-black text-white border-none hover:bg-black/90"
+            >
               🔔
             </Button>
             <Avatar initials="RK" size="sm" />

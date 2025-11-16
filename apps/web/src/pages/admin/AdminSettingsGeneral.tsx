@@ -56,12 +56,14 @@ export function AdminSettingsGeneral() {
 
       <Card>
         <CardHeader title="Maintenance Mode" subtitle="Temporarily pause user access during updates." />
-        <CardContent className="flex flex-wrap items-center justify-between gap-4 rounded-[16px] border border-[#FFE5D9] bg-[#FFE5D9]/50 p-5">
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 rounded-[16px] border border-[#F4E6FF] bg-[#F4E6FF]/50 p-5">
           <div>
-            <p className="text-sm font-semibold text-[#D9480F]">Maintenance mode is currently {generalSettings.maintenanceMode ? 'ON' : 'OFF'}.</p>
+            <p className="text-sm font-semibold text-[#C045FF]">
+              Maintenance mode is currently {generalSettings.maintenanceMode ? 'ON' : 'OFF'}.
+            </p>
             <p className="text-xs text-[#6C757D]">Notify users about downtime and expected ETA.</p>
           </div>
-          <Button variant="danger">Toggle Maintenance</Button>
+          <Button variant="primary">Toggle Maintenance</Button>
         </CardContent>
       </Card>
     </div>

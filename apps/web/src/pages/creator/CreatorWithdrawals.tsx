@@ -47,9 +47,9 @@ export function CreatorWithdrawals() {
         <Card elevated>
           <CardHeader title="Available Balance" subtitle="Withdraw to your linked account any time." />
           <CardContent className="gap-6">
-            <div className="rounded-[16px] bg-[#FFE5D9]/60 p-6">
+            <div className="rounded-[16px] bg-[#F4E6FF]/60 p-6">
               <span className="text-sm text-[#6C757D]">Ready to withdraw</span>
-              <p className="text-4xl font-bold text-[#FF6B35]">{formatCurrency(withdrawalSummary.available)}</p>
+              <p className="text-4xl font-bold text-[#C045FF]">{formatCurrency(withdrawalSummary.available)}</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-[12px] border border-[#E9ECEF] bg-white p-4">

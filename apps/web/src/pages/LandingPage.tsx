@@ -5,6 +5,7 @@ import { useScroll, useTransform, motion, MotionValue } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, Avatar, Badge } from '@fanmeet/ui';
 import SphereImageGrid, { type ImageData } from '../components/SphereImageGrid';
 import heroImage from '../../Ready-to-Share Social Media Posts to Amplify Your Brand on Pinterest.jpeg';
+import { AnimatedTestimonials, type Testimonial } from '../components/ui/animated-testimonials2';
 
 const featuredCreators = [
   {
@@ -377,6 +378,22 @@ const teamMembers = [
     funFact: 'Interviewed 89 creators personally',
   },
 ];
+
+const teamImageUrls = [
+  'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1544723795-432537d12f6c?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1544723795-3fb0b90c07c1?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1525130413817-d45c1d127c42?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1525130413817-9e0b0a50b9d5?auto=format&fit=crop&w=900&q=80',
+];
+
+const teamTestimonials: Testimonial[] = teamMembers.map((member, index) => ({
+  quote: member.bio,
+  name: member.name,
+  designation: member.role,
+  src: teamImageUrls[index % teamImageUrls.length],
+}));
 
 const faqItems = [
   {
@@ -854,7 +871,7 @@ export function LandingPage() {
               </div>
             </div>
             <motion.div
-              className="w-full h-[280px] md:h-[440px] md:w-1/2 lg:h-[530px] lg:w-2/5"
+              className="hidden w-full h-[280px] md:block md:h-[440px] md:w-1/2 lg:h-[530px] lg:w-2/5"
               initial={{ clipPath: 'polygon(100% 0, 100% 0, 100% 100%, 100% 100%)' }}
               animate={{ clipPath: 'polygon(25% 0, 100% 0, 100% 100%, 0% 100%)' }}
               transition={{ duration: 1.2, ease: 'circOut' }}
@@ -1021,7 +1038,7 @@ export function LandingPage() {
       </section>
 
       {/* SECTION 6: SOCIAL PROOF NUMBERS */}
-      <section className="bg-[radial-gradient(circle_at_top,_#00D5FF_0,_#050014_50%),radial-gradient(circle_at_bottom,_#F97316_0,_#050014_55%)] px-6 py-16 md:px-16">
+      <section className="hidden bg-[radial-gradient(circle_at_top,_#00D5FF_0,_#050014_50%),radial-gradient(circle_at_bottom,_#F97316_0,_#050014_55%)] px-6 py-16 md:px-16">
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
             <h2 className="mb-4 text-3xl font-bold text-white">Join Thousands of Happy Fans! 🎉</h2>
@@ -1212,36 +1229,6 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 10: TEXT REVIEWS CAROUSEL */}
-      <section className="bg-[radial-gradient(circle_at_top,_#ECFEFF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#F8F9FA_55%)] px-6 py-20 md:px-16">
-        <div className="mx-auto max-w-5xl">
-          <div className="mb-10 text-center">
-            <h2 className="text-3xl font-bold text-[#212529]">Stories That Make You Hit “Bid”</h2>
-            <p className="mt-2 text-base text-[#6C757D]">Swipe through heartfelt reviews from fans just like you</p>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2">
-            {textReviews.map((review, index) => (
-              <Card key={review.name} elevated className="border border-[#E9ECEF] bg-white">
-                <CardContent className="flex h-full flex-col gap-4 p-6">
-                  <div className="flex items-center gap-2 text-sm text-[#C045FF]">
-                    <span className="rounded-full border border-[#C045FF] px-3 py-1 text-xs font-semibold uppercase">
-                      {index + 1} / {textReviews.length}
-                    </span>
-                    <span>Fan Story</span>
-                  </div>
-                  <p className="text-sm text-[#212529] leading-relaxed">“{review.quote}”</p>
-                  <div className="mt-auto flex flex-col gap-1 text-sm text-[#6C757D]">
-                    <span className="font-semibold text-[#212529]">{review.name}</span>
-                    <span>{review.met}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* SECTION 11: TRUST & SAFETY */}
       <section
         className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
@@ -1312,102 +1299,22 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* SECTION 13: FOR CREATORS CTA */}
-      <section
-        className="bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
-        id="creators"
-      >
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-12 flex flex-col gap-4 text-center">
-            <h2 className="text-3xl font-bold text-[#212529]">Are You a Creator? Join FanMeet!</h2>
-            <p className="text-base text-[#6C757D]">Turn your biggest supporters into meaningful conversations and steady income.</p>
-            <div className="flex flex-wrap justify-center gap-3 text-sm text-[#ADB5BD]">
-              <span>Approval in 24-48 hours</span>
-              <span>·</span>
-              <span>Requirements: 1K followers or unique expertise</span>
-              <span>·</span>
-              <span>Valid ID & payout account</span>
-            </div>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {creatorBenefits.map((benefit) => (
-              <Card key={benefit.title} elevated className="border border-[#F1F3F5]">
-                <CardContent className="flex h-full flex-col gap-4 p-6">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{benefit.icon}</span>
-                    <h3 className="text-lg font-semibold text-[#212529]">{benefit.title}</h3>
-                  </div>
-                  <ul className="space-y-2 text-sm text-[#6C757D]">
-                    {benefit.bullets.map((bullet) => (
-                      <li key={bullet} className="flex gap-2">
-                        <span className="text-[#C045FF]">•</span>
-                        <span>{bullet}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="mt-10 flex flex-col items-center gap-4">
-            <Button size="lg" className="px-10 text-base">
-              Apply to Become a Creator →
-            </Button>
-            <p className="text-sm text-[#6C757D]">Fill a 2-minute form · We verify socials · Start hosting events right away</p>
-          </div>
-        </div>
-      </section>
-
       {/* SECTION 14: MEET THE TEAM */}
       <section
         className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#ECFEFF_0,_#F8F9FA_55%)] px-6 py-20 md:px-16"
         id="team"
       >
         <div className="mx-auto max-w-6xl">
-          <div className="mb-12 grid gap-6 md:grid-cols-[minmax(0,0.6fr)_minmax(0,1fr)] md:items-start">
-            <div className="rounded-[20px] bg-white p-6 shadow-[var(--shadow-md)]">
-              <p className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Our Story</p>
-              <p className="mt-4 text-sm text-[#6C757D]">
-                Hi! 👋 We are a tiny team of five fans-turned-builders from Bangalore. Back in June 2024 we wished we could simply thank our
-                favourite tech reviewer. That “what if?” sparked six months of chai-fuelled evenings, a cramped apartment workspace, and a lot of
-                “will this even work?” moments. Fast-forward to January 2025: over 1,200 fans have now had life-changing video calls. We have watched
-                tears of joy, creators rediscover their why, and friendships form across India. This is just the beginning—come build it with us!
-              </p>
-            </div>
-            <div className="grid gap-4 text-sm text-[#6C757D]">
-              <p>• 1,200+ calls hosted since launch</p>
-              <p>• Proudly building in India 🇮🇳</p>
-              <p>• Every creator onboarded by real humans</p>
-            </div>
+          <div className="mb-8 text-center">
+            <h2 className="text-3xl font-bold tracking-[0.25em] text-[#212529]">ABOUT US</h2>
           </div>
-
-          <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {teamMembers.map((member) => (
-              <Card key={member.name} elevated className="border border-[#E9ECEF]">
-                <CardContent className="flex h-full flex-col gap-3 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-[#212529]">{member.name}</h3>
-                      <p className="text-sm text-[#6C757D]">{member.role}</p>
-                    </div>
-                    <Badge variant="primary" className="text-xs uppercase tracking-wide">
-                      Team
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-[#212529]">“{member.bio}”</p>
-                  <p className="text-xs text-[#ADB5BD]">Fun fact: {member.funFact}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <AnimatedTestimonials testimonials={teamTestimonials} autoplay />
         </div>
       </section>
 
       {/* SECTION 15: FAQ */}
       <section
-        className="bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        className="hidden bg-[radial-gradient(circle_at_top,_#FFF7ED_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
         id="faq"
       >
         <div className="mx-auto max-w-5xl">
@@ -1433,7 +1340,7 @@ export function LandingPage() {
 
       {/* SECTION 16: PRESS & SOCIAL LOVE */}
       <section
-        className="bg-[radial-gradient(circle_at_top,_#00D5FF_0,_#050014_50%),radial-gradient(circle_at_bottom,_#EC4899_0,_#050014_55%)] px-6 py-20 text-white md:px-16"
+        className="hidden bg-[radial-gradient(circle_at_top,_#00D5FF_0,_#050014_50%),radial-gradient(circle_at_bottom,_#EC4899_0,_#050014_55%)] px-6 py-20 text-white md:px-16"
         id="press"
       >
         <div className="mx-auto max-w-6xl">
@@ -1463,7 +1370,7 @@ export function LandingPage() {
 
       {/* SECTION 17: HOW WE'RE DIFFERENT */}
       <section
-        className="bg-[radial-gradient(circle_at_top,_#ECFEFF_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
+        className="hidden bg-[radial-gradient(circle_at_top,_#ECFEFF_0,_#FFFFFF_55%),radial-gradient(circle_at_bottom,_#FDF4FF_0,_#FFFFFF_55%)] px-6 py-20 md:px-16"
         id="comparison"
       >
         <div className="mx-auto max-w-5xl">
@@ -1500,7 +1407,7 @@ export function LandingPage() {
 
       {/* SECTION 18: SUCCESS STORIES */}
       <section
-        className="bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#FFF7ED_0,_#F8F9FA_55%)] px-6 py-20 md:px-16"
+        className="hidden bg-[radial-gradient(circle_at_top,_#FDF4FF_0,_#F8F9FA_55%),radial-gradient(circle_at_bottom,_#FFF7ED_0,_#F8F9FA_55%)] px-6 py-20 md:px-16"
         id="success-stories"
       >
         <div className="mx-auto max-w-5xl">

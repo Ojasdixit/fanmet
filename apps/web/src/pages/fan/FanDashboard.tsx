@@ -31,20 +31,26 @@ export function FanDashboard() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-4">
         <h1 className="text-2xl font-semibold text-[#212529]">Browse Events</h1>
-        <div className="flex flex-wrap items-center gap-3">
-          {['All', 'Paid Events', 'Free Events', 'Live Now'].map((filter) => (
-            <Button
-              key={filter}
-              variant={filter === 'All' ? 'primary' : 'secondary'}
-              size="sm"
-              className="rounded-full px-5"
-            >
-              {filter}
-            </Button>
-          ))}
-          <div className="ml-auto flex items-center gap-2">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-3">
+          <div className="flex flex-wrap gap-2">
+            {['All', 'Paid Events', 'Free Events', 'Live Now'].map((filter) => (
+              <Button
+                key={filter}
+                variant="primary"
+                size="sm"
+                className="rounded-full px-5 bg-[#050014] text-white hover:bg-[#140423]"
+              >
+                {filter}
+              </Button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 md:ml-auto">
             <span className="text-sm text-[#6C757D]">Sort by</span>
-            <Button variant="secondary" size="sm" className="rounded-[8px]">
+            <Button
+              variant="primary"
+              size="sm"
+              className="rounded-[8px] bg-[#050014] text-white hover:bg-[#140423]"
+            >
               Most Popular ▼
             </Button>
           </div>
@@ -54,7 +60,7 @@ export function FanDashboard() {
       <div className="grid gap-6 md:grid-cols-2">
         {mockEvents.map((event) => (
           <Card key={event.id} elevated className="flex h-full flex-col overflow-hidden p-0">
-            <div className="relative h-40 w-full flex-shrink-0 bg-gradient-to-br from-[#FFE5D9] via-white to-[#FFE5D9]" />
+            <div className="relative h-40 w-full flex-shrink-0 bg-gradient-to-br from-[#F4E6FF] via-white to-[#F4E6FF]" />
             <div className="flex flex-1 flex-col gap-6 px-6 pb-6 pt-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-[160px]">
@@ -64,14 +70,18 @@ export function FanDashboard() {
                   <h3 className="text-xl font-semibold text-[#212529]">{event.creator}</h3>
                   <p className="text-sm text-[#6C757D]">{event.username}</p>
                 </div>
-                <Button variant="secondary" size="sm">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="bg-[#050014] text-white hover:bg-[#140423]"
+                >
                   Share Link
                 </Button>
               </div>
 
-              <div className="rounded-[16px] border border-[#FFE5D9] bg-[#FFE5D9]/70 p-4">
+              <div className="rounded-[16px] border border-[#F4E6FF] bg-[#F4E6FF]/70 p-4">
                 <div className="text-sm text-[#6C757D]">⏱️ Ends in</div>
-                <div className="text-2xl font-bold text-[#FF6B35]">{event.endsIn}</div>
+                <div className="text-2xl font-bold text-[#C045FF]">{event.endsIn}</div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -87,7 +97,12 @@ export function FanDashboard() {
                 </div>
               </div>
 
-              <Button className="w-full">Place Bid →</Button>
+              <Button
+                variant="primary"
+                className="w-full bg-[#050014] text-white hover:bg-[#140423]"
+              >
+                Place Bid →
+              </Button>
             </div>
           </Card>
         ))}

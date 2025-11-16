@@ -58,7 +58,12 @@ export function CreatorOverview() {
           <h1 className="text-2xl font-semibold text-[#212529]">Overview</h1>
           <p className="text-sm text-[#6C757D]">High-level snapshot of your performance.</p>
         </div>
-        <Button>Create Event →</Button>
+        <Button
+          variant="primary"
+          className="bg-[#050014] text-white hover:bg-[#140423]"
+        >
+          Create Event →
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -83,7 +88,11 @@ export function CreatorOverview() {
               ) : null}
               {item.caption ? <p className="text-sm text-[#6C757D]">{item.caption}</p> : null}
               {item.action ? (
-                <Button variant="secondary" size="sm" className="mt-2 w-fit">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-2 w-fit bg-[#050014] text-white hover:bg-[#140423]"
+                >
                   {item.action}
                 </Button>
               ) : null}

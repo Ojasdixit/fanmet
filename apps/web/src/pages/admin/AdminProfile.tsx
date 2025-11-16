@@ -84,7 +84,7 @@ export function AdminProfile() {
           <ul className="space-y-2 text-sm text-[#212529]">
             {recentActivity.map((item) => (
               <li key={item} className="flex items-center gap-2 rounded-[12px] bg-[#F8F9FA] px-4 py-3">
-                <span className="text-[#FF6B35]">•</span>
+                <span className="text-[#C045FF]">•</span>
                 <span>{item}</span>
               </li>
             ))}

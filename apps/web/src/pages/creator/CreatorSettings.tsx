@@ -46,11 +46,11 @@ export function CreatorSettings() {
             <TextInput label="Contact email" placeholder="creator@example.com" defaultValue="hello@aartilive.com" />
             <TextInput label="Phone number" placeholder="+91 98765 43210" defaultValue="+91 98765 43210" />
             <label className="flex items-center gap-3 text-sm text-[#212529]">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Send SMS alerts for high-value bids
             </label>
             <label className="flex items-center gap-3 text-sm text-[#212529]">
-              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Share calendar availability with FanMeet team
             </label>
             <Button variant="secondary" className="self-start">

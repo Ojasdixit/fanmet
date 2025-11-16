@@ -76,15 +76,15 @@ export function FanNotifications() {
         <CardContent className="gap-4">
           <div className="flex flex-col gap-4">
             <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Email notifications for new bids and outbids
             </label>
             <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" defaultChecked className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Reminders 24 hours before a scheduled meet
             </label>
             <label className="flex items-center gap-3 text-sm">
-              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+              <input type="checkbox" className="h-5 w-5 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
               Product updates and feature announcements
             </label>
           </div>

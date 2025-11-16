@@ -69,7 +69,7 @@ export function FanMeets() {
                       <Button disabled>Join Meeting →</Button>
                     </div>
                     <span className="text-sm text-[#6C757D]">
-                      ⏰ Starts in: <strong className="text-[#FF6B35]">{meet.startsIn}</strong>
+                      ⏰ Starts in: <strong className="text-[#C045FF]">{meet.startsIn}</strong>
                     </span>
                   </div>
                 </div>
