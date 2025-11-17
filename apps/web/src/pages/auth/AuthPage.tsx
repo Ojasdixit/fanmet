@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, TextInput, Card } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 const highlightStats = [
   {
@@ -19,6 +20,8 @@ export function AuthPage() {
   const [email, setEmail] = useState('');
   const [formError, setFormError] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { login } = useAuth();
 
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
     event.preventDefault();
@@ -30,13 +33,18 @@ export function AuthPage() {
 
     setFormError('');
 
+    login({ role: selectedRole, email });
+
     const redirectMap: Record<typeof selectedRole, string> = {
       fan: '/fan',
       creator: '/creator',
       admin: '/admin',
     };
 
-    navigate(redirectMap[selectedRole]);
+    const redirectParam = searchParams.get('redirect');
+    const target = redirectParam && redirectParam.trim().length > 0 ? redirectParam : redirectMap[selectedRole];
+
+    navigate(target);
   };
 
   return (
