@@ -1,9 +1,11 @@
 import { Button, Card, CardContent, CardHeader, Badge } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEvents } from '../../contexts/EventContext';
 
 export function CreatorEvents() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { events } = useEvents();
 
@@ -12,13 +14,8 @@ export function CreatorEvents() {
     ? events.filter((event) => event.creatorUsername === creatorUsername)
     : [];
 
-  const handleShareLink = () => {
-    if (!creatorUsername) {
-      window.alert('Please login as a creator to share your event link.');
-      return;
-    }
-
-    const url = `${window.location.origin}/${creatorUsername}`;
+  const handleShareEventLink = (eventId: string) => {
+    const url = `${window.location.origin}/events/${eventId}`;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(
@@ -86,8 +83,10 @@ export function CreatorEvents() {
               <div className="flex flex-wrap gap-3">
                 <Button variant="secondary">Edit</Button>
                 <Button variant="danger">Delete</Button>
-                <Button onClick={handleShareLink}>Copy Link</Button>
-                <Button variant="ghost">View Details →</Button>
+                <Button onClick={() => handleShareEventLink(event.id)}>Copy Link</Button>
+                <Button variant="ghost" onClick={() => navigate(`/events/${event.id}`)}>
+                  View Details →
+                </Button>
               </div>
             </Card>
           ))

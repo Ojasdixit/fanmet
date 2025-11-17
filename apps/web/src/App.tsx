@@ -9,6 +9,7 @@ import { FanDashboard } from './pages/fan/FanDashboard';
 import { FanBids } from './pages/fan/FanBids';
 import { FanMeets } from './pages/fan/FanMeets';
 import { FanWallet } from './pages/fan/FanWallet';
+import { FanFollowing } from './pages/fan/FanFollowing';
 import { FanHistory } from './pages/fan/FanHistory';
 import { FanNotifications } from './pages/fan/FanNotifications';
 import { FanSettings } from './pages/fan/FanSettings';
@@ -16,9 +17,11 @@ import { FanMessages } from './pages/fan/FanMessages';
 import { CreatorOverview } from './pages/creator/CreatorOverview';
 import { CreatorEvents } from './pages/creator/CreatorEvents';
 import { CreatorCreateEvent } from './pages/creator/CreatorCreateEvent';
+import { CreatorProfileSetup } from './pages/creator/CreatorProfileSetup';
 import { CreatorEarnings } from './pages/creator/CreatorEarnings';
 import { CreatorWithdrawals } from './pages/creator/CreatorWithdrawals';
 import { CreatorMeets } from './pages/creator/CreatorMeets';
+import { CreatorFollowers } from './pages/creator/CreatorFollowers';
 import { CreatorNotifications } from './pages/creator/CreatorNotifications';
 import { CreatorSettings } from './pages/creator/CreatorSettings';
 import { CreatorMessages } from './pages/creator/CreatorMessages';
@@ -52,8 +55,10 @@ import { AdminSystemBulkActions } from './pages/admin/AdminSystemBulkActions';
 import { AdminSystemBackup } from './pages/admin/AdminSystemBackup';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { InfluencerPage } from './pages/influencer/InfluencerPage';
+import { EventDetailPage } from './pages/events/EventDetailPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { EventProvider } from './contexts/EventContext';
+import { CreatorProfileProvider } from './contexts/CreatorProfileContext';
 
 const Loader = () => (
   <div className="flex h-full w-full items-center justify-center">
@@ -69,10 +74,12 @@ export default function App() {
     <Suspense fallback={<Loader />}>
       <AuthProvider>
         <EventProvider>
-          <Routes>
+          <CreatorProfileProvider>
+            <Routes>
             <Route element={<AppShell />}>
               <Route index element={<LandingPage />} />
               <Route path="auth" element={<AuthPage />} />
+              <Route path="events/:eventId" element={<EventDetailPage />} />
               <Route path=":username" element={<InfluencerPage />} />
             </Route>
 
@@ -81,6 +88,7 @@ export default function App() {
               <Route path="bids" element={<FanBids />} />
               <Route path="meets" element={<FanMeets />} />
               <Route path="wallet" element={<FanWallet />} />
+              <Route path="following" element={<FanFollowing />} />
               <Route path="history" element={<FanHistory />} />
               <Route path="messages" element={<FanMessages />} />
               <Route path="notifications" element={<FanNotifications />} />
@@ -92,9 +100,11 @@ export default function App() {
               <Route index element={<CreatorOverview />} />
               <Route path="events" element={<CreatorEvents />} />
               <Route path="events/new" element={<CreatorCreateEvent />} />
+              <Route path="profile-setup" element={<CreatorProfileSetup />} />
               <Route path="earnings" element={<CreatorEarnings />} />
               <Route path="withdrawals" element={<CreatorWithdrawals />} />
               <Route path="meets" element={<CreatorMeets />} />
+              <Route path="followers" element={<CreatorFollowers />} />
               <Route path="messages" element={<CreatorMessages />} />
               <Route path="notifications" element={<CreatorNotifications />} />
               <Route path="settings" element={<CreatorSettings />} />
@@ -135,7 +145,8 @@ export default function App() {
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+            </Routes>
+          </CreatorProfileProvider>
         </EventProvider>
       </AuthProvider>
     </Suspense>

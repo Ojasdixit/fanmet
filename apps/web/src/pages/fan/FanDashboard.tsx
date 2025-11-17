@@ -141,7 +141,17 @@ export function FanDashboard() {
         </div>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="space-y-3">
+        <div className="flex flex-col gap-1">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6C757D]">
+            Events from creators you follow
+          </p>
+          <p className="text-xs text-[#6C757D]">
+            Live and upcoming FanMeets hosted by creators you follow or subscribe to.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
         {mockEvents.map((event) => (
           <Card key={event.id} elevated className="flex h-full flex-col overflow-hidden p-0">
             <div className="relative h-40 w-full flex-shrink-0 bg-gradient-to-br from-[#F4E6FF] via-white to-[#F4E6FF]" />
@@ -190,6 +200,7 @@ export function FanDashboard() {
             </div>
           </Card>
         ))}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1.3fr]">

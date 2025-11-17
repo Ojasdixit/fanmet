@@ -24,11 +24,11 @@ const stats = [
     action: 'Withdraw →',
   },
   {
-    id: 'stat-4',
+    id: 'meets',
     icon: '🎥',
     title: 'Completed Meets',
     value: 47,
-    caption: '5.0★ avg rating',
+    caption: 'Happy fans across sessions',
   },
 ];
 

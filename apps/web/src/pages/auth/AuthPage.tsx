@@ -48,48 +48,50 @@ export function AuthPage() {
   };
 
   return (
-    <div className="grid min-h-screen grid-cols-1 overflow-hidden bg-white md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-      <section className="relative hidden w-full items-center justify-center bg-gradient-to-br from-[#FF8C42] via-[#FF6B35] to-[#FF4F1F] p-12 text-white md:flex">
-        <div className="relative z-10 flex max-w-xl flex-col gap-10">
-          <div className="flex flex-col gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-sm font-medium tracking-wide">
-              <span className="h-2 w-2 rounded-full bg-white" /> LIVE MOMENTS • REAL CONNECTIONS
+    <div className="grid min-h-[calc(100vh-70px)] grid-cols-1 overflow-hidden bg-gradient-to-b from-white to-[#F8F0FF] md:h-[calc(100vh-70px)] md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+      <section className="relative hidden h-full w-full items-start justify-start bg-gradient-to-br from-[#FCE7FF] via-[#F4E6FF] to-[#E5DEFF] px-10 py-9 text-[#050014] md:flex">
+        <div className="relative z-10 mx-auto flex max-w-xl flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-4 py-1 text-sm font-medium tracking-wide text-[#C045FF]">
+              <span className="h-2 w-2 rounded-full bg-[#C045FF]" /> LIVE MOMENTS • REAL CONNECTIONS
             </span>
-            <h1 className="text-4xl font-bold leading-tight md:text-5xl">
+            <h1 className="text-2xl font-bold leading-tight text-[#050014] md:text-3xl lg:text-4xl">
               Bring creators and fans together through premium digital meetups
             </h1>
-            <p className="text-base text-white/80 md:text-lg">
+            <p className="text-xs text-[#4B445F] md:text-sm lg:text-base">
               Secure bidding, curated events, and rich creator tooling packaged in one vibrant platform.
             </p>
           </div>
+          {/* Stats + image only on extra-large screens to save vertical space on laptops and desktops */}
+          <div className="hidden xl:flex xl:flex-col xl:gap-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              {highlightStats.map((item) => (
+                <Card
+                  key={item.title}
+                  className="bg-white/10 backdrop-blur-md transition hover:bg-white/20"
+                  elevated
+                >
+                  <div className="flex flex-col gap-2 p-4">
+                    <h3 className="text-lg font-semibold text-[#050014]">{item.title}</h3>
+                    <p className="text-sm text-[#4B445F]">{item.description}</p>
+                  </div>
+                </Card>
+              ))}
+            </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {highlightStats.map((item) => (
-              <Card
-                key={item.title}
-                className="bg-white/10 backdrop-blur-md transition hover:bg-white/20"
-                elevated
-              >
-                <div className="flex flex-col gap-2 p-4">
-                  <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                  <p className="text-sm text-white/70">{item.description}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          <div className="relative">
-            <img
-              src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80"
-              alt="Creators collaborating"
-              className="h-64 w-full rounded-3xl object-cover shadow-2xl shadow-[#FF4F1F]/40"
-            />
-            <div className="absolute -bottom-6 left-1/2 w-[85%] -translate-x-1/2 rounded-3xl bg-white/95 p-6 shadow-xl shadow-[#FF4F1F]/20">
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FF6B35]/10 text-2xl">🎥</div>
-                <div>
-                  <p className="text-sm font-semibold uppercase tracking-wide text-[#FF6B35]">Creator Spotlight</p>
-                  <p className="text-sm text-[#212529]">“My fans love our micro-meet sessions—it feels personal and seamless.”</p>
+            <div className="relative mt-2">
+              <img
+                src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80"
+                alt="Creators collaborating"
+                className="h-36 w-full rounded-3xl object-cover shadow-2xl shadow-[#C045FF]/40"
+              />
+              <div className="absolute bottom-2 left-1/2 w-[85%] -translate-x-1/2 rounded-2xl bg-white/95 p-3 shadow-xl shadow-[#C045FF]/15">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#C045FF]/10 text-2xl">🎥</div>
+                  <div>
+                    <p className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Creator Spotlight</p>
+                    <p className="text-sm text-[#212529]">“My fans love our micro-meet sessions—it feels personal and seamless.”</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -99,20 +101,20 @@ export function AuthPage() {
         <div className="absolute right-0 top-0 h-full w-full bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
       </section>
 
-      <section className="flex items-center justify-center px-6 py-10 md:px-12">
-        <div className="flex w-full max-w-md flex-col gap-10">
-          <div className="flex flex-col gap-3 text-center md:text-left">
-            <Link to="/" className="text-sm font-semibold text-[#FF6B35]">
+      <section className="flex items-start justify-center px-4 py-4 md:px-6 md:py-4">
+        <div className="flex w-full max-w-md flex-col gap-4 md:gap-3.5">
+          <div className="flex flex-col gap-1.5 text-center md:text-left">
+            <Link to="/" className="text-sm font-semibold text-[#C045FF]">
               ← Back to home
             </Link>
-            <h2 className="text-3xl font-bold text-[#212529] md:text-4xl">Welcome back</h2>
-            <p className="text-sm text-[#6C757D]">
+            <h2 className="text-2xl font-bold text-[#212529] md:text-3xl">Welcome back</h2>
+            <p className="hidden text-sm text-[#6C757D] lg:block">
               Sign in to manage your events, track bids, and stay close to your community.
             </p>
           </div>
 
-          <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-3">
+          <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+            <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-[#212529]">Continue as</span>
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                 {(
@@ -127,17 +129,17 @@ export function AuthPage() {
                     type="button"
                     onClick={() => setSelectedRole(option.value)}
                     className={classNames(
-                      'flex items-center gap-3 rounded-[14px] border-2 px-4 py-3 text-left transition-all',
+                      'flex items-center gap-2.5 rounded-[14px] border-2 px-3.5 py-2.5 text-left transition-all',
                       'shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]',
                       selectedRole === option.value
-                        ? 'border-[#FF6B35] bg-[#FFE5D9] text-[#212529]'
-                        : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#FF6B35]/40'
+                        ? 'border-[#C045FF] bg-[#F4E6FF] text-[#212529]'
+                        : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
                     )}
                   >
-                    <span className="text-xl">{option.emoji}</span>
+                    <span className="text-lg">{option.emoji}</span>
                     <div>
-                      <p className="text-sm font-semibold">{option.label}</p>
-                      <p className="text-xs text-[#6C757D]">
+                      <p className="text-[13px] font-semibold">{option.label}</p>
+                      <p className="text-[11px] text-[#6C757D]">
                         {option.value === 'fan' && 'Bid, join meets, and manage your sessions.'}
                         {option.value === 'creator' && 'Host immersive experiences and track earnings.'}
                         {option.value === 'admin' && 'Oversee creators, events, and payouts.'}
@@ -148,7 +150,7 @@ export function AuthPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
               <TextInput
                 label="Email"
                 placeholder="you@example.com"
@@ -159,51 +161,44 @@ export function AuthPage() {
               />
               <div className="flex items-center justify-between text-sm">
                 <label className="flex items-center gap-2 text-[#6C757D]">
-                  <input type="checkbox" className="h-4 w-4 rounded border-[#CBD5F5] text-[#FF6B35] focus:ring-[#FF6B35]" />
+                  <input type="checkbox" className="h-4 w-4 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
                   Remember me
                 </label>
-                <Link to="#" className="font-medium text-[#FF6B35] hover:text-[#FF4F1F]">
+                <Link to="#" className="font-medium text-[#C045FF] hover:text-[#8B3FFF]">
                   Forgot password?
                 </Link>
               </div>
             </div>
 
-            {formError ? <p className="text-sm font-medium text-[#DC3545]">{formError}</p> : null}
+            {formError ? <p className="text-[11px] font-medium text-[#DC3545]">{formError}</p> : null}
 
-            <Button type="submit" size="lg">
+            <Button type="submit" size="md" className="h-9 text-[13px]">
               Continue with email
             </Button>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5">
               <span className="h-px flex-1 bg-[#E9ECEF]" />
               <span className="text-sm font-medium text-[#6C757D]">or</span>
               <span className="h-px flex-1 bg-[#E9ECEF]" />
             </div>
 
-            <div className="grid gap-3">
-              <Button variant="secondary" size="lg">
+            <div className="grid gap-2">
+              <Button variant="secondary" size="md" className="h-9 text-[13px]">
                 Continue with Google
               </Button>
-              <Button variant="ghost" size="lg">
+              <Button variant="ghost" size="md" className="h-9 text-[13px]">
                 Continue with Apple
               </Button>
             </div>
           </form>
 
-          <div className="rounded-2xl bg-[#F8F9FA] p-5 text-sm text-[#6C757D]">
-            <p className="font-medium text-[#212529]">New here?</p>
-            <p className="mt-1">
-              Continue to create an account and choose whether you are joining as a fan, creator, or admin team member.
-            </p>
-          </div>
-
-          <p className="text-xs text-[#ADB5BD]">
+          <p className="hidden text-xs text-[#ADB5BD] lg:block">
             By continuing, you agree to our{' '}
-            <Link to="#" className="font-medium text-[#FF6B35]">
+            <Link to="#" className="font-medium text-[#C045FF]">
               Terms of Service
             </Link>{' '}
             and{' '}
-            <Link to="#" className="font-medium text-[#FF6B35]">
+            <Link to="#" className="font-medium text-[#C045FF]">
               Privacy Policy
             </Link>
             .

@@ -4,7 +4,7 @@ import { Button } from '@fanmeet/ui';
 
 const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
   `text-base font-medium transition-colors ${
-    isActive ? 'text-[#FF6B35]' : 'text-[#6C757D] hover:text-[#FF6B35]'
+    isActive ? 'text-[#C045FF]' : 'text-[#6C757D] hover:text-[#C045FF]'
   }`;
 
 export const AppShell = () => {
@@ -20,14 +20,14 @@ export const AppShell = () => {
         <>
           <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[#E9ECEF] bg-white px-6 md:px-12">
             <div className="flex items-center gap-6 md:gap-10">
-              <NavLink to="/" className="flex items-center gap-2 text-2xl font-bold text-[#FF6B35]">
+              <NavLink to="/" className="flex items-center gap-2 text-2xl font-bold text-[#C045FF]">
                 FanMeet
               </NavLink>
               <nav className="hidden gap-6 md:flex">
                 <NavLink to="/fan" className={navLinkClasses}>
                   Browse Events
                 </NavLink>
-                <a href="#how-it-works" className="text-base font-medium text-[#6C757D] transition-colors hover:text-[#FF6B35]">
+                <a href="#how-it-works" className="text-base font-medium text-[#6C757D] transition-colors hover:text-[#C045FF]">
                   How It Works
                 </a>
                 <NavLink to="/creator" className={navLinkClasses}>

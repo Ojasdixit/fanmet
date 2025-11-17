@@ -30,6 +30,7 @@ const roleConfig: Record<
     title: 'Fan Dashboard',
     menu: [
       { type: 'link', to: '/fan', label: 'Browse Events', icon: '\ud83c\udfe0' },
+      { type: 'link', to: '/fan/following', label: 'Following & Subscriptions', icon: '\ud83d\udc65' },
       { type: 'link', to: '/fan/bids', label: 'My Bids', icon: '\ud83c\udfab' },
       { type: 'link', to: '/fan/meets', label: 'Upcoming Meets', icon: '\ud83d\udcf9' },
       { type: 'link', to: '/fan/history', label: 'History', icon: '\ud83d\udcdc' },
@@ -44,7 +45,9 @@ const roleConfig: Record<
     menu: [
       { type: 'link', to: '/creator', label: 'Overview', icon: '📊' },
       { type: 'link', to: '/creator/events', label: 'My Events', icon: '🎫' },
-      { type: 'link', to: '/creator/events/new', label: 'Create Event', icon: '\u2795' },
+      { type: 'link', to: '/creator/events/new', label: 'Create Event', icon: '➕' },
+      { type: 'link', to: '/creator/profile-setup', label: 'Profile Setup', icon: '👤' },
+      { type: 'link', to: '/creator/followers', label: 'Followers & Fans', icon: '👥' },
       { type: 'link', to: '/creator/earnings', label: 'Earnings', icon: '\ud83d\udcb0' },
       { type: 'link', to: '/creator/withdrawals', label: 'Withdrawals', icon: '\ud83c\udfe6' },
       { type: 'link', to: '/creator/meets', label: 'Upcoming Meets', icon: '\ud83d\udcf9' },
@@ -63,7 +66,7 @@ const roleConfig: Record<
       { type: 'link', to: '/admin/fans', label: 'Fans Management', icon: '🎭' },
       { type: 'section', label: 'CONTENT MANAGEMENT' },
       { type: 'link', to: '/admin/events', label: 'Events Management', icon: '🎫' },
-      { type: 'link', to: '/admin/featured', label: 'Featured Creators', icon: '⭐' },
+      { type: 'link', to: '/admin/featured', label: 'Featured Creators', icon: '📣' },
       { type: 'link', to: '/admin/announcements', label: 'Announcements', icon: '📢' },
       { type: 'section', label: 'FINANCIAL' },
       { type: 'link', to: '/admin/payments', label: 'Payments & Transactions', icon: '💰' },

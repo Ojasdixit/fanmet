@@ -104,7 +104,6 @@ const processSteps = [
 const socialProofStatsTop = [
   { value: '1,247', label: 'Happy Fans Joined' },
   { value: '200', label: 'Video Meets Completed' },
-  { value: '4.9', label: 'Average Rating from Fans', suffix: '⭐' },
   { value: '95%', label: 'Success Rate (Fans Win)' },
 ];
 
@@ -201,25 +200,25 @@ const textReviews = [
     quote:
       "I've been following Chef Amit for 2 years on YouTube and never thought I'd get to talk to him personally. FanMeet made it possible! He gave me tips on starting my own food blog and even shared his secret recipe. Best ₹350 I ever spent. Thank you FanMeet! 🙏",
     name: 'Neha Kapoor, 26 · Food Blogger · Mumbai',
-    met: 'Met: Chef Amit Gupta · 5⭐',
+    met: 'Met: Chef Amit Gupta',
   },
   {
     quote:
       'As an introvert, I was scared to bid. But I really wanted career advice from Aditi. I won at ₹280. The call was so comfortable! She answered all my questions and even followed up with resources via email. Worth every rupee.',
     name: 'Anonymous Fan, 23 · Software Engineer',
-    met: 'Met: Aditi Sharma (Career Coach) · 5⭐',
+    met: 'Met: Aditi Sharma (Career Coach)',
   },
   {
     quote:
-      "Booked a FanMeet for my little brother with his favourite tech reviewer. They both nerded out about gadgets for 10 minutes. He's still smiling a week later. ₹300 very well spent!",
+      "Booked a FanMeet for my little brother with his favourite tech creator. They both nerded out about gadgets for 10 minutes. He's still smiling a week later. ₹300 very well spent!",
     name: 'Pooja Malhotra, 27 · Pune',
-    met: 'Met: Tech with Raj · 5⭐',
+    met: 'Met: Tech with Raj',
   },
   {
     quote:
       'I used FanMeet to get feedback on my indie game from a gaming creator I admire. He gave me 3 actionable tips and shared my demo with his Discord server. Instant confidence boost!',
     name: 'Harsh Patel, 21 · Game Developer · Ahmedabad',
-    met: 'Met: Rohan Live · 5⭐',
+    met: 'Met: Rohan Live',
   },
 ];
 
@@ -743,6 +742,7 @@ export function LandingPage() {
   const navigate = useNavigate();
   const [activeCreatorCategory, setActiveCreatorCategory] = useState<string>('All');
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const filteredCreators =
     activeCreatorCategory === 'All'
@@ -802,13 +802,84 @@ export function LandingPage() {
               </button>
               <button
                 type="button"
-                className="rounded-full border border-transparent bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-[0_0_35px_rgba(192,69,255,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#E6FF00]"
+                className="hidden rounded-full border border-transparent bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-[0_0_35px_rgba(192,69,255,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#E6FF00] md:inline-flex"
                 onClick={() => navigate('/auth')}
               >
                 Sign up
               </button>
+              <button
+                type="button"
+                className="flex items-center justify-center rounded-full border border-white/40 bg-black/40 p-2 text-white shadow-md backdrop-blur-xl transition-colors md:hidden"
+                onClick={() => setIsMobileMenuOpen((open) => !open)}
+              >
+                <span className="sr-only">Toggle navigation</span>
+                <div className="flex flex-col gap-[3px]">
+                  <span className="h-[2px] w-4 bg-white" />
+                  <span className="h-[2px] w-4 bg-white" />
+                  <span className="h-[2px] w-4 bg-white" />
+                </div>
+              </button>
             </div>
           </div>
+          {isMobileMenuOpen && (
+            <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-white/20 bg-black/70 p-4 text-sm md:hidden">
+              <button
+                type="button"
+                className="w-full rounded-full bg-white/10 px-4 py-2 text-left font-medium text-white hover:bg-white/20"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  navigate('/fan');
+                }}
+              >
+                Browse Events
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-full bg-white/10 px-4 py-2 text-left font-medium text-white hover:bg-white/20"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  const el = document.getElementById('how-it-works');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+              >
+                How It Works
+              </button>
+              <button
+                type="button"
+                className="w-full rounded-full bg-white/10 px-4 py-2 text-left font-medium text-white hover:bg-white/20"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  navigate('/creator');
+                }}
+              >
+                For Creators
+              </button>
+              <div className="mt-1 flex flex-col gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-full border border-white/40 bg-black/60 px-4 py-2 text-center text-xs font-medium text-white hover:bg-black/80"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    navigate('/auth');
+                  }}
+                >
+                  Log in
+                </button>
+                <button
+                  type="button"
+                  className="w-full rounded-full bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-4 py-2 text-center text-xs font-semibold text-white shadow-md hover:shadow-[0_0_25px_rgba(192,69,255,0.8)]"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    navigate('/auth');
+                  }}
+                >
+                  Sign up
+                </button>
+              </div>
+            </div>
+          )}
           <motion.div
             className="mt-6 flex flex-col gap-8 md:mt-12 md:flex-row md:items-stretch"
             initial={{ opacity: 0, y: 32 }}
@@ -1048,10 +1119,7 @@ export function LandingPage() {
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
             {socialProofStatsTop.map((stat) => (
               <div key={stat.label} className="text-center">
-                <div className="mb-2 flex items-center justify-center gap-2 text-4xl font-bold text-[#FACC15]">
-                  <span>{stat.value}</span>
-                  {stat.suffix ? <span className="text-2xl text-yellow-300">{stat.suffix}</span> : null}
-                </div>
+                <div className="mb-2 text-4xl font-bold text-[#FACC15]">{stat.value}</div>
                 <div className="text-sm text-[#ADB5BD]">{stat.label}</div>
               </div>
             ))}

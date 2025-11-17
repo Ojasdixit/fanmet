@@ -2,29 +2,23 @@ import { Badge, Button, Card, CardContent, CardHeader } from '@fanmeet/ui';
 
 const featuredCreators = [
   {
-    order: 1,
     name: 'Priya Sharma',
     username: '@priyasharma',
     followers: '52K',
-    rating: '4.8',
     earnings: '₹45,600',
     featuredSince: 'Jan 10, 2025',
   },
   {
-    order: 2,
     name: 'Rohan Verma',
     username: '@rohantech',
     followers: '48K',
-    rating: '4.9',
     earnings: '₹38,200',
     featuredSince: 'Jan 8, 2025',
   },
   {
-    order: 3,
     name: 'Amit Gupta',
     username: '@chefamit',
     followers: '35K',
-    rating: '4.7',
     earnings: '₹32,100',
     featuredSince: 'Jan 12, 2025',
   },
@@ -64,17 +58,17 @@ export function AdminFeaturedCreators() {
       </div>
 
       <Card>
-        <CardHeader title="Current Order" subtitle="Drag & drop priority influences homepage carousel." />
+        <CardHeader title="Current Order" subtitle="Priority influences homepage carousel." />
         <CardContent className="space-y-4">
-          {featuredCreators.map((creator) => (
+          {featuredCreators.map((creator, index) => (
             <div
-              key={creator.order}
+              key={creator.username}
               className="flex flex-wrap items-center justify-between gap-4 rounded-[16px] border border-[#E9ECEF] bg-[#F8F9FA] p-5"
             >
               <div className="flex items-center gap-4">
                 <div className="text-2xl font-semibold text-[#6C757D]">⋮⋮</div>
                 <div>
-                  <div className="text-sm text-[#6C757D]">#{creator.order}</div>
+                  <div className="text-sm text-[#6C757D]">#{index + 1}</div>
                   <div className="text-lg font-semibold text-[#212529]">{creator.name}</div>
                   <div className="text-sm text-[#6C757D]">{creator.username}</div>
                 </div>
@@ -82,9 +76,6 @@ export function AdminFeaturedCreators() {
               <div className="flex flex-wrap items-center gap-4 text-sm text-[#6C757D]">
                 <div>
                   Followers <span className="font-semibold text-[#212529]">{creator.followers}</span>
-                </div>
-                <div>
-                  Rating <span className="font-semibold text-[#212529]">{creator.rating}⭐</span>
                 </div>
                 <div>
                   Earned <span className="font-semibold text-[#212529]">{creator.earnings}</span>

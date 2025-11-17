@@ -47,8 +47,7 @@ export function CreatorCreateEvent() {
       time,
     });
 
-    const slug = event.creatorUsername;
-    const url = `${window.location.origin}/${slug}`;
+    const url = `${window.location.origin}/events/${event.id}`;
 
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(

@@ -7,7 +7,6 @@ const pastMeets = [
     creator: 'Priya Sharma',
     event: 'Backstage AMA',
     date: new Date('2025-01-02T16:00:00'),
-    rating: 4.9,
     amount: 360,
     highlights: 'Loved the candid behind-the-scenes stories and personal shoutout.'
   },
@@ -16,7 +15,6 @@ const pastMeets = [
     creator: 'Amit Singh',
     event: 'Productivity Power Hour',
     date: new Date('2024-12-18T15:30:00'),
-    rating: 4.7,
     amount: 220,
     highlights: 'Great Q&A and actionable frameworks for daily routines.'
   }
@@ -74,10 +72,6 @@ export function FanHistory() {
               <div className="flex flex-col items-end gap-2">
                 <span className="text-sm text-[#6C757D]">Winning Bid</span>
                 <span className="text-xl font-semibold text-[#212529]">{formatCurrency(meet.amount)}</span>
-                <Badge variant="success">⭐ {meet.rating.toFixed(1)}</Badge>
-                <Button variant="secondary" size="sm">
-                  Leave feedback
-                </Button>
               </div>
             </div>
           ))}
