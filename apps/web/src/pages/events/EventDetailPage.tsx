@@ -10,7 +10,7 @@ export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  const { events, placeBid } = useEvents();
+  const { events, placeBid, isLoading } = useEvents();
 
   let event = events.find((item) => item.id === eventId);
 
@@ -44,12 +44,12 @@ export function EventDetailPage() {
             index === 0
               ? 'Meet & Greet – 1:1 Fan Session'
               : index === 1
-              ? 'Premium AMA – Ask Me Anything'
-              : index === 2
-              ? 'Deep Dive – Strategy Session'
-              : index === 3
-              ? 'Behind the Scenes Chat'
-              : 'Quick Catch-up Call',
+                ? 'Premium AMA – Ask Me Anything'
+                : index === 2
+                  ? 'Deep Dive – Strategy Session'
+                  : index === 3
+                    ? 'Behind the Scenes Chat'
+                    : 'Quick Catch-up Call',
           description:
             'A quick 1:1 session to say hi, ask a couple of questions, and take a virtual selfie together.',
           status: index === 0 ? ('LIVE' as const) : ('Upcoming' as const),
@@ -66,6 +66,20 @@ export function EventDetailPage() {
 
   const [bidAmount, setBidAmount] = useState('');
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+
+  // Show loading state while events are being fetched
+  if (isLoading) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-8">
+        <Card elevated>
+          <CardContent className="gap-4 p-8 text-center">
+            <div className="text-lg font-semibold text-[#212529]">Loading event...</div>
+            <p className="text-sm text-[#6C757D]">Please wait while we fetch the event details.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!event) {
     return (
@@ -106,11 +120,16 @@ export function EventDetailPage() {
     }
   };
 
-  const handlePlaceBid = () => {
+  const handlePlaceBid = async () => {
     const amount = Number(bidAmount);
 
     if (!amount || Number.isNaN(amount)) {
       window.alert('Enter a valid bid amount to continue.');
+      return;
+    }
+
+    if (amount <= event.currentBid) {
+      window.alert(`Your bid must be higher than the current bid of ${formatCurrency(event.currentBid)}.`);
       return;
     }
 
@@ -119,9 +138,17 @@ export function EventDetailPage() {
       return;
     }
 
-    placeBid(event.id, amount);
-    window.alert('Your bid has been placed in this demo environment.');
-    setBidAmount('');
+    try {
+      await placeBid(event.id, amount);
+      window.alert(`✅ Bid placed successfully!\n\nYour bid: ${formatCurrency(amount)}\n\nYou'll be notified if someone outbids you.`);
+      setBidAmount('');
+    } catch (error) {
+      if (error instanceof Error) {
+        window.alert(`❌ ${error.message}`);
+      } else {
+        window.alert('Failed to place bid. Please try again.');
+      }
+    }
   };
 
   return (
@@ -149,10 +176,20 @@ export function EventDetailPage() {
         <Card elevated className="border-none">
           <CardContent className="gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
+              <div
+                className="flex flex-col gap-1 cursor-pointer group"
+                onClick={() => navigate(`/${event.creatorUsername}`)}
+              >
                 <span className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">Hosted by</span>
-                <span className="text-sm font-semibold text-[#212529]">{event.creatorDisplayName}</span>
-                <span className="text-xs text-[#6C757D]">@{event.creatorUsername}</span>
+                <span className="text-sm font-semibold text-[#212529] group-hover:text-[#C045FF] transition-colors">
+                  {event.creatorDisplayName}
+                </span>
+                <span className="text-xs text-[#C045FF] underline decoration-dotted group-hover:decoration-solid transition-all">
+                  @{event.creatorUsername}
+                </span>
+                <span className="text-[10px] text-[#6C757D] mt-1 group-hover:text-[#C045FF] transition-colors">
+                  👆 Click to view profile
+                </span>
               </div>
               <div className="flex flex-wrap gap-2 text-[11px] text-[#6C757D]">
                 <span className="rounded-full bg-[#F8F9FA] px-3 py-1">👥 {event.participants} participants</span>
@@ -168,9 +205,15 @@ export function EventDetailPage() {
               <div className="rounded-[12px] bg-[#F8F9FA] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide">Status</div>
                 <div className="mt-1 flex items-center gap-2 text-sm text-[#212529]">
-                  <Badge variant={event.status === 'LIVE' ? 'danger' : 'primary'}>
-                    {event.status === 'LIVE' ? '🔴 LIVE' : event.status}
-                  </Badge>
+                  {event.status === 'Accepting Bids' ? (
+                    <div className="rounded-[8px] bg-[#1E4620] px-3 py-1.5">
+                      <span className="text-sm font-semibold text-[#4ADE80]">✓ Accepting Bids</span>
+                    </div>
+                  ) : (
+                    <Badge variant={event.status === 'LIVE' ? 'danger' : 'primary'}>
+                      {event.status === 'LIVE' ? '🔴 LIVE' : event.status}
+                    </Badge>
+                  )}
                   <span className="text-xs text-[#6C757D]">{event.endsIn}</span>
                 </div>
               </div>

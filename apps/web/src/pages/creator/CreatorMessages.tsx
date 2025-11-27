@@ -1,6 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, Button, Avatar } from '@fanmeet/ui';
 import { MoreVertical, MoreHorizontal, Reply, Copy, Trash2, Flag, UserMinus2 } from 'lucide-react';
+import { format } from 'date-fns';
+import { useNotifications } from '../../contexts/NotificationsContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useDmPreferences } from '../../state/dmPreferences';
 
 type StatusType = 'online' | 'dnd' | 'offline';
@@ -8,87 +11,24 @@ type StatusType = 'online' | 'dnd' | 'offline';
 interface Participant {
   id: string;
   name: string;
+  username: string;
   avatar?: string;
   status?: StatusType;
 }
-
-interface MessageItem {
-  id: number;
-  text: string;
-  senderId: string;
-  time: string;
-}
-
-const DEMO_CREATOR: Participant = {
-  id: 'creator-456',
-  name: 'You · Creator',
-  avatar: 'https://api.dicebear.com/9.x/glass/svg?seed=creator-you',
-  status: 'online',
-};
-
-const DEMO_FAN: Participant = {
-  id: 'fan-123',
-  name: 'Rahul · Fan',
-  avatar: 'https://api.dicebear.com/9.x/glass/svg?seed=fan',
-};
-
-const STATUS_COLORS: Record<StatusType, string> = {
-  online: '#22c55e',
-  dnd: '#ef4444',
-  offline: '#9ca3af',
-};
-
-const DEMO_MESSAGES: MessageItem[] = [
-  { id: 1, text: 'Hi! Thanks again for taking my call yesterday. 👋', senderId: DEMO_FAN.id, time: '09:00' },
-  {
-    id: 2,
-    text: 'Hey Rahul! Happy you joined. How did you feel after the meet?',
-    senderId: DEMO_CREATOR.id,
-    time: '09:01',
-  },
-  {
-    id: 3,
-    text: "Super inspired. I already tried your lighting tip.",
-    senderId: DEMO_FAN.id,
-    time: '09:02',
-  },
-  {
-    id: 4,
-    text: 'Nice! Share a photo next time, I would love to see your setup.',
-    senderId: DEMO_CREATOR.id,
-    time: '09:04',
-  },
-  {
-    id: 5,
-    text: 'Will do! Thanks for being so kind on the call. 😊',
-    senderId: DEMO_FAN.id,
-    time: '09:06',
-  },
-  {
-    id: 6,
-    text: "Anytime. I appreciate you supporting my content.",
-    senderId: DEMO_CREATOR.id,
-    time: '09:07',
-  },
-];
 
 interface ConversationSummary {
   id: string;
   participant: Participant;
   lastMessage: string;
   lastTime: string;
-  unread?: number;
+  unread: number;
 }
 
-const DEMO_CONVERSATIONS: ConversationSummary[] = [
-  {
-    id: 'conv-fan-rahul',
-    participant: DEMO_FAN,
-    lastMessage: 'Anytime. I appreciate you supporting my content.',
-    lastTime: '09:07',
-    unread: 0,
-  },
-];
+const STATUS_COLORS: Record<StatusType, string> = {
+  online: '#22c55e',
+  dnd: '#ef4444',
+  offline: '#9ca3af',
+};
 
 function StatusBadge({ status }: { status: StatusType }) {
   return (
@@ -104,15 +44,90 @@ export function CreatorMessages() {
   const [draft, setDraft] = useState('');
   const { creatorDmStatus, setCreatorDmStatus } = useDmPreferences();
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const { messages, sendMessage, markMessageAsRead } = useNotifications();
+  const { user } = useAuth();
 
   const isDmOpen = creatorDmStatus === 'open';
-  const activeConversation =
-    DEMO_CONVERSATIONS.find((conversation) => conversation.id === activeConversationId) ?? null;
 
-  const handleSend = (event: React.FormEvent) => {
+  // Group messages into conversations
+  const conversations = useMemo(() => {
+    if (!user || !messages) return [];
+
+    const conversationMap = new Map<string, ConversationSummary>();
+
+    messages.forEach((msg) => {
+      const otherUserId = msg.sender_id === user.id ? msg.receiver_id : msg.sender_id;
+      const otherUserName = msg.sender_id === user.id ? msg.receiver_display_name : msg.sender_display_name;
+      const otherUserUsername = msg.sender_id === user.id ? msg.receiver_username : msg.sender_username;
+
+      const existing = conversationMap.get(otherUserId);
+      const isUnread = !msg.read && msg.receiver_id === user.id;
+
+      if (!existing) {
+        conversationMap.set(otherUserId, {
+          id: otherUserId,
+          participant: {
+            id: otherUserId,
+            name: otherUserName || 'Unknown User',
+            username: otherUserUsername || 'unknown',
+            avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${otherUserName || 'User'}`,
+            status: 'offline',
+          },
+          lastMessage: msg.message,
+          lastTime: msg.created_at,
+          unread: isUnread ? 1 : 0,
+        });
+      } else {
+        if (new Date(msg.created_at) > new Date(existing.lastTime)) {
+          existing.lastMessage = msg.message;
+          existing.lastTime = msg.created_at;
+        }
+        if (isUnread) {
+          existing.unread += 1;
+        }
+      }
+    });
+
+    return Array.from(conversationMap.values()).sort(
+      (a, b) => new Date(b.lastTime).getTime() - new Date(a.lastTime).getTime()
+    );
+  }, [messages, user]);
+
+  const activeConversation = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId) || null,
+    [conversations, activeConversationId]
+  );
+
+  const activeMessages = useMemo(
+    () =>
+      messages.filter(
+        (m) =>
+          (m.sender_id === user?.id && m.receiver_id === activeConversationId) ||
+          (m.sender_id === activeConversationId && m.receiver_id === user?.id)
+      ),
+    [messages, user, activeConversationId]
+  );
+
+  // Mark messages as read when opening conversation
+  useEffect(() => {
+    if (activeConversationId && user) {
+      const unreadMessages = activeMessages.filter(
+        (m) => !m.read && m.receiver_id === user.id
+      );
+      unreadMessages.forEach((m) => markMessageAsRead(m.id));
+    }
+  }, [activeConversationId, activeMessages, user, markMessageAsRead]);
+
+  const handleSend = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!draft.trim() || !isDmOpen || !activeConversation) return;
-    setDraft('');
+    if (!draft.trim() || !isDmOpen || !activeConversationId) return;
+
+    try {
+      await sendMessage(activeConversationId, draft);
+      setDraft('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
   };
 
   const toggleDmStatus = () => {
@@ -122,14 +137,13 @@ export function CreatorMessages() {
   return (
     <div className="flex h-[calc(100vh-140px)] flex-col gap-4 md:flex-row">
       <div
-        className={`flex w-full flex-col gap-3 md:w-80 ${
-          activeConversation ? 'hidden md:flex' : 'flex'
-        }`}
+        className={`flex w-full flex-col gap-3 md:w-80 ${activeConversation ? 'hidden md:flex' : 'flex'
+          }`}
       >
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold text-[#212529]">Messages</h1>
           <p className="text-sm text-[#6C757D]">
-            Chat with fans who have joined your FanMeets. Turn DMs on or off for your profile anytime.
+            Chat with fans who have joined your FanMeets.
           </p>
         </div>
 
@@ -151,18 +165,17 @@ export function CreatorMessages() {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 gap-2 p-0">
             <div className="flex-1 overflow-y-auto p-2">
-              {DEMO_CONVERSATIONS.map((conversation) => {
+              {conversations.map((conversation) => {
                 const isActive = conversation.id === activeConversationId;
                 return (
                   <button
                     key={conversation.id}
                     type="button"
                     onClick={() => setActiveConversationId(conversation.id)}
-                    className={`mb-2 flex w-full items-center gap-3 rounded-[12px] border px-3 py-2 text-left text-sm transition-colors ${
-                      isActive
+                    className={`mb-2 flex w-full items-center gap-3 rounded-[12px] border px-3 py-2 text-left text-sm transition-colors ${isActive
                         ? 'border-[#C045FF] bg-[#F4E6FF] text-[#140423]'
                         : 'border-[#E9ECEF] bg-white text-[#212529] hover:border-[#C045FF]/50 hover:bg-[#F8F5FF]'
-                    }`}
+                      }`}
                   >
                     <Avatar
                       src={conversation.participant.avatar}
@@ -176,22 +189,22 @@ export function CreatorMessages() {
                           {conversation.participant.name}
                         </span>
                         <span className="whitespace-nowrap text-[11px] text-[#6C757D]">
-                          {conversation.lastTime}
+                          {format(new Date(conversation.lastTime), 'h:mm a')}
                         </span>
                       </div>
                       <span className="mt-0.5 line-clamp-1 text-[12px] text-[#6C757D]">
                         {conversation.lastMessage}
                       </span>
                     </div>
-                    {conversation.unread ? (
+                    {conversation.unread > 0 && (
                       <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#C045FF] px-1 text-[11px] font-semibold text-white">
                         {conversation.unread}
                       </span>
-                    ) : null}
+                    )}
                   </button>
                 );
               })}
-              {DEMO_CONVERSATIONS.length === 0 && (
+              {conversations.length === 0 && (
                 <p className="pt-4 text-center text-xs text-[#6C757D]">
                   No fan conversations yet. Once a fan wins your FanMeet, their chat will appear here.
                 </p>
@@ -203,9 +216,8 @@ export function CreatorMessages() {
 
       <Card
         elevated
-        className={`flex h-full w-full flex-1 flex-col overflow-hidden ${
-          activeConversation ? 'flex' : 'hidden md:flex'
-        }`}
+        className={`flex h-full w-full flex-1 flex-col overflow-hidden ${activeConversation ? 'flex' : 'hidden md:flex'
+          }`}
       >
         {activeConversation ? (
           <>
@@ -230,7 +242,7 @@ export function CreatorMessages() {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-[#6C757D]">
                     <span className="h-2 w-2 rounded-full bg-[#C045FF]" />
-                    <span>Won a FanMeet with you</span>
+                    <span>Fan</span>
                   </div>
                 </div>
               </div>
@@ -254,8 +266,8 @@ export function CreatorMessages() {
 
             <CardContent className="flex min-h-0 flex-1 flex-col p-0">
               <div className="flex-1 space-y-4 overflow-y-auto bg-[#F8F9FA] p-4">
-                {DEMO_MESSAGES.map((msg) => {
-                  const isMe = msg.senderId === DEMO_CREATOR.id;
+                {activeMessages.map((msg) => {
+                  const isMe = msg.sender_id === user?.id;
 
                   return (
                     <div
@@ -263,29 +275,31 @@ export function CreatorMessages() {
                       className={`group my-2 flex gap-2 ${isMe ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`flex max-w-[80%] items-start gap-2 ${
-                          isMe ? 'flex-row-reverse' : 'flex-row'
-                        }`}
+                        className={`flex max-w-[80%] items-start gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'
+                          }`}
                       >
                         <Avatar
-                          src={isMe ? DEMO_CREATOR.avatar : activeConversation.participant.avatar}
-                          alt={isMe ? DEMO_CREATOR.name : activeConversation.participant.name}
-                          initials={isMe ? 'Y' : activeConversation.participant.name.charAt(0)}
+                          src={
+                            isMe
+                              ? `https://api.dicebear.com/9.x/initials/svg?seed=${user?.user_metadata?.full_name || 'Me'}`
+                              : activeConversation.participant.avatar
+                          }
+                          alt={isMe ? 'Me' : activeConversation.participant.name}
+                          initials={isMe ? 'Me' : activeConversation.participant.name.charAt(0)}
                           size="sm"
                         />
                         <div>
                           <div
-                            className={`rounded-2xl px-3 py-2 text-sm ${
-                              isMe
+                            className={`rounded-2xl px-3 py-2 text-sm ${isMe
                                 ? 'bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
                                 : 'border border-[#E9ECEF] bg-white text-[#212529]'
-                            }`}
+                              }`}
                           >
-                            {msg.text}
+                            {msg.message}
                           </div>
                           <div className="mt-1 flex items-center gap-2 text-[11px] text-[#6C757D]">
-                            <time aria-label={`Sent at ${msg.time}`} dateTime={msg.time}>
-                              {msg.time}
+                            <time dateTime={msg.created_at}>
+                              {format(new Date(msg.created_at), 'h:mm a')}
                             </time>
                             <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                               <button

@@ -1,19 +1,53 @@
 import { Button, Card, CardContent, CardHeader, Badge } from '@fanmeet/ui';
 import { formatDateTime } from '@fanmeet/utils';
+import { useEvents } from '../../contexts/EventContext';
 
-const upcomingMeets = [
-  {
-    id: 'meet-1',
-    creator: 'Priya Sharma',
-    date: new Date('2025-01-15T16:00:00'),
-    duration: '10 minutes',
-    meetingLink: 'https://meet.fanmeet.com/xyz123',
-    status: 'Scheduled',
-    startsIn: '2 days 3 hours',
-  },
-];
+function getStartsIn(scheduledAt: string) {
+  const start = new Date(scheduledAt);
+  const now = new Date();
+  const diffMs = start.getTime() - now.getTime();
+
+  if (diffMs <= 0) return 'Starting soon';
+
+  const totalMinutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const days = Math.floor(hours / 24);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    const remHours = hours % 24;
+    return `${days} day${days > 1 ? 's' : ''}${remHours > 0 ? ` ${remHours} hr${remHours > 1 ? 's' : ''}` : ''}`;
+  }
+
+  if (hours > 0) {
+    return `${hours} hr${hours > 1 ? 's' : ''}${minutes > 0 ? ` ${minutes} min` : ''}`;
+  }
+
+  return `${minutes} min`;
+}
 
 export function FanMeets() {
+  const { myMeets } = useEvents();
+
+  const upcomingMeets = myMeets
+    .filter((meet) => meet.status === 'scheduled')
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
+    );
+
+  const handleCopy = (link?: string) => {
+    if (!link) return;
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(link);
+    }
+  };
+
+  const handleJoin = (link?: string) => {
+    if (!link) return;
+    window.open(link, '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -47,9 +81,11 @@ export function FanMeets() {
                 </Badge>
                 <div className="flex flex-col gap-4">
                   <div>
-                    <h3 className="text-xl font-semibold text-[#212529]">Meeting with {meet.creator}</h3>
+                    <h3 className="text-xl font-semibold text-[#212529]">
+                      Meeting with {meet.creatorDisplayName || meet.creatorUsername}
+                    </h3>
                     <p className="text-sm text-[#6C757D]">
-                      {formatDateTime(meet.date)} • Duration {meet.duration}
+                      {formatDateTime(meet.scheduledAt)} • Duration {meet.durationMinutes} minutes
                     </p>
                   </div>
                   <div className="flex flex-col gap-3">
@@ -58,18 +94,34 @@ export function FanMeets() {
                         Meeting Link
                       </span>
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className="text-sm text-[#212529]">{meet.meetingLink}</span>
-                        <Button size="sm" variant="secondary">
-                          Copy
-                        </Button>
+                        <span className="break-all text-sm text-[#212529]">
+                          {meet.meetingLink || 'Link not available yet'}
+                        </span>
+                        {meet.meetingLink && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleCopy(meet.meetingLink)}
+                          >
+                            Copy
+                          </Button>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
                       <Button variant="secondary">Add to Calendar</Button>
-                      <Button disabled>Join Meeting →</Button>
+                      <Button
+                        disabled={!meet.meetingLink}
+                        onClick={() => handleJoin(meet.meetingLink)}
+                      >
+                        Join Meeting →
+                      </Button>
                     </div>
                     <span className="text-sm text-[#6C757D]">
-                      ⏰ Starts in: <strong className="text-[#C045FF]">{meet.startsIn}</strong>
+                      ⏰ Starts in:{' '}
+                      <strong className="text-[#C045FF]">
+                        {getStartsIn(meet.scheduledAt)}
+                      </strong>
                     </span>
                   </div>
                 </div>

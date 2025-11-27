@@ -1,57 +1,66 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Badge, Button, Card, CardContent, CardHeader } from '@fanmeet/ui';
+import { Badge, Button, Card, CardContent } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
 
-import { CircularGallery } from '../../components/CircularGallery';
 import { useEvents } from '../../contexts/EventContext';
 import { useCreatorProfiles } from '../../contexts/CreatorProfileContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 export function InfluencerPage() {
   const { username: rawUsername } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const { getEventsForCreator } = useEvents();
-  const { getProfile, getPostsForCreator } = useCreatorProfiles();
+  const { getProfile, followCreator, unfollowCreator, following } = useCreatorProfiles();
+  const { isAuthenticated, user } = useAuth();
+  const [isFollowing, setIsFollowing] = useState(false);
 
   const usernameSlug = (rawUsername ?? '').replace(/^@/, '').toLowerCase();
+
+  // Check if user is following this creator
+  useEffect(() => {
+    if (usernameSlug) {
+      setIsFollowing(following.includes(usernameSlug));
+    }
+  }, [usernameSlug, following]);
   const storedEvents = usernameSlug ? getEventsForCreator(usernameSlug) : [];
   const syntheticEvents = !storedEvents.length && usernameSlug
     ? Array.from({ length: 5 }).map((_, index) => {
-        const prettyName = usernameSlug
-          .split(/[-_]/)
-          .filter(Boolean)
-          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-          .join(' ') || 'Creator';
+      const prettyName = usernameSlug
+        .split(/[-_]/)
+        .filter(Boolean)
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' ') || 'Creator';
 
-        const basePrice = 100 + index * 25;
-        const currentBid = index % 2 === 0 ? basePrice + 120 : 0;
-        const participants = index % 2 === 0 ? 5 + index * 2 : 0;
+      const basePrice = 100 + index * 25;
+      const currentBid = index % 2 === 0 ? basePrice + 120 : 0;
+      const participants = index % 2 === 0 ? 5 + index * 2 : 0;
 
-        return {
-          id: `synthetic-${usernameSlug}-${index}`,
-          creatorUsername: usernameSlug,
-          creatorDisplayName: prettyName,
-          title:
-            index === 0
-              ? 'Meet & Greet – 1:1 Fan Session'
-              : index === 1
+      return {
+        id: `synthetic-${usernameSlug}-${index}`,
+        creatorUsername: usernameSlug,
+        creatorDisplayName: prettyName,
+        title:
+          index === 0
+            ? 'Meet & Greet – 1:1 Fan Session'
+            : index === 1
               ? 'Premium AMA – Ask Me Anything'
               : index === 2
-              ? 'Deep Dive – Strategy Session'
-              : index === 3
-              ? 'Behind the Scenes Chat'
-              : 'Quick Catch-up Call',
-          description:
-            'A quick 1:1 session to say hi, ask a couple of questions, and take a virtual selfie together.',
-          status: index === 0 ? ('LIVE' as const) : ('Upcoming' as const),
-          date: index === 0 ? 'Today • 8:00 PM IST' : 'This week • 8:00 PM IST',
-          duration: index % 2 === 0 ? '10 minutes' : '5 minutes',
-          basePrice,
-          currentBid,
-          participants,
-          endsIn: index === 0 ? '00:35:12 left' : 'Starts soon',
-        };
-      })
+                ? 'Deep Dive – Strategy Session'
+                : index === 3
+                  ? 'Behind the Scenes Chat'
+                  : 'Quick Catch-up Call',
+        description:
+          'A quick 1:1 session to say hi, ask a couple of questions, and take a virtual selfie together.',
+        status: index === 0 ? ('LIVE' as const) : ('Upcoming' as const),
+        date: index === 0 ? 'Today • 8:00 PM IST' : 'This week • 8:00 PM IST',
+        duration: index % 2 === 0 ? '10 minutes' : '5 minutes',
+        basePrice,
+        currentBid,
+        participants,
+        endsIn: index === 0 ? '00:35:12 left' : 'Starts soon',
+      };
+    })
     : undefined;
 
   const effectiveEvents = storedEvents.length > 0 ? storedEvents : syntheticEvents ?? [];
@@ -66,22 +75,7 @@ export function InfluencerPage() {
     primaryEvent?.description ||
     'Host of intimate FanMeet sessions. Expect honest stories, practical advice, and space for your questions.';
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'events' | 'media'>('events');
 
-  const galleryItems = [
-    {
-      image: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=800&q=80',
-      text: 'Behind-the-scenes shoot',
-    },
-    {
-      image: 'https://images.unsplash.com/photo-1545239351-1141bd82e8a6?auto=format&fit=crop&w=800&q=80',
-      text: 'Fan meet highlight',
-    },
-    {
-      image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=800&q=80',
-      text: 'Podcast recording day',
-    },
-  ];
 
   const handleShareEvent = (eventId: string) => {
     const url = `${window.location.origin}/events/${eventId}`;
@@ -123,25 +117,40 @@ export function InfluencerPage() {
     }
   };
 
-  const demoPosts = [
-    {
-      id: 'post-1',
-      time: '3 hours ago',
-      text: 'Hi cutie pies 🥹 Thanks for subscribing and staying you like the top-tier legends you are.',
-    },
-    {
-      id: 'post-2',
-      time: '1 day ago',
-      text: 'Planning a new batch of micro-meet sessions this weekend. Drop what you want to talk about 👇',
-    },
-  ];
+  const handleFollow = async () => {
+    // Check if user is logged in
+    if (!isAuthenticated) {
+      const shouldRedirect = window.confirm('Please log in to follow creators.\n\nClick OK to go to login page.');
+      if (shouldRedirect) {
+        navigate(`/auth?redirect=/${usernameSlug}`);
+      }
+      return;
+    }
 
-  const profilePosts = usernameSlug ? getPostsForCreator(usernameSlug) : [];
+    // Check if user is a fan (only fans can follow)
+    if (user?.role !== 'fan') {
+      window.alert('Only fans can follow creators.\n\nPlease log in with a fan account.');
+      return;
+    }
 
-  const postsForDisplay =
-    profilePosts.length > 0
-      ? profilePosts.map((post) => ({ id: post.id, text: post.text, time: post.createdAtLabel }))
-      : demoPosts;
+    try {
+      if (isFollowing) {
+        // Unfollow
+        await unfollowCreator(usernameSlug);
+        setIsFollowing(false);
+        window.alert(`Unfollowed ${profile?.displayName || usernameSlug} successfully!`);
+      } else {
+        // Follow
+        await followCreator(usernameSlug);
+        setIsFollowing(true);
+        window.alert(`Now following ${profile?.displayName || usernameSlug}! 🎉\n\nYou'll see their events in your feed.`);
+      }
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+      window.alert('Something went wrong. Please try again.');
+    }
+  };
+
 
   return (
     <div className="flex min-h-[calc(100vh-70px)] flex-col bg-white md:bg-gradient-to-b md:from-[#FDEBFF] md:via-[#FFF] md:to-[#F0F2F5]">
@@ -191,193 +200,31 @@ export function InfluencerPage() {
               </span>
             ) : null}
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="rounded-full px-3 py-1 text-xs"
-            onClick={handleShareProfile}
-          >
-            Share profile
-          </Button>
-        </div>
-
-        <div className="mt-3 flex gap-2">
-          <Button className="flex-1 rounded-full" size="sm">
-            Subscribe
-          </Button>
-          <Button className="flex-1 rounded-full" size="sm" variant="secondary">
-            Follow
-          </Button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="border-t border-b border-[#E9ECEF] bg-white px-4 md:mx-auto md:w-full md:max-w-5xl md:shadow-sm">
-        <div className="flex justify-around text-xs font-medium text-[#6C757D]">
-          {[
-            { id: 'posts' as const, label: 'Posts' },
-            { id: 'events' as const, label: 'Events' },
-            { id: 'media' as const, label: 'Media' },
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                className={
-                  'flex flex-1 flex-col items-center gap-1 border-b-2 px-2 py-3' +
-                  (isActive ? ' border-[#050014] text-[#050014]' : ' border-transparent')
-                }
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span className="text-[11px] uppercase tracking-wide">{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div className="flex-1 px-4 py-4 md:mx-auto md:w-full md:max-w-5xl md:bg-[#F6EBFF]/70 md:rounded-b-xl">
-        {/* Mobile: original tabbed layout */}
-        <div className="space-y-4 md:hidden">
-          {activeTab === 'events' && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6C757D]">Upcoming events</p>
-              {effectiveEvents.map((event) => (
-                <Card key={event.id} elevated className="border-none">
-                  <CardContent className="gap-3">
-                    <div className="flex items-center justify-between text-[11px] text-[#6C757D]">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant={event.status === 'LIVE' ? 'danger' : 'primary'}>
-                          {event.status === 'LIVE' ? '🔴 LIVE' : event.status}
-                        </Badge>
-                        <span>{event.date}</span>
-                        <span>• {event.duration}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="rounded-full bg-[#F8F9FA] px-3 py-1 font-medium text-[#C045FF]"
-                        onClick={() => handleShareEvent(event.id)}
-                      >
-                        Share
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      <h2 className="text-sm font-semibold text-[#212529]">{event.title}</h2>
-                      <p className="text-xs text-[#6C757D]">{event.description}</p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#6C757D]">
-                      <span>
-                        Base {formatCurrency(event.basePrice)}
-                      </span>
-                      <span>
-                        Highest bid{' '}
-                        {event.currentBid ? formatCurrency(event.currentBid) : 'No bids yet'}
-                      </span>
-                      <span>🔥 {event.participants} participants</span>
-                    </div>
-
-                    <div className="mt-2 flex gap-2">
-                      <Button
-                        size="sm"
-                        className="flex-1 rounded-full"
-                        onClick={() => navigate(`/events/${event.id}`)}
-                      >
-                        View & bid
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {effectiveEvents.length === 0 && (
-                <Card>
-                  <CardContent>
-                    <p className="text-sm text-[#6C757D]">
-                      This creator has not set up any bidding events yet. Check back soon for upcoming sessions.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'posts' && (
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6C757D]">Recent posts</p>
-              {postsForDisplay.map((post) => (
-                <Card key={post.id}>
-                  <CardContent className="gap-2">
-                    <div className="flex items-center justify-between text-[11px] text-[#6C757D]">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-[#050014] text-center text-xs leading-8 text-white">
-                          {displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-[#212529]">{displayName}</span>
-                          <span className="text-[11px] text-[#6C757D]">{handle} · {post.time}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-sm text-[#212529]">{post.text}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'media' && (
-            <Card>
-              <CardHeader
-                title="Media"
-                subtitle="A rotating peek into this creator's moments, content, and meetups."
-              />
-              <CardContent className="h-72 overflow-hidden">
-                <CircularGallery items={galleryItems} />
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Desktop: posts + media + events in one connected section */}
-        <div className="hidden gap-6 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
-          <div className="space-y-4">
-            <div className="space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6C757D]">Recent posts</p>
-              {postsForDisplay.map((post) => (
-                <Card key={post.id}>
-                  <CardContent className="gap-2">
-                    <div className="flex items-center justify-between text-[11px] text-[#6C757D]">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-[#050014] text-center text-xs leading-8 text-white">
-                          {displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-[#212529]">{displayName}</span>
-                          <span className="text-[11px] text-[#6C757D]">{handle} · {post.time}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="text-sm text-[#212529]">{post.text}</p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <Card>
-              <CardHeader
-                title="Media"
-                subtitle="A rotating peek into this creator's moments, content, and meetups."
-              />
-              <CardContent className="h-72 overflow-hidden">
-                <CircularGallery items={galleryItems} />
-              </CardContent>
-            </Card>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="rounded-full px-3 py-1 text-xs"
+              onClick={handleShareProfile}
+            >
+              Share profile
+            </Button>
+            <Button
+              size="sm"
+              className="rounded-full px-3 py-1 text-xs"
+              variant={isFollowing ? "primary" : "secondary"}
+              onClick={handleFollow}
+            >
+              {isFollowing ? '✓ Following' : 'Follow'}
+            </Button>
           </div>
+        </div>
+      </div>
 
+      {/* Events content */}
+      <div className="flex-1 px-4 py-4 md:mx-auto md:w-full md:max-w-5xl md:bg-[#F6EBFF]/70 md:rounded-b-xl">
+        {/* Events List */}
+        <div className="space-y-4">
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6C757D]">Upcoming events</p>
             {effectiveEvents.map((event) => (
@@ -385,9 +232,15 @@ export function InfluencerPage() {
                 <CardContent className="gap-3">
                   <div className="flex items-center justify-between text-[11px] text-[#6C757D]">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={event.status === 'LIVE' ? 'danger' : 'primary'}>
-                        {event.status === 'LIVE' ? '🔴 LIVE' : event.status}
-                      </Badge>
+                      {event.status === 'Accepting Bids' ? (
+                        <div className="rounded-[8px] bg-[#1E4620] px-2 py-1">
+                          <span className="text-xs font-semibold text-[#4ADE80]">✓ Accepting Bids</span>
+                        </div>
+                      ) : (
+                        <Badge variant={event.status === 'LIVE' ? 'danger' : 'primary'}>
+                          {event.status === 'LIVE' ? '🔴 LIVE' : event.status}
+                        </Badge>
+                      )}
                       <span>{event.date}</span>
                       <span>• {event.duration}</span>
                     </div>
@@ -439,7 +292,9 @@ export function InfluencerPage() {
               </Card>
             )}
           </div>
+
         </div>
+
       </div>
     </div>
   );

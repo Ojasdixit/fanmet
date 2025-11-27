@@ -1,7 +1,11 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Avatar, Badge } from '@fanmeet/ui';
-import { classNames } from '@fanmeet/utils';
+import { classNames, formatCurrency } from '@fanmeet/utils';
+import { useAuth } from '../contexts/AuthContext';
+import { useNotifications } from '../contexts/NotificationsContext';
+import { supabase } from '../lib/supabaseClient';
+import { format } from 'date-fns';
 
 type NavSectionItem = {
   type: 'section';
@@ -29,15 +33,16 @@ const roleConfig: Record<
   fan: {
     title: 'Fan Dashboard',
     menu: [
-      { type: 'link', to: '/fan', label: 'Browse Events', icon: '\ud83c\udfe0' },
-      { type: 'link', to: '/fan/following', label: 'Following & Subscriptions', icon: '\ud83d\udc65' },
-      { type: 'link', to: '/fan/bids', label: 'My Bids', icon: '\ud83c\udfab' },
-      { type: 'link', to: '/fan/meets', label: 'Upcoming Meets', icon: '\ud83d\udcf9' },
-      { type: 'link', to: '/fan/history', label: 'History', icon: '\ud83d\udcdc' },
-      { type: 'link', to: '/fan/wallet', label: 'Wallet & Refunds', icon: '\ud83d\udcb0' },
-      { type: 'link', to: '/fan/messages', label: 'Messages', icon: '\ud83d\udcac' },
-      { type: 'link', to: '/fan/notifications', label: 'Notifications', icon: '\ud83d\udd14', badge: 3 },
-      { type: 'link', to: '/fan/settings', label: 'Settings', icon: '\u2699\ufe0f' },
+      { type: 'link', to: '/fan', label: 'Browse Events', icon: '🏠' },
+      { type: 'link', to: '/fan/following', label: 'Following', icon: '👥' },
+      { type: 'link', to: '/fan/bids', label: 'My Bids', icon: '🎫' },
+      { type: 'link', to: '/fan/meets', label: 'Upcoming Meets', icon: '📹' },
+      { type: 'link', to: '/fan/history', label: 'History', icon: '📜' },
+      { type: 'link', to: '/fan/wallet', label: 'Wallet & Refunds', icon: '💰' },
+      { type: 'link', to: '/fan/messages', label: 'Messages', icon: '💬' },
+      { type: 'link', to: '/fan/notifications', label: 'Notifications', icon: '🔔' },
+      { type: 'link', to: '/fan/settings', label: 'Settings', icon: '⚙️' },
+      { type: 'link', to: '/fan/support', label: 'Help & Support', icon: '🆘' },
     ],
   },
   creator: {
@@ -47,13 +52,14 @@ const roleConfig: Record<
       { type: 'link', to: '/creator/events', label: 'My Events', icon: '🎫' },
       { type: 'link', to: '/creator/events/new', label: 'Create Event', icon: '➕' },
       { type: 'link', to: '/creator/profile-setup', label: 'Profile Setup', icon: '👤' },
-      { type: 'link', to: '/creator/followers', label: 'Followers & Fans', icon: '👥' },
-      { type: 'link', to: '/creator/earnings', label: 'Earnings', icon: '\ud83d\udcb0' },
-      { type: 'link', to: '/creator/withdrawals', label: 'Withdrawals', icon: '\ud83c\udfe6' },
-      { type: 'link', to: '/creator/meets', label: 'Upcoming Meets', icon: '\ud83d\udcf9' },
-      { type: 'link', to: '/creator/messages', label: 'Messages', icon: '\ud83d\udcac' },
-      { type: 'link', to: '/creator/notifications', label: 'Notifications', icon: '\ud83d\udd14' },
-      { type: 'link', to: '/creator/settings', label: 'Settings', icon: '\u2699\ufe0f' },
+      { type: 'link', to: '/creator/followers', label: 'Followers', icon: '👥' },
+      { type: 'link', to: '/creator/earnings', label: 'Earnings', icon: '💰' },
+      { type: 'link', to: '/creator/withdrawals', label: 'Withdrawals', icon: '🏦' },
+      { type: 'link', to: '/creator/meets', label: 'Upcoming Meets', icon: '📹' },
+      { type: 'link', to: '/creator/messages', label: 'Messages', icon: '💬' },
+      { type: 'link', to: '/creator/notifications', label: 'Notifications', icon: '🔔' },
+      { type: 'link', to: '/creator/settings', label: 'Settings', icon: '⚙️' },
+      { type: 'link', to: '/creator/support', label: 'Help & Support', icon: '🆘' },
     ],
   },
   admin: {
@@ -109,6 +115,12 @@ interface DashboardShellProps {
 export const DashboardShell = ({ role }: DashboardShellProps) => {
   const config = roleConfig[role];
   const navigate = useNavigate();
+  const { logout, user } = useAuth();
+  const { notifications, unreadNotificationsCount, unreadMessagesCount, markAllNotificationsAsRead } = useNotifications();
+
+  // Get user initials from email/username
+  const userInitials = user?.username ? user.username.substring(0, 2).toUpperCase() : user?.email?.substring(0, 2).toUpperCase() || 'U';
+  const displayName = user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : user?.email?.split('@')[0] || 'User';
 
   const basePath = useMemo(() => `/${role}`, [role]);
 
@@ -117,6 +129,32 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [activeRightPanel, setActiveRightPanel] = useState<'none' | 'notifications' | 'profile'>('none');
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Fetch wallet balance for fans
+  useEffect(() => {
+    const fetchWallet = async () => {
+      if (!user || role !== 'fan') return;
+
+      const { data } = await supabase
+        .from('wallets')
+        .select('balance')
+        .eq('user_id', user.id)
+        .single();
+
+      if (data) {
+        setWalletBalance(data.balance);
+      }
+    };
+
+    fetchWallet();
+  }, [user, role]);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/auth');
+  };
 
   useEffect(() => {
     if (!isResizing) return;
@@ -158,6 +196,14 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       const isDisabled = Boolean(link.disabled);
       const shouldUseExact = link.to === basePath;
 
+      // Determine badge count dynamically
+      let badgeCount = 0;
+      if (link.label === 'Notifications') {
+        badgeCount = unreadNotificationsCount;
+      } else if (link.label === 'Messages') {
+        badgeCount = unreadMessagesCount;
+      }
+
       return (
         <NavLink
           key={link.to}
@@ -179,8 +225,8 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               isDisabled
                 ? 'cursor-not-allowed text-white/40 opacity-60'
                 : isActive
-                ? 'bg-white/10 text-white font-semibold shadow-[0_18px_45px_rgba(0,0,0,0.65)]'
-                : 'text-white/75 hover:bg-white/5 hover:text-white'
+                  ? 'bg-white/10 text-white font-semibold shadow-[0_18px_45px_rgba(0,0,0,0.65)]'
+                  : 'text-white/75 hover:bg-white/5 hover:text-white'
             )
           }
         >
@@ -193,7 +239,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           >
             {link.label}
           </span>
-          {!isDisabled && link.badge ? <Badge variant="danger">{link.badge}</Badge> : null}
+          {!isDisabled && badgeCount > 0 ? <Badge variant="danger">{badgeCount}</Badge> : null}
         </NavLink>
       );
     });
@@ -211,23 +257,27 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               variant="secondary"
               size="sm"
               className="border-none bg-[#050014] text-white hover:bg-[#140423]"
+              onClick={() => markAllNotificationsAsRead()}
             >
               Mark all read
             </Button>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
-              <div className="text-sm font-semibold text-[#212529]">You won a bid!</div>
-              <div className="text-xs text-[#6C757D]">Meet Priya Sharma tomorrow at 4:00 PM.</div>
-            </div>
-            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
-              <div className="text-sm font-semibold text-[#212529]">New live event starting soon</div>
-              <div className="text-xs text-[#6C757D]">Rohan Gupta goes live in 30 minutes.</div>
-            </div>
-            <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
-              <div className="text-sm font-semibold text-[#212529]">Refund processed</div>
-              <div className="text-xs text-[#6C757D]">90% refund for an event you did not win.</div>
-            </div>
+            {notifications.length === 0 ? (
+              <div className="text-center text-sm text-[#6C757D] py-4">
+                No notifications yet.
+              </div>
+            ) : (
+              notifications.slice(0, 5).map((notification) => (
+                <div key={notification.id} className="rounded-[12px] bg-white/90 p-3 shadow-sm">
+                  <div className="text-sm font-semibold text-[#212529]">{notification.title}</div>
+                  <div className="text-xs text-[#6C757D]">{notification.message}</div>
+                  <div className="mt-1 text-[10px] text-[#ADB5BD]">
+                    {format(new Date(notification.created_at), 'MMM d, h:mm a')}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
           <div className="border-t border-[#E9ECEF] p-4">
             <Button
@@ -247,16 +297,16 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       return (
         <>
           <div className="flex items-center gap-3 border-b border-[#E9ECEF] px-5 py-4">
-            <Avatar initials="RK" size="md" />
+            <Avatar initials={userInitials} size="md" />
             <div>
-              <div className="text-sm font-semibold text-[#212529]">Rahul Kumar</div>
-              <div className="text-xs text-[#6C757D]">Fan account • Premium</div>
+              <div className="text-sm font-semibold text-[#212529]">{displayName}</div>
+              <div className="text-xs text-[#6C757D]">{role.charAt(0).toUpperCase() + role.slice(1)} account • Premium</div>
             </div>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">Wallet</div>
-              <div className="mt-1 text-lg font-semibold text-[#212529]">₹1,250 balance</div>
+              <div className="mt-1 text-lg font-semibold text-[#212529]">{formatCurrency(walletBalance)} balance</div>
               <div className="mt-1 text-xs text-[#6C757D]">Quick access to bids and refunds.</div>
             </div>
             <div className="grid gap-2 text-sm text-[#343A40]">
@@ -291,6 +341,10 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               variant="secondary"
               size="sm"
               className="w-full border-none bg-[#050014] text-white hover:bg-[#140423]"
+              onClick={() => {
+                // Logic to switch account could go here
+                handleLogout();
+              }}
             >
               Switch account
             </Button>
@@ -315,14 +369,14 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           )}
         >
           <div className="flex flex-col items-center gap-3 text-center">
-            <Avatar initials="RK" size="lg" />
+            <Avatar initials={userInitials} size="lg" />
             <div
               className={classNames(
                 'text-lg font-semibold text-white',
                 isSidebarCollapsed ? 'hidden' : ''
               )}
             >
-              Hey, Rahul!
+              Hey, {displayName}!
             </div>
             {!isSidebarCollapsed ? <Badge variant="primary">Premium</Badge> : null}
           </div>
@@ -345,6 +399,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           <button
             type="button"
             className="inline-flex h-10 w-full items-center justify-start rounded-[8px] bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-black/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            onClick={handleLogout}
           >
             Logout
           </button>
@@ -374,6 +429,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
                 <button
                   type="button"
                   className="inline-flex h-10 w-full items-center justify-start rounded-[8px] bg-black px-4 text-sm font-semibold text-white transition-colors hover:bg-black/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  onClick={handleLogout}
                 >
                   Logout
                 </button>
@@ -412,6 +468,14 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               <input
                 className="h-11 rounded-[12px] border-2 border-[#E9ECEF] px-4 pr-10 text-sm focus:border-[#FF6B35] focus:shadow-[0_0_0_3px_rgba(255,107,53,0.1)]"
                 placeholder="Search events, creators…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const target = role === 'fan' ? '/fan' : '/browse-events';
+                    navigate(`${target}?q=${encodeURIComponent(searchQuery)}`);
+                  }
+                }}
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-lg text-[#6C757D]">🔍</span>
             </div>
@@ -422,26 +486,37 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               <Button
                 variant="secondary"
                 size="icon"
-                className="bg-black text-white border-none hover:bg-black/90"
+                className="bg-black text-white border-none hover:bg-black/90 relative"
               >
                 🔔
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {unreadNotificationsCount}
+                  </span>
+                )}
               </Button>
             </div>
             <div
               className="hidden md:block"
               onMouseEnter={() => setActiveRightPanel('profile')}
             >
-              <Avatar initials="RK" size="sm" />
+              <Avatar initials={userInitials} size="sm" />
             </div>
             <div className="flex items-center gap-2 md:hidden">
               <Button
                 variant="secondary"
                 size="icon"
-                className="bg-black text-white border-none hover:bg-black/90"
+                className="bg-black text-white border-none hover:bg-black/90 relative"
+                onClick={() => setActiveRightPanel(activeRightPanel === 'notifications' ? 'none' : 'notifications')}
               >
                 🔔
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                    {unreadNotificationsCount}
+                  </span>
+                )}
               </Button>
-              <Avatar initials="RK" size="sm" />
+              <Avatar initials={userInitials} size="sm" />
             </div>
           </div>
         </header>

@@ -1,28 +1,127 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, TextInput, TextArea, Button, Badge } from '@fanmeet/ui';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
 
-const securityLog = [
-  {
-    id: 'sec-1',
-    title: 'Logged in from Chrome on Windows',
-    timestamp: 'Jan 11, 2025 • 11:05 AM',
-    location: 'New Delhi, IN',
-    status: 'Trusted session'
-  },
-  {
-    id: 'sec-2',
-    title: 'Password changed successfully',
-    timestamp: 'Jan 05, 2025 • 08:42 PM',
-    location: 'Mumbai, IN',
-    status: 'Secure'
-  }
-];
-
-const statusVariantMap: Record<string, 'primary' | 'success' | 'warning' | 'danger' | 'default'> = {
-  'Trusted session': 'primary',
-  Secure: 'success'
-};
+interface SecurityLogEntry {
+  id: string;
+  event_type: string;
+  created_at: string;
+  location: string | null;
+}
 
 export function FanSettings() {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
+  const [bio, setBio] = useState('');
+  const [language, setLanguage] = useState('');
+  const [timezone, setTimezone] = useState('');
+  const [securityLogs, setSecurityLogs] = useState<SecurityLogEntry[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch Profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('display_name, username, bio, primary_language, timezone')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+        } else if (profileData) {
+          setFullName(profileData.display_name || '');
+          setUsername(profileData.username || '');
+          setBio(profileData.bio || '');
+          setLanguage(profileData.primary_language || '');
+          setTimezone(profileData.timezone || '');
+        }
+
+        // Fetch Security Logs
+        const { data: logsData, error: logsError } = await supabase
+          .from('security_logs')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (logsError) {
+          console.error('Error fetching security logs:', logsError);
+        } else if (logsData) {
+          setSecurityLogs(logsData);
+        }
+
+      } catch (err) {
+        console.error('Unexpected error fetching data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+
+    try {
+      // Check for duplicate username
+      if (username) {
+        const { data: existingUser, error: checkError } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('username', username)
+          .neq('user_id', user.id) // Exclude current user
+          .maybeSingle();
+
+        if (checkError) {
+          console.error('Error checking username:', checkError);
+          alert('Error checking username availability.');
+          setSaving(false);
+          return;
+        }
+
+        if (existingUser) {
+          alert('Username already taken. Please choose another one.');
+          setSaving(false);
+          return;
+        }
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          display_name: fullName,
+          username: username,
+          bio: bio,
+          primary_language: language,
+          timezone: timezone,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id);
+
+      if (error) {
+        alert('Error updating profile: ' + error.message);
+      } else {
+        alert('Profile updated successfully!');
+      }
+    } catch (err) {
+      console.error('Error saving profile:', err);
+      alert('Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-2">
@@ -36,19 +135,47 @@ export function FanSettings() {
         <Card elevated>
           <CardHeader title="Profile" subtitle="Let creators know who they’re meeting." />
           <CardContent className="gap-5">
-            <TextInput label="Full name" placeholder="Rahul Kumar" defaultValue="Rahul Kumar" />
-            <TextInput label="Public username" placeholder="@rahul_fan" defaultValue="@rahul_fan" />
+            <TextInput
+              label="Full name"
+              placeholder="Your Name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              disabled={loading}
+            />
+            <TextInput
+              label="Public username"
+              placeholder="@username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={loading}
+            />
             <TextArea
               label="About you"
               placeholder="Share your interests, favorite creators, and background."
-              defaultValue="Fan of live AMAs and backstage stories. Looking forward to connecting with inspiring creators!"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
               rows={4}
+              disabled={loading}
             />
             <div className="grid gap-4 md:grid-cols-2">
-              <TextInput label="Preferred language" placeholder="English" defaultValue="English, Hindi" />
-              <TextInput label="Timezone" placeholder="IST" defaultValue="Asia/Kolkata (IST)" />
+              <TextInput
+                label="Preferred language"
+                placeholder="English"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                disabled={loading}
+              />
+              <TextInput
+                label="Timezone"
+                placeholder="IST"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                disabled={loading}
+              />
             </div>
-            <Button size="lg">Save profile</Button>
+            <Button size="lg" onClick={handleSave} disabled={loading || saving}>
+              {saving ? 'Saving...' : 'Save profile'}
+            </Button>
           </CardContent>
         </Card>
 
@@ -81,15 +208,21 @@ export function FanSettings() {
           className="border-b border-[#E9ECEF] pb-4"
         />
         <CardContent className="gap-4">
-          {securityLog.map((entry) => (
-            <div key={entry.id} className="flex flex-col gap-3 rounded-[14px] border border-[#E9ECEF] bg-white p-4 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-[#212529]">{entry.title}</h3>
-                <p className="text-sm text-[#6C757D]">{entry.timestamp} · {entry.location}</p>
+          {securityLogs.length === 0 ? (
+            <div className="text-sm text-[#6C757D]">No recent security activity found.</div>
+          ) : (
+            securityLogs.map((entry) => (
+              <div key={entry.id} className="flex flex-col gap-3 rounded-[14px] border border-[#E9ECEF] bg-white p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#212529]">{entry.event_type}</h3>
+                  <p className="text-sm text-[#6C757D]">
+                    {new Date(entry.created_at).toLocaleString()} · {entry.location || 'Unknown Location'}
+                  </p>
+                </div>
+                <Badge variant="default">Logged</Badge>
               </div>
-              <Badge variant={statusVariantMap[entry.status] ?? 'default'}>{entry.status}</Badge>
-            </div>
-          ))}
+            ))
+          )}
           <Button variant="ghost" className="self-start">
             Review all security events →
           </Button>

@@ -766,26 +766,21 @@ export function LandingPage() {
               <nav className="hidden items-center gap-6 text-sm font-medium text-white/80 md:flex">
                 <button
                   type="button"
-                  onClick={() => navigate('/fan')}
+                  onClick={() => navigate('/browse-events')}
                   className="transition-colors hover:text-white"
                 >
                   Browse Events
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    const el = document.getElementById('how-it-works');
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }}
+                  onClick={() => navigate('/how-it-works')}
                   className="transition-colors hover:text-white"
                 >
                   How It Works
                 </button>
                 <button
                   type="button"
-                  onClick={() => navigate('/creator')}
+                  onClick={() => navigate('/for-creators')}
                   className="transition-colors hover:text-white"
                 >
                   For Creators
@@ -828,7 +823,7 @@ export function LandingPage() {
                 className="w-full rounded-full bg-white/10 px-4 py-2 text-left font-medium text-white hover:bg-white/20"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  navigate('/fan');
+                  navigate('/browse-events');
                 }}
               >
                 Browse Events
@@ -838,10 +833,7 @@ export function LandingPage() {
                 className="w-full rounded-full bg-white/10 px-4 py-2 text-left font-medium text-white hover:bg-white/20"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  const el = document.getElementById('how-it-works');
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
+                  navigate('/how-it-works');
                 }}
               >
                 How It Works
@@ -851,7 +843,7 @@ export function LandingPage() {
                 className="w-full rounded-full bg-white/10 px-4 py-2 text-left font-medium text-white hover:bg-white/20"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  navigate('/creator');
+                  navigate('/for-creators');
                 }}
               >
                 For Creators

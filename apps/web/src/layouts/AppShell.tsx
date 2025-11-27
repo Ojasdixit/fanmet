@@ -1,18 +1,29 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@fanmeet/ui';
+import { useAuth } from '../contexts/AuthContext';
 
 const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
-  `text-base font-medium transition-colors ${
-    isActive ? 'text-[#C045FF]' : 'text-[#6C757D] hover:text-[#C045FF]'
+  `text-base font-medium transition-colors ${isActive ? 'text-[#C045FF]' : 'text-[#6C757D] hover:text-[#C045FF]'
   }`;
 
 export const AppShell = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { isAuthenticated, user } = useAuth();
 
   const isLanding = location.pathname === '/';
+
+  const handleProfileClick = () => {
+    if (user?.role === 'fan') {
+      navigate('/fan');
+    } else if (user?.role === 'creator') {
+      navigate('/creator');
+    } else if (user?.role === 'admin') {
+      navigate('/admin');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#FFFFFF]">
@@ -24,25 +35,33 @@ export const AppShell = () => {
                 FanMeet
               </NavLink>
               <nav className="hidden gap-6 md:flex">
-                <NavLink to="/fan" className={navLinkClasses}>
+                <NavLink to="/browse-events" className={navLinkClasses}>
                   Browse Events
                 </NavLink>
-                <a href="#how-it-works" className="text-base font-medium text-[#6C757D] transition-colors hover:text-[#C045FF]">
+                <NavLink to="/how-it-works" className={navLinkClasses}>
                   How It Works
-                </a>
-                <NavLink to="/creator" className={navLinkClasses}>
+                </NavLink>
+                <NavLink to="/for-creators" className={navLinkClasses}>
                   For Creators
                 </NavLink>
               </nav>
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden items-center gap-3 md:flex">
-                <Button variant="secondary" size="sm" onClick={() => navigate('/auth')}>
-                  Login
-                </Button>
-                <Button size="sm" onClick={() => navigate('/auth')}>
-                  Get Started
-                </Button>
+                {isAuthenticated ? (
+                  <Button size="sm" onClick={handleProfileClick}>
+                    {user?.role === 'fan' ? '👤 Fan Dashboard' : user?.role === 'creator' ? '🎨 Creator Dashboard' : 'Dashboard'}
+                  </Button>
+                ) : (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => navigate('/auth')}>
+                      Login
+                    </Button>
+                    <Button size="sm" onClick={() => navigate('/auth')}>
+                      Get Started
+                    </Button>
+                  </>
+                )}
               </div>
               <button
                 type="button"
@@ -62,48 +81,63 @@ export const AppShell = () => {
             <div className="border-b border-[#E9ECEF] bg-white px-6 py-3 md:hidden">
               <nav className="flex flex-col gap-3">
                 <NavLink
-                  to="/fan"
+                  to="/browse-events"
                   className={navLinkClasses}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Browse Events
                 </NavLink>
-                <a
-                  href="#how-it-works"
-                  className="text-base font-medium text-[#6C757D] transition-colors hover:text-[#FF6B35]"
+                <NavLink
+                  to="/how-it-works"
+                  className={navLinkClasses}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   How It Works
-                </a>
+                </NavLink>
                 <NavLink
-                  to="/creator"
+                  to="/for-creators"
                   className={navLinkClasses}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   For Creators
                 </NavLink>
                 <div className="mt-2 flex flex-col gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      navigate('/auth');
-                    }}
-                  >
-                    Login
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setIsMobileMenuOpen(false);
-                      navigate('/auth');
-                    }}
-                  >
-                    Get Started
-                  </Button>
+                  {isAuthenticated ? (
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        handleProfileClick();
+                      }}
+                    >
+                      {user?.role === 'fan' ? '👤 Fan Dashboard' : user?.role === 'creator' ? '🎨 Creator Dashboard' : 'Dashboard'}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          navigate('/auth');
+                        }}
+                      >
+                        Login
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          navigate('/auth');
+                        }}
+                      >
+                        Get Started
+                      </Button>
+                    </>
+                  )}
                 </div>
               </nav>
             </div>

@@ -18,16 +18,20 @@ export function CreatorCreateEvent() {
   const [duration, setDuration] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [biddingDeadlineDate, setBiddingDeadlineDate] = useState('');
+  const [biddingDeadlineTime, setBiddingDeadlineTime] = useState('');
+  const [meetingLink, setMeetingLink] = useState('');
   const [formError, setFormError] = useState('');
+  const [eventType, setEventType] = useState<'paid' | 'free'>('paid');
 
-  const handleCreateEvent = () => {
+  const handleCreateEvent = async () => {
     if (!user || user.role !== 'creator') {
       window.alert('Please login as a creator to create events.');
       navigate('/auth?redirect=/creator/events/new');
       return;
     }
 
-    if (!title.trim() || !basePrice || !duration || !date || !time) {
+    if (!title.trim() || basePrice === null || !duration || !date || !time || !biddingDeadlineDate || !biddingDeadlineTime || !meetingLink) {
       setFormError('Please fill in all required fields before creating the event.');
       return;
     }
@@ -36,33 +40,41 @@ export function CreatorCreateEvent() {
 
     const creatorDisplayName = user.email.split('@')[0] || user.username;
 
-    const event = createEvent({
-      creatorUsername: user.username,
-      creatorDisplayName,
-      title: title.trim(),
-      description: description.trim() || undefined,
-      basePrice,
-      duration,
-      date,
-      time,
-    });
+    try {
+      const event = await createEvent({
+        creatorUsername: user.username,
+        creatorDisplayName,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        basePrice,
+        duration,
+        date,
+        time,
+        biddingDeadlineDate,
+        biddingDeadlineTime,
+        meetingLink: meetingLink.trim(),
+      });
 
-    const url = `${window.location.origin}/events/${event.id}`;
+      const url = `${window.location.origin}/events/${event.id}`;
 
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(
-        () => {
-          window.alert('Event created! Share link copied to your clipboard.');
-        },
-        () => {
-          window.prompt('Event created! Share this link with your fans:', url);
-        },
-      );
-    } else {
-      window.prompt('Event created! Share this link with your fans:', url);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(
+          () => {
+            window.alert('Event created! Share link copied to your clipboard.');
+          },
+          () => {
+            window.prompt('Event created! Share this link with your fans:', url);
+          },
+        );
+      } else {
+        window.prompt('Event created! Share this link with your fans:', url);
+      }
+
+      navigate('/creator/events');
+    } catch (error) {
+      console.error('Failed to create event:', error);
+      setFormError('Failed to create event. Please try again.');
     }
-
-    navigate('/creator/events');
   };
 
   return (
@@ -88,10 +100,26 @@ export function CreatorCreateEvent() {
             <div className="flex flex-col gap-4">
               <span className="text-sm font-semibold text-[#212529]">Event Type *</span>
               <div className="flex flex-wrap gap-3">
-                <Button variant="secondary" size="sm" className="rounded-[8px]">
+                <Button
+                  variant={eventType === 'paid' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="rounded-[8px]"
+                  onClick={() => {
+                    setEventType('paid');
+                    setBasePrice(null);
+                  }}
+                >
                   Paid Event
                 </Button>
-                <Button variant="ghost" size="sm" className="rounded-[8px]">
+                <Button
+                  variant={eventType === 'free' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="rounded-[8px]"
+                  onClick={() => {
+                    setEventType('free');
+                    setBasePrice(0);
+                  }}
+                >
                   Free Event
                 </Button>
               </div>
@@ -117,22 +145,28 @@ export function CreatorCreateEvent() {
               <div className="flex flex-col gap-3">
                 <span className="text-sm font-semibold text-[#212529]">Base Price *</span>
                 <div className="flex flex-wrap gap-3">
-                  {priceOptions.map((price) => {
-                    const numeric = parseInt(price.replace(/[^0-9]/g, ''), 10) || 0;
-                    const isActive = basePrice === numeric;
+                  {eventType === 'free' ? (
+                    <Button variant="primary" size="sm" className="rounded-[8px]" disabled>
+                      Free (₹0)
+                    </Button>
+                  ) : (
+                    priceOptions.map((price) => {
+                      const numeric = parseInt(price.replace(/[^0-9]/g, ''), 10) || 0;
+                      const isActive = basePrice === numeric;
 
-                    return (
-                      <Button
-                        key={price}
-                        variant={isActive ? 'primary' : 'secondary'}
-                        size="sm"
-                        className="rounded-[8px]"
-                        onClick={() => setBasePrice(numeric)}
-                      >
-                        {price}
-                      </Button>
-                    );
-                  })}
+                      return (
+                        <Button
+                          key={price}
+                          variant={isActive ? 'primary' : 'secondary'}
+                          size="sm"
+                          className="rounded-[8px]"
+                          onClick={() => setBasePrice(numeric)}
+                        >
+                          {price}
+                        </Button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
@@ -157,17 +191,55 @@ export function CreatorCreateEvent() {
             <div className="grid gap-4 md:grid-cols-2">
               <TextInput
                 type="date"
-                label="Schedule Date *"
+                label="Event Date *"
                 required
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
               />
               <TextInput
                 type="time"
-                label="Schedule Time *"
+                label="Event Time *"
                 required
                 value={time}
                 onChange={(event) => setTime(event.target.value)}
+              />
+            </div>
+
+            <div className="rounded-[12px] border border-[#E9ECEF] bg-[#F8F9FA] p-4">
+              <div className="mb-3 text-sm font-semibold text-[#212529]">⏰ Bidding Window *</div>
+              <p className="mb-4 text-xs text-[#6C757D]">
+                Set when bidding closes. Fans can bid until this time, and the highest bidder wins.
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextInput
+                  type="date"
+                  label="Bidding Closes Date *"
+                  required
+                  value={biddingDeadlineDate}
+                  onChange={(event) => setBiddingDeadlineDate(event.target.value)}
+                />
+                <TextInput
+                  type="time"
+                  label="Bidding Closes Time *"
+                  required
+                  value={biddingDeadlineTime}
+                  onChange={(event) => setBiddingDeadlineTime(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-[12px] border border-[#E9ECEF] bg-[#F8F9FA] p-4">
+              <div className="mb-3 text-sm font-semibold text-[#212529]">📹 Meeting Link *</div>
+              <p className="mb-4 text-xs text-[#6C757D]">
+                Add the Google Meet link for the session. This will be automatically sent to the winner.
+              </p>
+              <TextInput
+                type="url"
+                label="Google Meet Link"
+                placeholder="https://meet.google.com/..."
+                required
+                value={meetingLink}
+                onChange={(event) => setMeetingLink(event.target.value)}
               />
             </div>
 

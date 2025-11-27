@@ -1,73 +1,94 @@
-import { Card, CardContent, Button, Badge } from '@fanmeet/ui';
+import { useEffect, useState } from 'react';
+import { Card, CardContent, Button, Badge, Avatar } from '@fanmeet/ui';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
 
-const demoFollowers = [
-  {
-    id: 'fan-1',
-    name: 'Rahul Kumar',
-    handle: '@rahulfan',
-    tier: 'Premium',
-    meets: 3,
-    lastMeet: '2 days ago',
-  },
-  {
-    id: 'fan-2',
-    name: 'Neha Sharma',
-    handle: '@nehalovesyou',
-    tier: 'Follower',
-    meets: 1,
-    lastMeet: 'Last week',
-  },
-  {
-    id: 'fan-3',
-    name: 'Aditya Verma',
-    handle: '@adityav',
-    tier: 'Subscriber',
-    meets: 5,
-    lastMeet: 'Today',
-  },
-];
+interface FanProfile {
+  user_id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+}
 
 export function CreatorFollowers() {
+  const { user } = useAuth();
+  const [followers, setFollowers] = useState<FanProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchFollowers() {
+      if (!user) return;
+
+      try {
+        const { data: follows, error } = await supabase
+          .from('creator_follows')
+          .select('fan_id')
+          .eq('creator_id', user.id);
+
+        if (error) throw error;
+
+        if (follows && follows.length > 0) {
+          const fanIds = follows.map(f => f.fan_id);
+          const { data: profiles, error: profilesError } = await supabase
+            .from('profiles')
+            .select('*')
+            .in('user_id', fanIds);
+
+          if (profilesError) throw profilesError;
+
+          if (profiles) {
+            setFollowers(profiles);
+          }
+        } else {
+          setFollowers([]);
+        }
+      } catch (error) {
+        console.error('Error fetching followers:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFollowers();
+  }, [user]);
+
+  if (loading) {
+    return <div className="p-8 text-center text-[#6C757D]">Loading...</div>;
+  }
+
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold text-[#212529]">Followers & fans</h1>
+        <h1 className="text-xl font-semibold text-[#212529]">Followers</h1>
         <p className="mt-1 text-sm text-[#6C757D]">
-          People who follow or subscribe to you on FanMeet. Use this list to understand who shows up for
+          People who follow you on FanMeet. Use this list to understand who shows up for
           your events most often.
         </p>
       </div>
 
       <div className="space-y-4">
-        {demoFollowers.map((fan) => (
-          <Card key={fan.id} elevated className="border-none bg-white/95">
+        {followers.map((fan) => (
+          <Card key={fan.user_id} elevated className="border-none bg-white/95">
             <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className="h-10 w-10 rounded-full bg-[#050014] text-center text-sm font-semibold leading-10 text-white">
-                    {fan.name.charAt(0)}
-                  </span>
+                  <Avatar
+                    src={fan.avatar_url}
+                    initials={fan.display_name?.charAt(0) || fan.username?.charAt(0)}
+                    size="md"
+                  />
                   <div className="flex flex-col">
-                    <span className="text-sm font-semibold text-[#212529]">{fan.name}</span>
-                    <span className="text-xs text-[#6C757D]">{fan.handle}</span>
+                    <span className="text-sm font-semibold text-[#212529]">{fan.display_name || fan.username}</span>
+                    <span className="text-xs text-[#6C757D]">@{fan.username}</span>
                   </div>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-[#6C757D]">
-                  <span>
-                    <strong className="font-semibold text-[#212529]">{fan.meets}</strong> meets with you
-                  </span>
-                  <span>Last joined: {fan.lastMeet}</span>
                 </div>
               </div>
 
               <div className="flex flex-col items-start gap-2 md:items-end">
-                <Badge>{fan.tier}</Badge>
+                <Badge variant="primary">Follower</Badge>
                 <div className="flex gap-2">
                   <Button size="sm" variant="secondary" className="rounded-full">
                     Message
-                  </Button>
-                  <Button size="sm" className="rounded-full">
-                    View history
                   </Button>
                 </div>
               </div>
@@ -75,7 +96,7 @@ export function CreatorFollowers() {
           </Card>
         ))}
 
-        {demoFollowers.length === 0 && (
+        {followers.length === 0 && (
           <Card>
             <CardContent>
               <p className="text-sm text-[#6C757D]">

@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Badge, Button, Card, CardContent, CardHeader, TextArea, TextInput } from '@fanmeet/ui';
+import { Button, Card, CardContent, CardHeader, TextArea, TextInput } from '@fanmeet/ui';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { useCreatorProfiles } from '../../contexts/CreatorProfileContext';
 
 export function CreatorProfileSetup() {
   const { user } = useAuth();
-  const { getProfile, upsertProfile, getPostsForCreator, addPost, updatePost, deletePost } = useCreatorProfiles();
+  const { getProfile, upsertProfile } = useCreatorProfiles();
 
   if (!user || user.role !== 'creator') {
     return (
@@ -29,42 +29,10 @@ export function CreatorProfileSetup() {
   const [bio, setBio] = useState(initialBio);
   const [profileSaved, setProfileSaved] = useState(false);
 
-  const creatorPosts = getPostsForCreator(user.username);
-  const [newPostText, setNewPostText] = useState('');
-  const [savingPostId, setSavingPostId] = useState<string | null>(null);
-
-  const handleSaveProfile = () => {
-    upsertProfile({ username: user.username, displayName: displayName.trim(), bio: bio.trim() });
+  const handleSaveProfile = async () => {
+    await upsertProfile({ username: user.username, displayName: displayName.trim(), bio: bio.trim() });
     setProfileSaved(true);
     window.setTimeout(() => setProfileSaved(false), 2000);
-  };
-
-  const handleAddPost = () => {
-    const trimmed = newPostText.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    try {
-      addPost({ username: user.username, text: trimmed });
-      setNewPostText('');
-    } catch (error) {
-      // Silent in UI for now; demo environment.
-      console.error(error);
-    }
-  };
-
-  const handleUpdatePost = (postId: string, text: string) => {
-    setSavingPostId(postId);
-    updatePost(postId, text);
-    window.setTimeout(() => setSavingPostId(null), 400);
-  };
-
-  const handleDeletePost = (postId: string) => {
-    if (!window.confirm('Remove this post from your public page?')) {
-      return;
-    }
-    deletePost(postId);
   };
 
   const handleShareProfile = () => {
@@ -89,7 +57,7 @@ export function CreatorProfileSetup() {
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold text-[#212529]">Public profile setup</h1>
         <p className="text-sm text-[#6C757D]">
-          Update what fans see on your public page and manage the posts that appear under the Posts tab.
+          Update what fans see on your public page.
         </p>
       </div>
 
@@ -159,62 +127,6 @@ export function CreatorProfileSetup() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader
-          title="Posts on your public page"
-          subtitle="Short updates that appear under the Posts tab on your profile."
-        />
-        <CardContent className="gap-5">
-          <div className="rounded-[14px] border border-[#E9ECEF] bg-[#F8F9FA] p-4">
-            <TextArea
-              label="New post"
-              placeholder="Share an update, announcement, or personal note for your subscribers."
-              rows={3}
-              value={newPostText}
-              onChange={(event) => setNewPostText(event.target.value)}
-            />
-            <div className="mt-3 flex items-center justify-between gap-3 text-xs text-[#6C757D]">
-              <span>Posts are visible to anyone visiting your public page.</span>
-              <Button size="sm" onClick={handleAddPost}>
-                Post update
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3">
-            {creatorPosts.length === 0 ? (
-              <p className="text-sm text-[#6C757D]">
-                You haven&apos;t posted anything yet. Share a quick hello or an update about your next meet.
-              </p>
-            ) : (
-              creatorPosts.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex flex-col gap-2 rounded-[12px] border border-[#E9ECEF] bg-white p-4 text-sm text-[#212529]"
-                >
-                  <div className="flex items-center justify-between text-[11px] text-[#6C757D]">
-                    <span>{post.createdAtLabel}</span>
-                    {savingPostId === post.id ? (
-                      <span className="text-[11px] text-[#28A745]">Saved</span>
-                    ) : null}
-                  </div>
-                  <TextArea
-                    rows={3}
-                    value={post.text}
-                    onChange={(event) => handleUpdatePost(post.id, event.target.value)}
-                  />
-                  <div className="mt-2 flex justify-between text-xs text-[#6C757D]">
-                    <span>Visible under Posts on your public page.</span>
-                    <Button variant="ghost" size="sm" className="text-[#DC3545]" onClick={() => handleDeletePost(post.id)}>
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

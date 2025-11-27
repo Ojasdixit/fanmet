@@ -5,6 +5,10 @@ import { AppShell } from './layouts/AppShell';
 import { DashboardShell } from './layouts/DashboardShell';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
+import { AdminAuthPage } from './pages/auth/AdminAuthPage';
+import { BrowseEventsPage } from './pages/BrowseEventsPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
+import { ForCreatorsPage } from './pages/ForCreatorsPage';
 import { FanDashboard } from './pages/fan/FanDashboard';
 import { FanBids } from './pages/fan/FanBids';
 import { FanMeets } from './pages/fan/FanMeets';
@@ -14,6 +18,7 @@ import { FanHistory } from './pages/fan/FanHistory';
 import { FanNotifications } from './pages/fan/FanNotifications';
 import { FanSettings } from './pages/fan/FanSettings';
 import { FanMessages } from './pages/fan/FanMessages';
+import { FanSupport } from './pages/fan/FanSupport';
 import { CreatorOverview } from './pages/creator/CreatorOverview';
 import { CreatorEvents } from './pages/creator/CreatorEvents';
 import { CreatorCreateEvent } from './pages/creator/CreatorCreateEvent';
@@ -25,6 +30,7 @@ import { CreatorFollowers } from './pages/creator/CreatorFollowers';
 import { CreatorNotifications } from './pages/creator/CreatorNotifications';
 import { CreatorSettings } from './pages/creator/CreatorSettings';
 import { CreatorMessages } from './pages/creator/CreatorMessages';
+import { CreatorSupport } from './pages/creator/CreatorSupport';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminCreators } from './pages/admin/AdminCreators';
@@ -54,11 +60,14 @@ import { AdminSystemLogs } from './pages/admin/AdminSystemLogs';
 import { AdminSystemBulkActions } from './pages/admin/AdminSystemBulkActions';
 import { AdminSystemBackup } from './pages/admin/AdminSystemBackup';
 import { AdminProfile } from './pages/admin/AdminProfile';
+import { AdminMeetsDebug } from './pages/admin/AdminMeetsDebug';
 import { InfluencerPage } from './pages/influencer/InfluencerPage';
 import { EventDetailPage } from './pages/events/EventDetailPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { EventProvider } from './contexts/EventContext';
 import { CreatorProfileProvider } from './contexts/CreatorProfileContext';
+import { NotificationsProvider } from './contexts/NotificationsContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 const Loader = () => (
   <div className="flex h-full w-full items-center justify-center">
@@ -75,77 +84,107 @@ export default function App() {
       <AuthProvider>
         <EventProvider>
           <CreatorProfileProvider>
-            <Routes>
-            <Route element={<AppShell />}>
-              <Route index element={<LandingPage />} />
-              <Route path="auth" element={<AuthPage />} />
-              <Route path="events/:eventId" element={<EventDetailPage />} />
-              <Route path=":username" element={<InfluencerPage />} />
-            </Route>
+            <NotificationsProvider>
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route index element={<LandingPage />} />
+                  <Route path="auth" element={<AuthPage />} />
+                  <Route path="fanmeet/admin/superadmin" element={<AdminAuthPage />} />
+                  <Route path="browse-events" element={<BrowseEventsPage />} />
+                  <Route path="how-it-works" element={<HowItWorksPage />} />
+                  <Route path="for-creators" element={<ForCreatorsPage />} />
+                  <Route path="events/:eventId" element={<EventDetailPage />} />
+                  <Route path=":username" element={<InfluencerPage />} />
+                </Route>
 
-            <Route path="fan" element={<DashboardShell role="fan" />}>
-              <Route index element={<FanDashboard />} />
-              <Route path="bids" element={<FanBids />} />
-              <Route path="meets" element={<FanMeets />} />
-              <Route path="wallet" element={<FanWallet />} />
-              <Route path="following" element={<FanFollowing />} />
-              <Route path="history" element={<FanHistory />} />
-              <Route path="messages" element={<FanMessages />} />
-              <Route path="notifications" element={<FanNotifications />} />
-              <Route path="settings" element={<FanSettings />} />
-              <Route path="*" element={<Navigate to="." replace />} />
-            </Route>
+                <Route
+                  path="fan"
+                  element={
+                    <ProtectedRoute allowedRoles={['fan']}>
+                      <DashboardShell role="fan" />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<FanDashboard />} />
+                  <Route path="bids" element={<FanBids />} />
+                  <Route path="meets" element={<FanMeets />} />
+                  <Route path="wallet" element={<FanWallet />} />
+                  <Route path="following" element={<FanFollowing />} />
+                  <Route path="history" element={<FanHistory />} />
+                  <Route path="messages" element={<FanMessages />} />
+                  <Route path="notifications" element={<FanNotifications />} />
+                  <Route path="settings" element={<FanSettings />} />
+                  <Route path="support" element={<FanSupport />} />
+                  <Route path="*" element={<Navigate to="." replace />} />
+                </Route>
 
-            <Route path="creator" element={<DashboardShell role="creator" />}>
-              <Route index element={<CreatorOverview />} />
-              <Route path="events" element={<CreatorEvents />} />
-              <Route path="events/new" element={<CreatorCreateEvent />} />
-              <Route path="profile-setup" element={<CreatorProfileSetup />} />
-              <Route path="earnings" element={<CreatorEarnings />} />
-              <Route path="withdrawals" element={<CreatorWithdrawals />} />
-              <Route path="meets" element={<CreatorMeets />} />
-              <Route path="followers" element={<CreatorFollowers />} />
-              <Route path="messages" element={<CreatorMessages />} />
-              <Route path="notifications" element={<CreatorNotifications />} />
-              <Route path="settings" element={<CreatorSettings />} />
-              <Route path="*" element={<Navigate to="." replace />} />
-            </Route>
+                <Route
+                  path="creator"
+                  element={
+                    <ProtectedRoute allowedRoles={['creator']}>
+                      <DashboardShell role="creator" />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<CreatorOverview />} />
+                  <Route path="events" element={<CreatorEvents />} />
+                  <Route path="events/new" element={<CreatorCreateEvent />} />
+                  <Route path="profile-setup" element={<CreatorProfileSetup />} />
+                  <Route path="earnings" element={<CreatorEarnings />} />
+                  <Route path="withdrawals" element={<CreatorWithdrawals />} />
+                  <Route path="meets" element={<CreatorMeets />} />
+                  <Route path="followers" element={<CreatorFollowers />} />
+                  <Route path="messages" element={<CreatorMessages />} />
+                  <Route path="notifications" element={<CreatorNotifications />} />
+                  <Route path="settings" element={<CreatorSettings />} />
+                  <Route path="support" element={<CreatorSupport />} />
+                  <Route path="*" element={<Navigate to="." replace />} />
+                </Route>
 
-            <Route path="admin" element={<DashboardShell role="admin" />}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="creators" element={<AdminCreators />} />
-              <Route path="fans" element={<AdminFans />} />
-              <Route path="events" element={<AdminEvents />} />
-              <Route path="featured" element={<AdminFeaturedCreators />} />
-              <Route path="announcements" element={<AdminAnnouncements />} />
-              <Route path="payments" element={<AdminPayments />} />
-              <Route path="withdrawals" element={<AdminWithdrawalRequests />} />
-              <Route path="refunds" element={<AdminRefundsManagement />} />
-              <Route path="revenue-analytics" element={<AdminRevenueAnalytics />} />
-              <Route path="platform-commission" element={<AdminPlatformCommission />} />
-              <Route path="business-analytics" element={<AdminBusinessAnalytics />} />
-              <Route path="user-analytics" element={<AdminUserAnalytics />} />
-              <Route path="revenue-reports" element={<AdminRevenueReports />} />
-              <Route path="event-analytics" element={<AdminEventAnalytics />} />
-              <Route path="audit-logs" element={<AdminAuditLogs />} />
-              <Route path="support-tickets" element={<AdminSupportTickets />} />
-              <Route path="reports-flags" element={<AdminReportsFlags />} />
-              <Route path="disputes" element={<AdminDisputes />} />
-              <Route path="settings/general" element={<AdminSettingsGeneral />} />
-              <Route path="settings/pricing" element={<AdminSettingsPricing />} />
-              <Route path="settings/email-templates" element={<AdminSettingsEmailTemplates />} />
-              <Route path="settings/notifications" element={<AdminSettingsNotifications />} />
-              <Route path="settings/security" element={<AdminSettingsSecurity />} />
-              <Route path="system/logs" element={<AdminSystemLogs />} />
-              <Route path="system/bulk-actions" element={<AdminSystemBulkActions />} />
-              <Route path="system/backup" element={<AdminSystemBackup />} />
-              <Route path="profile" element={<AdminProfile />} />
-              <Route path="*" element={<Navigate to="." replace />} />
-            </Route>
+                <Route
+                  path="admin"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <DashboardShell role="admin" />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="users" element={<AdminUsers />} />
+                  <Route path="creators" element={<AdminCreators />} />
+                  <Route path="fans" element={<AdminFans />} />
+                  <Route path="events" element={<AdminEvents />} />
+                  <Route path="featured" element={<AdminFeaturedCreators />} />
+                  <Route path="announcements" element={<AdminAnnouncements />} />
+                  <Route path="payments" element={<AdminPayments />} />
+                  <Route path="withdrawals" element={<AdminWithdrawalRequests />} />
+                  <Route path="refunds" element={<AdminRefundsManagement />} />
+                  <Route path="revenue-analytics" element={<AdminRevenueAnalytics />} />
+                  <Route path="platform-commission" element={<AdminPlatformCommission />} />
+                  <Route path="business-analytics" element={<AdminBusinessAnalytics />} />
+                  <Route path="user-analytics" element={<AdminUserAnalytics />} />
+                  <Route path="revenue-reports" element={<AdminRevenueReports />} />
+                  <Route path="event-analytics" element={<AdminEventAnalytics />} />
+                  <Route path="audit-logs" element={<AdminAuditLogs />} />
+                  <Route path="support-tickets" element={<AdminSupportTickets />} />
+                  <Route path="reports-flags" element={<AdminReportsFlags />} />
+                  <Route path="disputes" element={<AdminDisputes />} />
+                  <Route path="settings/general" element={<AdminSettingsGeneral />} />
+                  <Route path="settings/pricing" element={<AdminSettingsPricing />} />
+                  <Route path="settings/email-templates" element={<AdminSettingsEmailTemplates />} />
+                  <Route path="settings/notifications" element={<AdminSettingsNotifications />} />
+                  <Route path="settings/security" element={<AdminSettingsSecurity />} />
+                  <Route path="system/logs" element={<AdminSystemLogs />} />
+                  <Route path="system/bulk-actions" element={<AdminSystemBulkActions />} />
+                  <Route path="system/backup" element={<AdminSystemBackup />} />
+                  <Route path="debug/meets" element={<AdminMeetsDebug />} />
+                  <Route path="profile" element={<AdminProfile />} />
+                  <Route path="*" element={<Navigate to="." replace />} />
+                </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </NotificationsProvider>
           </CreatorProfileProvider>
         </EventProvider>
       </AuthProvider>
