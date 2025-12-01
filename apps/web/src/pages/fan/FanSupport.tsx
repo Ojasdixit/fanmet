@@ -6,6 +6,13 @@ import { useAuth } from '../../contexts/AuthContext';
 
 type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
+interface TicketReply {
+  id: string;
+  message: string;
+  isAdminReply: boolean;
+  createdAt: string;
+}
+
 interface MyTicket {
   id: string;
   subject: string;
@@ -25,10 +32,14 @@ const statusBadgeVariant: Record<TicketStatus, 'primary' | 'warning' | 'success'
 export function FanSupport() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<MyTicket[]>([]);
+  const [replies, setReplies] = useState<TicketReply[]>([]);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
 
   useEffect(() => {
     const fetchTickets = async () => {
@@ -65,6 +76,79 @@ export function FanSupport() {
 
     void fetchTickets();
   }, [user]);
+
+  // Fetch replies when a ticket is selected
+  useEffect(() => {
+    const fetchReplies = async () => {
+      if (!selectedTicketId) {
+        setReplies([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('ticket_replies')
+        .select('id, message, is_admin_reply, created_at')
+        .eq('ticket_id', selectedTicketId)
+        .order('created_at', { ascending: true });
+
+      if (error || !data) {
+        console.error('Error fetching replies:', error);
+        setReplies([]);
+        return;
+      }
+
+      setReplies(
+        (data as any[]).map((r) => ({
+          id: r.id,
+          message: r.message,
+          isAdminReply: r.is_admin_reply,
+          createdAt: r.created_at,
+        }))
+      );
+    };
+
+    void fetchReplies();
+  }, [selectedTicketId]);
+
+  const handleSendReply = async () => {
+    if (!user || !selectedTicketId || !replyMessage.trim()) {
+      alert('Please enter a message.');
+      return;
+    }
+
+    setIsSendingReply(true);
+    try {
+      const { error } = await supabase.from('ticket_replies').insert({
+        ticket_id: selectedTicketId,
+        user_id: user.id,
+        message: replyMessage.trim(),
+        is_admin_reply: false,
+      });
+
+      if (error) {
+        console.error('Error sending reply:', error);
+        alert('Failed to send reply.');
+        return;
+      }
+
+      setReplies((prev) => [
+        ...prev,
+        {
+          id: `temp-${Date.now()}`,
+          message: replyMessage.trim(),
+          isAdminReply: false,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+
+      setReplyMessage('');
+      alert('Reply sent! Our support team will respond soon.');
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  const selectedTicket = tickets.find((t) => t.id === selectedTicketId);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -146,7 +230,7 @@ export function FanSupport() {
       <Card>
         <CardHeader
           title="Your Tickets"
-          subtitle="Track the status of requests you have raised."
+          subtitle="Click a ticket to view the conversation and reply."
         />
         <CardContent className="flex flex-col gap-3">
           {isLoading ? (
@@ -157,22 +241,91 @@ export function FanSupport() {
             </div>
           ) : (
             tickets.map((t) => (
-              <div
-                key={t.id}
-                className="flex flex-col gap-1 rounded-[12px] border border-[#E9ECEF] bg-white p-4 text-sm text-[#212529]"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-col">
-                    <span className="font-semibold">{t.subject}</span>
-                    <span className="text-xs text-[#6C757D]">{formatDateTime(t.createdAt)}</span>
+              <div key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTicketId(selectedTicketId === t.id ? null : t.id)}
+                  className={`w-full text-left rounded-[12px] border p-4 text-sm text-[#212529] transition-all ${
+                    selectedTicketId === t.id
+                      ? 'border-[#C045FF] bg-[#F4E6FF]/30'
+                      : 'border-[#E9ECEF] bg-white hover:border-[#C045FF]/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-col">
+                      <span className="font-semibold">{t.subject}</span>
+                      <span className="text-xs text-[#6C757D]">{formatDateTime(t.createdAt)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={statusBadgeVariant[t.status]}>
+                        {t.status.replace('_', ' ')}
+                      </Badge>
+                      <span className="text-[#6C757D]">{selectedTicketId === t.id ? '▲' : '▼'}</span>
+                    </div>
                   </div>
-                  <Badge variant={statusBadgeVariant[t.status]}>
-                    {t.status.replace('_', ' ')}
-                  </Badge>
-                </div>
-                <p className="mt-1 line-clamp-3 text-sm text-[#6C757D] whitespace-pre-line">
-                  {t.description}
-                </p>
+                  <p className="mt-1 line-clamp-2 text-sm text-[#6C757D] whitespace-pre-line">
+                    {t.description}
+                  </p>
+                </button>
+
+                {/* Expanded conversation view */}
+                {selectedTicketId === t.id && (
+                  <div className="mt-2 ml-4 border-l-2 border-[#C045FF] pl-4 space-y-4">
+                    {/* Conversation thread */}
+                    <div className="space-y-3">
+                      {replies.length === 0 ? (
+                        <p className="text-sm text-[#6C757D] py-2">
+                          No replies yet. Our support team will respond soon.
+                        </p>
+                      ) : (
+                        replies.map((reply) => (
+                          <div
+                            key={reply.id}
+                            className={`rounded-[10px] p-3 text-sm ${
+                              reply.isAdminReply
+                                ? 'bg-[#F4E6FF] border-l-4 border-[#C045FF]'
+                                : 'bg-[#F8F9FA]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className={`font-semibold ${reply.isAdminReply ? 'text-[#C045FF]' : 'text-[#212529]'}`}>
+                                {reply.isAdminReply ? '🎧 Support Team' : 'You'}
+                              </span>
+                              <span className="text-xs text-[#6C757D]">{formatDateTime(reply.createdAt)}</span>
+                            </div>
+                            <p className="text-[#212529] whitespace-pre-line">{reply.message}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Reply form - only show if ticket is not closed/resolved */}
+                    {t.status !== 'closed' && t.status !== 'resolved' && (
+                      <div className="space-y-2">
+                        <TextArea
+                          label="Reply to this ticket"
+                          rows={3}
+                          placeholder="Type your message..."
+                          value={replyMessage}
+                          onChange={(e) => setReplyMessage(e.target.value)}
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleSendReply}
+                          disabled={isSendingReply || !replyMessage.trim()}
+                        >
+                          {isSendingReply ? 'Sending...' : 'Send Reply'}
+                        </Button>
+                      </div>
+                    )}
+
+                    {(t.status === 'closed' || t.status === 'resolved') && (
+                      <p className="text-sm text-[#6C757D] italic">
+                        This ticket is {t.status}. Create a new ticket if you need further assistance.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             ))
           )}

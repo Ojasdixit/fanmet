@@ -10,9 +10,14 @@ interface EarningsRow {
   event: string;
   bids: number;
   winner: string;
-  earned: number;
+  grossAmount: number;
+  earned: number; // Net amount after 10% platform fee
   status: string;
 }
+
+// Platform fee: 10% deducted from earnings
+const PLATFORM_FEE_PERCENT = 10;
+const calculateNetEarnings = (grossAmount: number) => Math.floor(grossAmount * (100 - PLATFORM_FEE_PERCENT) / 100);
 
 interface ChartPoint {
   dateKey: string;
@@ -123,7 +128,8 @@ export function CreatorEarnings() {
               ? wonBids.reduce((max: any, b: any) => (b.amount > max.amount ? b : max), wonBids[0])
               : null;
 
-          const earned = winningBid?.amount ?? 0;
+          const grossAmount = winningBid?.amount ?? 0;
+          const earned = calculateNetEarnings(grossAmount); // 90% after platform fee
 
           let winnerName = '-';
           let referenceDate: Date | null = null;
@@ -170,7 +176,8 @@ export function CreatorEarnings() {
             event: event.title,
             bids: bidsCount,
             winner: winnerName,
-            earned,
+            grossAmount,
+            earned, // Net earnings (90%)
             status,
           });
         }
@@ -332,7 +339,7 @@ export function CreatorEarnings() {
                 <th className="border-b border-[#E9ECEF] py-3">Event</th>
                 <th className="border-b border-[#E9ECEF] py-3">Bids</th>
                 <th className="border-b border-[#E9ECEF] py-3">Winner</th>
-                <th className="border-b border-[#E9ECEF] py-3">Earned</th>
+                <th className="border-b border-[#E9ECEF] py-3">Net Earnings</th>
                 <th className="border-b border-[#E9ECEF] py-3">Status</th>
               </tr>
             </thead>
@@ -362,7 +369,16 @@ export function CreatorEarnings() {
                     <td className="py-3">{row.event}</td>
                     <td className="py-3">{row.bids}</td>
                     <td className="py-3">{row.winner}</td>
-                    <td className="py-3">{formatCurrency(row.earned)}</td>
+                    <td className="py-3">
+                      <div className="flex flex-col">
+                        <span className="font-medium text-green-600">{formatCurrency(row.earned)}</span>
+                        {row.grossAmount > 0 && (
+                          <span className="text-xs text-[#6C757D]">
+                            (Bid: {formatCurrency(row.grossAmount)} - 10% fee)
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3">
                       <Badge variant={statusVariantMap[row.status] ?? 'primary'}>
                         {row.status}

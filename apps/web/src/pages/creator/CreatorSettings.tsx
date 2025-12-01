@@ -13,6 +13,7 @@ export function CreatorSettings() {
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
+  const [savingBank, setSavingBank] = useState(false);
 
   const [profile, setProfile] = useState({
     display_name: '',
@@ -20,6 +21,13 @@ export function CreatorSettings() {
     bio: '',
     category: '',
     primary_language: ''
+  });
+
+  const [bankDetails, setBankDetails] = useState({
+    bank_account_number: '',
+    bank_ifsc: '',
+    bank_account_name: '',
+    upi_id: ''
   });
 
   const [settings, setSettings] = useState({
@@ -50,6 +58,12 @@ export function CreatorSettings() {
             bio: profileData.bio || '',
             category: profileData.category || '',
             primary_language: profileData.primary_language || ''
+          });
+          setBankDetails({
+            bank_account_number: profileData.bank_account_number || '',
+            bank_ifsc: profileData.bank_ifsc || '',
+            bank_account_name: profileData.bank_account_name || '',
+            upi_id: profileData.upi_id || ''
           });
         }
 
@@ -134,6 +148,25 @@ export function CreatorSettings() {
       alert('Failed to update contact settings.');
     } finally {
       setSavingContact(false);
+    }
+  };
+
+  const handleSaveBankDetails = async () => {
+    if (!user) return;
+    setSavingBank(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(bankDetails)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      alert('Bank details updated successfully! Your earnings will be auto-withdrawn to this account after 24 hours.');
+    } catch (error) {
+      console.error('Error updating bank details:', error);
+      alert('Failed to update bank details.');
+    } finally {
+      setSavingBank(false);
     }
   };
 
@@ -230,6 +263,54 @@ export function CreatorSettings() {
           </CardContent>
         </Card>
       </div>
+
+      <Card elevated>
+        <CardHeader 
+          title="Bank & Payout Details" 
+          subtitle="Add your bank account or UPI for automatic withdrawals. Earnings are auto-transferred 24 hours after event completion." 
+        />
+        <CardContent className="gap-5">
+          <div className="rounded-[12px] bg-[#F4E6FF]/60 p-4">
+            <p className="text-sm text-[#6C757D]">
+              💰 <strong>Auto-withdrawal:</strong> Your earnings (90% after platform fee) are automatically transferred to your account 24 hours after each event ends. Add either bank account OR UPI details below.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextInput
+              label="Bank Account Number"
+              placeholder="Enter account number"
+              value={bankDetails.bank_account_number}
+              onChange={(e) => setBankDetails({ ...bankDetails, bank_account_number: e.target.value })}
+            />
+            <TextInput
+              label="IFSC Code"
+              placeholder="e.g. HDFC0001234"
+              value={bankDetails.bank_ifsc}
+              onChange={(e) => setBankDetails({ ...bankDetails, bank_ifsc: e.target.value.toUpperCase() })}
+            />
+          </div>
+          <TextInput
+            label="Account Holder Name"
+            placeholder="Name as per bank records"
+            value={bankDetails.bank_account_name}
+            onChange={(e) => setBankDetails({ ...bankDetails, bank_account_name: e.target.value })}
+          />
+          <div className="flex items-center gap-4">
+            <div className="h-px flex-1 bg-[#E9ECEF]" />
+            <span className="text-sm text-[#6C757D]">OR</span>
+            <div className="h-px flex-1 bg-[#E9ECEF]" />
+          </div>
+          <TextInput
+            label="UPI ID"
+            placeholder="yourname@upi"
+            value={bankDetails.upi_id}
+            onChange={(e) => setBankDetails({ ...bankDetails, upi_id: e.target.value })}
+          />
+          <Button size="lg" onClick={handleSaveBankDetails} disabled={savingBank}>
+            {savingBank ? 'Saving...' : 'Save Payout Details'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader

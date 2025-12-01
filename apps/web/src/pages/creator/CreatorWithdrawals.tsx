@@ -27,6 +27,10 @@ const statusDisplayMap: Record<string, string> = {
   failed: 'Failed',
 };
 
+// Platform fee: 10% deducted from earnings
+const PLATFORM_FEE_PERCENT = 10;
+const calculateNetEarnings = (grossAmount: number) => Math.floor(grossAmount * (100 - PLATFORM_FEE_PERCENT) / 100);
+
 export function CreatorWithdrawals() {
   const { user } = useAuth();
 
@@ -120,14 +124,16 @@ export function CreatorWithdrawals() {
           }
 
           for (const bid of (bidsData ?? []) as any[]) {
-            totalEarnings += bid.amount ?? 0;
+            // Calculate net earnings (90% after 10% platform fee)
+            const netAmount = calculateNetEarnings(bid.amount ?? 0);
+            totalEarnings += netAmount;
 
             // Check if the meet for this event is completed
             const eventMeets = meetsByEvent.get(bid.event_id) ?? [];
             const hasCompletedMeet = eventMeets.some((m: any) => m.status === 'completed');
 
             if (!hasCompletedMeet) {
-              pendingEarnings += bid.amount ?? 0;
+              pendingEarnings += netAmount;
             }
           }
         }
@@ -282,7 +288,7 @@ export function CreatorWithdrawals() {
                 <p className="text-xl font-semibold text-[#212529]">
                   {isLoading ? '…' : formatCurrency(pendingClearance)}
                 </p>
-                <p className="text-xs text-[#6C757D]">Will move to available after events conclude.</p>
+                <p className="text-xs text-[#6C757D]">Net earnings (90%) after 10% platform fee. Available after 24h.</p>
               </div>
               <div className="rounded-[12px] border border-[#E9ECEF] bg-white p-4">
                 <span className="text-sm text-[#6C757D]">Last payout</span>

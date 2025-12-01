@@ -1,8 +1,32 @@
 import { useEffect, useState } from 'react';
 import { Badge, Button, Card, CardContent, CardHeader, TextInput } from '@fanmeet/ui';
-import { formatCurrency, formatDateTime } from '@fanmeet/utils';
+import { formatCurrency } from '@fanmeet/utils';
 import { supabase } from '../../lib/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
+
+// Razorpay types
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+
+// Load Razorpay script
+const loadRazorpayScript = (): Promise<boolean> => {
+  return new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
 
 interface TransactionRow {
   id: string;
@@ -22,9 +46,10 @@ const statusVariantMap: Record<string, 'success' | 'primary' | 'danger' | 'warni
 };
 
 const typeDisplayMap: Record<string, string> = {
+  topup: 'Wallet Top-up',
   manual_adjustment: 'Credit Added',
   bid_authorization: 'Bid Placed',
-  bid_refund: 'Bid Refunded',
+  bid_refund: 'Bid Refunded (90%)',
   withdrawal: 'Withdrawal',
 };
 
@@ -39,6 +64,7 @@ export function FanWallet() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawDestination, setWithdrawDestination] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPaymentLoader, setShowPaymentLoader] = useState(false);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
 
   useEffect(() => {
@@ -111,80 +137,142 @@ export function FanWallet() {
     if (!user || !creditAmount) return;
 
     const amount = parseInt(creditAmount, 10);
-    if (isNaN(amount) || amount <= 0) {
-      alert('Please enter a valid amount');
+    if (isNaN(amount) || amount < 100) {
+      alert('Minimum amount is ₹100');
       return;
     }
 
     setIsSubmitting(true);
+    setShowPaymentLoader(true);
 
     try {
-      let currentWalletId = walletId;
-
-      // Create wallet if it doesn't exist
-      if (!currentWalletId) {
-        const { data: newWallet, error: createError } = await supabase
-          .from('wallets')
-          .insert({
-            user_id: user.id,
-            balance: 0,
-            currency: 'INR',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select('id')
-          .single();
-
-        if (createError || !newWallet) {
-          console.error('Error creating wallet:', createError);
-          alert('Failed to create wallet. Please try again.');
-          return;
-        }
-        currentWalletId = newWallet.id;
-        setWalletId(currentWalletId);
-      }
-
-      // Update wallet balance
-      const { error } = await supabase
-        .from('wallets')
-        .update({ balance: balance + amount, updated_at: new Date().toISOString() })
-        .eq('id', currentWalletId);
-
-      if (error) {
-        console.error('Error adding credits:', error);
-        alert('Failed to add credits. Please try again.');
+      // Load Razorpay script
+      const scriptLoaded = await loadRazorpayScript();
+      if (!scriptLoaded) {
+        alert('Failed to load payment gateway. Please try again.');
         return;
       }
 
-      // Insert transaction record
-      await supabase.from('wallet_transactions').insert({
-        wallet_id: currentWalletId,
-        type: 'manual_adjustment',
-        direction: 'credit',
-        amount: amount,
-        description: 'Manual credit addition',
-        created_at: new Date().toISOString(),
+      // Get session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Please log in to add credits.');
+        return;
+      }
+
+      // Create Razorpay order via Edge Function
+      const orderRes = await fetch(`${SUPABASE_URL}/functions/v1/razorpay-create-order`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ amount }),
       });
 
-      setBalance(balance + amount);
-      setTransactions((prev) => [
-        {
-          id: `temp-${Date.now()}`,
-          date: new Date().toLocaleDateString('en-IN', { month: 'short', day: '2-digit' }),
-          description: 'Manual credit addition',
-          amount,
-          type: 'credit',
-          status: 'completed',
+      if (!orderRes.ok) {
+        const errorData = await orderRes.json();
+        alert(errorData.error || 'Failed to create order. Please try again.');
+        return;
+      }
+
+      const { orderId, keyId } = await orderRes.json();
+
+      // Open Razorpay Checkout
+      const options = {
+        key: keyId,
+        amount: amount * 100,
+        currency: 'INR',
+        name: 'FanMeet',
+        description: 'Wallet Top-up',
+        order_id: orderId,
+        handler: async (response: any) => {
+          // Verify payment via Edge Function
+          const verifyRes = await fetch(`${SUPABASE_URL}/functions/v1/razorpay-verify-payment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            }),
+          });
+
+          if (verifyRes.ok) {
+            const { newBalance } = await verifyRes.json();
+            setBalance(newBalance);
+            setTransactions((prev) => [
+              {
+                id: `temp-${Date.now()}`,
+                date: new Date().toLocaleDateString('en-IN', { month: 'short', day: '2-digit' }),
+                description: 'Wallet top-up via Razorpay',
+                amount,
+                type: 'credit',
+                status: 'completed',
+              },
+              ...prev,
+            ]);
+            setCreditAmount('');
+            setShowAddCredits(false);
+            alert(`✅ Successfully added ${formatCurrency(amount)} to your wallet!`);
+          } else {
+            const errorData = await verifyRes.json();
+            alert(errorData.error || 'Payment verification failed. Please contact support.');
+          }
         },
-        ...prev,
-      ]);
-      setCreditAmount('');
-      setShowAddCredits(false);
-      alert(`Successfully added ${formatCurrency(amount)} to your wallet!`);
+        prefill: {
+          email: user.email || '',
+        },
+        theme: {
+          color: '#C045FF',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsSubmitting(false);
+          },
+        },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      setShowPaymentLoader(false);
+      razorpay.open();
+    } catch (error) {
+      setShowPaymentLoader(false);
+      console.error('Error:', error);
+      alert('Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
+      setShowPaymentLoader(false);
     }
   };
+
+  // Payment loader overlay component
+  const PaymentLoaderOverlay = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-6">
+        {/* Bouncing FanMeet Logo */}
+        <div className="animate-bounce">
+          <div className="flex items-center gap-1">
+            <span className="text-5xl font-bold text-white">Fan</span>
+            <span className="text-5xl font-bold text-[#C045FF]">Meet</span>
+          </div>
+        </div>
+        
+        {/* Pulsing dots */}
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 animate-pulse rounded-full bg-[#C045FF]" style={{ animationDelay: '0ms' }} />
+          <div className="h-3 w-3 animate-pulse rounded-full bg-[#C045FF]" style={{ animationDelay: '150ms' }} />
+          <div className="h-3 w-3 animate-pulse rounded-full bg-[#C045FF]" style={{ animationDelay: '300ms' }} />
+        </div>
+        
+        {/* Loading text */}
+        <p className="text-lg text-white/90">Preparing secure payment...</p>
+      </div>
+    </div>
+  );
 
   const handleWithdraw = async () => {
     if (!user || !walletId) {
@@ -260,7 +348,9 @@ export function FanWallet() {
   };
 
   return (
-    <div className="flex flex-col gap-8">
+    <>
+      {showPaymentLoader && <PaymentLoaderOverlay />}
+      <div className="flex flex-col gap-8">
       <div>
         <h1 className="text-2xl font-semibold text-[#212529]">Wallet & Refunds</h1>
         <p className="text-sm text-[#6C757D]">Track your credits, withdrawals, and refund status.</p>
@@ -415,5 +505,6 @@ export function FanWallet() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
