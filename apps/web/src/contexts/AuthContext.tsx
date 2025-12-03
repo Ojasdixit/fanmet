@@ -9,6 +9,7 @@ interface AuthUser {
   role: UserRole;
   email: string;
   username: string;
+  creatorProfileStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 interface AuthContextValue {
@@ -26,6 +27,7 @@ interface DbUser {
   id: string;
   email: string;
   role: UserRole;
+  creator_profile_status?: 'pending' | 'approved' | 'rejected';
 }
 
 export const buildUsername = (email: string) => {
@@ -39,7 +41,8 @@ const toAuthUser = (row: DbUser): AuthUser => ({
   email: row.email,
   role: row.role,
   username: buildUsername(row.email),
-  user_metadata: undefined
+  user_metadata: undefined,
+  creatorProfileStatus: row.creator_profile_status,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -59,7 +62,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const { data, error } = await supabase
           .from('users')
-          .select('id,email,role')
+          .select('id,email,role,creator_profile_status')
           .eq('id', authUser.id)
           .maybeSingle();
 
@@ -83,7 +86,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const { data: profile, error: profileError } = await supabase
       .from('users')
-      .select('id,email,role')
+      .select('id,email,role,creator_profile_status')
       .eq('id', data.user.id)
       .maybeSingle();
 

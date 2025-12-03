@@ -31,6 +31,15 @@ export function CreatorCreateEvent() {
       return;
     }
 
+    // Check if creator is approved by admin
+    if (user.creatorProfileStatus !== 'approved') {
+      const statusMsg = user.creatorProfileStatus === 'pending' 
+        ? 'Your creator profile is pending approval. Please wait for admin approval before creating events.'
+        : 'Your creator profile has been rejected. Please contact support for more information.';
+      window.alert(`⚠️ ${statusMsg}`);
+      return;
+    }
+
     if (!title.trim() || basePrice === null || !duration || !date || !time || !biddingDeadlineDate || !biddingDeadlineTime || !meetingLink) {
       setFormError('Please fill in all required fields before creating the event.');
       return;
@@ -77,8 +86,31 @@ export function CreatorCreateEvent() {
     }
   };
 
+  // Show approval status warning
+  const isApproved = user?.creatorProfileStatus === 'approved';
+  const isPending = user?.creatorProfileStatus === 'pending';
+
   return (
     <div className="flex flex-col gap-8">
+      {/* Approval Warning Banner */}
+      {user && user.role === 'creator' && !isApproved && (
+        <div className={`rounded-[12px] p-4 ${isPending ? 'bg-yellow-50 border border-yellow-200' : 'bg-red-50 border border-red-200'}`}>
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{isPending ? '⏳' : '❌'}</span>
+            <div>
+              <h3 className={`font-semibold ${isPending ? 'text-yellow-800' : 'text-red-800'}`}>
+                {isPending ? 'Profile Pending Approval' : 'Profile Not Approved'}
+              </h3>
+              <p className={`text-sm ${isPending ? 'text-yellow-700' : 'text-red-700'}`}>
+                {isPending 
+                  ? 'Your creator profile is being reviewed by our team. You cannot create events until approved.'
+                  : 'Your creator profile was not approved. Please contact support for more information.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-[#212529]">Create New Event</h1>

@@ -1,7 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, Button, TextInput, TextArea, Badge } from '@fanmeet/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
+
+// Cloudinary configuration
+const CLOUDINARY_CLOUD_NAME = (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME || '';
+const CLOUDINARY_UPLOAD_PRESET = (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || '';
 
 const channelStatusVariant: Record<string, 'success' | 'warning' | 'primary' | 'danger' | 'default'> = {
   Connected: 'success',
@@ -14,6 +18,10 @@ export function CreatorSettings() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [savingBank, setSavingBank] = useState(false);
+  const [savingSocials, setSavingSocials] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
     display_name: '',
@@ -39,6 +47,14 @@ export function CreatorSettings() {
 
   const [channels, setChannels] = useState<any[]>([]);
 
+  const [socialLinks, setSocialLinks] = useState({
+    instagram: '',
+    youtube: '',
+    twitter: '',
+    linkedin: '',
+    website: ''
+  });
+
   useEffect(() => {
     async function fetchData() {
       if (!user) return;
@@ -58,6 +74,14 @@ export function CreatorSettings() {
             bio: profileData.bio || '',
             category: profileData.category || '',
             primary_language: profileData.primary_language || ''
+          });
+          setProfilePhotoUrl(profileData.profile_photo_url || null);
+          setSocialLinks({
+            instagram: profileData.instagram_url || '',
+            youtube: profileData.youtube_url || '',
+            twitter: profileData.twitter_url || '',
+            linkedin: profileData.linkedin_url || '',
+            website: profileData.website_url || ''
           });
           setBankDetails({
             bank_account_number: profileData.bank_account_number || '',
@@ -118,6 +142,121 @@ export function CreatorSettings() {
       alert('Failed to update profile.');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB.');
+      return;
+    }
+
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      alert('Cloudinary is not configured. Please add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env.local file.');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      // Upload to Cloudinary
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', 'fanmeet/profiles');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to upload image');
+      }
+
+      const data = await response.json();
+      const imageUrl = data.secure_url;
+
+      // Update database
+      const { error } = await supabase
+        .from('profiles')
+        .update({ profile_photo_url: imageUrl })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setProfilePhotoUrl(imageUrl);
+      alert('Profile photo updated successfully!');
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo. Please try again.');
+    } finally {
+      setUploadingPhoto(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user) return;
+    
+    if (!confirm('Are you sure you want to remove your profile photo?')) return;
+
+    setUploadingPhoto(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ profile_photo_url: null })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setProfilePhotoUrl(null);
+      alert('Profile photo removed.');
+    } catch (error) {
+      console.error('Error removing photo:', error);
+      alert('Failed to remove photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleSaveSocials = async () => {
+    if (!user) return;
+    setSavingSocials(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          instagram_url: socialLinks.instagram || null,
+          youtube_url: socialLinks.youtube || null,
+          twitter_url: socialLinks.twitter || null,
+          linkedin_url: socialLinks.linkedin || null,
+          website_url: socialLinks.website || null
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      alert('Social links updated successfully!');
+    } catch (error) {
+      console.error('Error updating social links:', error);
+      alert('Failed to update social links.');
+    } finally {
+      setSavingSocials(false);
     }
   };
 
@@ -185,6 +324,58 @@ export function CreatorSettings() {
         <Card elevated>
           <CardHeader title="Profile information" subtitle="Fans see these details before bidding." />
           <CardContent className="gap-5">
+            {/* Profile Photo Upload */}
+            <div className="flex flex-col gap-3">
+              <label className="text-sm font-medium text-[#212529]">Profile Photo</label>
+              <div className="flex items-center gap-4">
+                {/* Photo Preview */}
+                <div className="relative">
+                  {profilePhotoUrl ? (
+                    <img
+                      src={profilePhotoUrl}
+                      alt="Profile"
+                      className="h-24 w-24 rounded-full object-cover ring-2 ring-[#C045FF]/20"
+                    />
+                  ) : (
+                    <div className="h-24 w-24 rounded-full bg-gradient-to-br from-[#C045FF] to-[#7B2CBF] flex items-center justify-center text-white font-bold text-2xl ring-2 ring-[#C045FF]/20">
+                      {profile.display_name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                  )}
+                </div>
+                {/* Upload Controls */}
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                    id="profile-photo-upload"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingPhoto}
+                  >
+                    {uploadingPhoto ? 'Uploading...' : profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}
+                  </Button>
+                  {profilePhotoUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemovePhoto}
+                      disabled={uploadingPhoto}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      Remove Photo
+                    </Button>
+                  )}
+                  <p className="text-xs text-[#6C757D]">JPG, PNG, GIF. Max 5MB.</p>
+                </div>
+              </div>
+            </div>
+
             <TextInput
               label="Display name"
               placeholder="Your Name"
@@ -263,6 +454,52 @@ export function CreatorSettings() {
           </CardContent>
         </Card>
       </div>
+
+      <Card elevated>
+        <CardHeader 
+          title="Social Media Links" 
+          subtitle="Add your social media profiles so fans can find and follow you." 
+        />
+        <CardContent className="gap-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextInput
+              label="Instagram"
+              placeholder="https://instagram.com/yourhandle"
+              value={socialLinks.instagram}
+              onChange={(e) => setSocialLinks({ ...socialLinks, instagram: e.target.value })}
+            />
+            <TextInput
+              label="YouTube"
+              placeholder="https://youtube.com/@yourhandle"
+              value={socialLinks.youtube}
+              onChange={(e) => setSocialLinks({ ...socialLinks, youtube: e.target.value })}
+            />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextInput
+              label="Twitter / X"
+              placeholder="https://twitter.com/yourhandle"
+              value={socialLinks.twitter}
+              onChange={(e) => setSocialLinks({ ...socialLinks, twitter: e.target.value })}
+            />
+            <TextInput
+              label="LinkedIn"
+              placeholder="https://linkedin.com/in/yourprofile"
+              value={socialLinks.linkedin}
+              onChange={(e) => setSocialLinks({ ...socialLinks, linkedin: e.target.value })}
+            />
+          </div>
+          <TextInput
+            label="Website"
+            placeholder="https://yourwebsite.com"
+            value={socialLinks.website}
+            onChange={(e) => setSocialLinks({ ...socialLinks, website: e.target.value })}
+          />
+          <Button size="lg" onClick={handleSaveSocials} disabled={savingSocials}>
+            {savingSocials ? 'Saving...' : 'Save Social Links'}
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card elevated>
         <CardHeader 

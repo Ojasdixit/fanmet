@@ -1,10 +1,14 @@
 import { Button, Card, CardContent, CardHeader, Badge } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useEvents } from '../../contexts/EventContext';
 import { supabase } from '../../lib/supabaseClient';
+
+// Cloudinary configuration
+const CLOUDINARY_CLOUD_NAME = (import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME || '';
+const CLOUDINARY_UPLOAD_PRESET = (import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET || '';
 
 interface TopCreator {
   id: string;
@@ -64,6 +68,94 @@ export function CreatorOverview() {
   const [earningsChange, setEarningsChange] = useState<string | undefined>(undefined);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [isLoadingOverview, setIsLoadingOverview] = useState(false);
+  
+  // Profile photo state
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch profile photo
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('profile_photo_url, display_name')
+        .eq('user_id', user.id)
+        .single();
+      if (data) {
+        setProfilePhotoUrl(data.profile_photo_url || null);
+        setDisplayName(data.display_name || '');
+      }
+    };
+    fetchProfile();
+  }, [user]);
+
+  const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB.');
+      return;
+    }
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      alert('Cloudinary is not configured.');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', 'fanmeet/profiles');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!response.ok) throw new Error('Upload failed');
+      const data = await response.json();
+
+      await supabase
+        .from('profiles')
+        .update({ profile_photo_url: data.secure_url })
+        .eq('user_id', user.id);
+
+      setProfilePhotoUrl(data.secure_url);
+      alert('Profile photo updated!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Failed to upload photo.');
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!user || !confirm('Remove your profile photo?')) return;
+    setUploadingPhoto(true);
+    try {
+      await supabase
+        .from('profiles')
+        .update({ profile_photo_url: null })
+        .eq('user_id', user.id);
+      setProfilePhotoUrl(null);
+      alert('Profile photo removed.');
+    } catch (error) {
+      alert('Failed to remove photo.');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
 
   useEffect(() => {
     const fetchTopCreators = async () => {
@@ -343,6 +435,63 @@ export function CreatorOverview() {
 
   return (
     <div className="flex flex-col gap-8">
+      {/* Profile Photo Section */}
+      <Card elevated className="border-none">
+        <CardContent className="gap-4">
+          <div className="flex items-center gap-4">
+            {/* Profile Photo */}
+            <div className="relative">
+              {profilePhotoUrl ? (
+                <img
+                  src={profilePhotoUrl}
+                  alt="Profile"
+                  className="h-20 w-20 rounded-full object-cover ring-2 ring-[#C045FF]/30"
+                />
+              ) : (
+                <div className="h-20 w-20 rounded-full bg-gradient-to-br from-[#C045FF] to-[#7B2CBF] flex items-center justify-center text-white font-bold text-2xl ring-2 ring-[#C045FF]/30">
+                  {displayName?.charAt(0)?.toUpperCase() || user?.email?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+              )}
+            </div>
+            {/* Info + Upload */}
+            <div className="flex flex-col gap-2">
+              <div>
+                <h2 className="text-lg font-semibold text-[#212529]">{displayName || 'Creator'}</h2>
+                <p className="text-sm text-[#6C757D]">{user?.email}</p>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto}
+                >
+                  {uploadingPhoto ? 'Uploading...' : profilePhotoUrl ? 'Change Photo' : 'Add Photo'}
+                </Button>
+                {profilePhotoUrl && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemovePhoto}
+                    disabled={uploadingPhoto}
+                    className="text-red-500 hover:text-red-600"
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card
         elevated
         className="overflow-hidden border-none bg-gradient-to-r from-[#FCE7FF] via-[#F4E6FF] to-[#E5DEFF] shadow-[0_24px_60px_rgba(160,64,255,0.18)]"

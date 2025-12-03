@@ -28,6 +28,15 @@ export interface Bid {
   creatorUsername?: string;
 }
 
+export interface BidHistoryItem {
+  id: string;
+  fanId: string;
+  fanUsername: string;
+  amount: number;
+  createdAt: string;
+  isCurrentLeader: boolean;
+}
+
 export interface Meet {
   id: string;
   eventId: string;
@@ -59,12 +68,16 @@ interface EventContextValue {
   events: CreatorEvent[];
   myBids: Bid[];
   myMeets: Meet[];
+  bidHistory: BidHistoryItem[];
   isLoading: boolean;
   createEvent: (input: CreateEventInput) => Promise<CreatorEvent>;
   getEventsForCreator: (creatorUsername: string) => CreatorEvent[];
   placeBid: (eventId: string, amount: number) => Promise<void>;
+  placeBidWithPayment: (eventId: string, amount: number, userEmail: string) => Promise<void>;
   updateMeetStatus: (meetId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no_show') => Promise<void>;
   refreshMeets: () => Promise<void>;
+  getBidHistory: (eventId: string) => Promise<BidHistoryItem[]>;
+  getUserCurrentBidForEvent: (eventId: string) => number;
 }
 
 const EventContext = createContext<EventContextValue | undefined>(undefined);
@@ -80,6 +93,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   const [events, setEvents] = useState<CreatorEvent[]>([]);
   const [myBids, setMyBids] = useState<Bid[]>([]);
   const [myMeets, setMyMeets] = useState<Meet[]>([]);
+  const [bidHistory, setBidHistory] = useState<BidHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
 
@@ -325,6 +339,51 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     return events.filter((event) => event.creatorUsername === normalized);
   };
 
+  // Get user's current highest bid for an event
+  const getUserCurrentBidForEvent: EventContextValue['getUserCurrentBidForEvent'] = (eventId) => {
+    if (!user) return 0;
+    const userBids = myBids.filter(b => b.eventId === eventId && b.status === 'active');
+    if (userBids.length === 0) return 0;
+    return Math.max(...userBids.map(b => b.amount));
+  };
+
+  // Get bid history for an event (last 5 bids)
+  const getBidHistory: EventContextValue['getBidHistory'] = async (eventId) => {
+    const { data: bidsData, error } = await supabase
+      .from('bids')
+      .select('id, fan_id, amount, created_at')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error || !bidsData) {
+      console.error('Error fetching bid history:', error);
+      return [];
+    }
+
+    const fanIds = bidsData.map(b => b.fan_id);
+    const { data: profilesData } = await supabase
+      .from('profiles')
+      .select('user_id, username')
+      .in('user_id', fanIds);
+
+    const profileMap = new Map(profilesData?.map(p => [p.user_id, p.username]) || []);
+    const maxBid = bidsData.length > 0 ? Math.max(...bidsData.map(b => b.amount)) : 0;
+
+    const history = bidsData.map(b => ({
+      id: b.id,
+      fanId: b.fan_id,
+      fanUsername: profileMap.get(b.fan_id) || 'Anonymous',
+      amount: b.amount,
+      createdAt: b.created_at,
+      isCurrentLeader: b.amount === maxBid,
+    }));
+
+    setBidHistory(history);
+    return history;
+  };
+
+  // Place bid - deducts from wallet if balance available
   const placeBid: EventContextValue['placeBid'] = async (eventId, amount) => {
     if (!amount || Number.isNaN(amount)) return;
     if (!user) {
@@ -332,25 +391,29 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Please log in to place a bid");
     }
 
-    // Check wallet balance first
-    const { data: walletData, error: walletError } = await supabase
+    // Check wallet balance and deduct if available
+    const { data: walletData } = await supabase
       .from('wallets')
-      .select('balance')
+      .select('id, balance')
       .eq('user_id', user.id)
       .single();
 
-    if (walletError && walletError.code !== 'PGRST116') {
-      console.error("Error fetching wallet:", walletError);
-      throw new Error("Failed to check wallet balance");
+    const walletBalance = walletData?.balance || 0;
+
+    // Deduct from wallet if there's balance (payment already handled in UI for shortfall)
+    if (walletBalance > 0 && walletData?.id) {
+      const deductAmount = Math.min(walletBalance, amount);
+      const { error: walletError } = await supabase
+        .from('wallets')
+        .update({ balance: walletBalance - deductAmount })
+        .eq('id', walletData.id);
+
+      if (walletError) {
+        console.error("Error deducting from wallet:", walletError);
+      }
     }
 
-    const currentBalance = walletData?.balance || 0;
-
-    if (currentBalance < amount) {
-      throw new Error(`Insufficient wallet balance. You have ₹${currentBalance}, but need ₹${amount}. Please add funds to your wallet.`);
-    }
-
-    // Place the bid (trigger will automatically deduct from wallet)
+    // Place the bid
     const { error } = await supabase.from('bids').insert({
       event_id: eventId,
       fan_id: user.id,
@@ -360,12 +423,6 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     if (error) {
       console.error("Error placing bid:", error);
-
-      // Check for insufficient balance error from trigger
-      if (error.message.includes('Insufficient wallet balance')) {
-        throw new Error(error.message);
-      }
-
       throw new Error("Failed to place bid. Please try again.");
     }
 
@@ -384,6 +441,27 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     );
 
     // Refresh user's bids
+    await refreshUserBids();
+    
+    // Refresh bid history for the event
+    await getBidHistory(eventId);
+  };
+
+  // Place bid with direct payment (opens Razorpay)
+  const placeBidWithPayment: EventContextValue['placeBidWithPayment'] = async (eventId, amount, userEmail) => {
+    if (!amount || Number.isNaN(amount)) return;
+    if (!user) {
+      throw new Error("Please log in to place a bid");
+    }
+
+    // Signal to UI that payment is needed
+    throw new Error(`PAYMENT_REQUIRED:${amount}:${eventId}`);
+  };
+
+  // Helper to refresh user's bids
+  const refreshUserBids = async () => {
+    if (!user) return;
+    
     const { data: bidsData } = await supabase
       .from('bids')
       .select('*')
@@ -489,14 +567,18 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       events,
       myBids,
       myMeets,
+      bidHistory,
       isLoading,
       createEvent,
       getEventsForCreator,
       placeBid,
+      placeBidWithPayment,
       updateMeetStatus,
       refreshMeets,
+      getBidHistory,
+      getUserCurrentBidForEvent,
     }),
-    [events, myBids, myMeets, isLoading],
+    [events, myBids, myMeets, bidHistory, isLoading],
   );
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;

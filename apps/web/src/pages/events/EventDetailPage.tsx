@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, CardContent, CardHeader, TextInput } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
 
 import { useAuth } from '../../contexts/AuthContext';
 import { useEvents } from '../../contexts/EventContext';
+import { useCreatorProfiles } from '../../contexts/CreatorProfileContext';
+import { loadRazorpayScript, createRazorpayOrder, verifyRazorpayPayment, openRazorpayCheckout } from '../../utils/razorpayHelpers';
 
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  const { events, placeBid, isLoading } = useEvents();
+  const { events, placeBid, isLoading, getBidHistory, bidHistory, getUserCurrentBidForEvent } = useEvents();
+  const { getProfile } = useCreatorProfiles();
 
   let event = events.find((item) => item.id === eventId);
 
@@ -66,6 +69,22 @@ export function EventDetailPage() {
 
   const [bidAmount, setBidAmount] = useState('');
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+  // Get creator profile for the event
+  const creatorProfile = event ? getProfile(event.creatorUsername) : undefined;
+
+  // Get user's current bid for this event
+  const userCurrentBid = event ? getUserCurrentBidForEvent(event.id) : 0;
+  const bidIncrement = Number(bidAmount) || 0;
+  const cumulativeTotal = userCurrentBid + bidIncrement;
+
+  // Fetch bid history when event loads
+  useEffect(() => {
+    if (event?.id && !event.id.startsWith('synthetic-')) {
+      getBidHistory(event.id);
+    }
+  }, [event?.id]);
 
   // Show loading state while events are being fetched
   if (isLoading) {
@@ -121,14 +140,15 @@ export function EventDetailPage() {
   };
 
   const handlePlaceBid = async () => {
-    const amount = Number(bidAmount);
+    // Calculate the actual bid amount (cumulative total if user has existing bid)
+    const actualBidAmount = userCurrentBid > 0 ? cumulativeTotal : Number(bidAmount);
 
-    if (!amount || Number.isNaN(amount)) {
+    if (!actualBidAmount || Number.isNaN(actualBidAmount)) {
       window.alert('Enter a valid bid amount to continue.');
       return;
     }
 
-    if (amount <= event.currentBid) {
+    if (actualBidAmount <= event.currentBid) {
       window.alert(`Your bid must be higher than the current bid of ${formatCurrency(event.currentBid)}.`);
       return;
     }
@@ -138,16 +158,85 @@ export function EventDetailPage() {
       return;
     }
 
+    setIsProcessingPayment(true);
+    
     try {
-      await placeBid(event.id, amount);
-      window.alert(`✅ Bid placed successfully!\n\nYour bid: ${formatCurrency(amount)}\n\nYou'll be notified if someone outbids you.`);
-      setBidAmount('');
-    } catch (error) {
-      if (error instanceof Error) {
-        window.alert(`❌ ${error.message}`);
+      // First check wallet balance
+      const { data: walletData } = await import('../../lib/supabaseClient').then(m => 
+        m.supabase
+          .from('wallets')
+          .select('balance')
+          .eq('user_id', user!.id)
+          .single()
+      );
+      
+      const walletBalance = walletData?.balance || 0;
+      
+      if (walletBalance >= actualBidAmount) {
+        // Sufficient balance - place bid directly from wallet
+        await placeBid(event.id, actualBidAmount);
+        window.alert(`✅ Bid of ${formatCurrency(actualBidAmount)} placed from your wallet!\n\nYou'll be notified if someone outbids you.`);
+        setBidAmount('');
+        setIsProcessingPayment(false);
       } else {
-        window.alert('Failed to place bid. Please try again.');
+        // Insufficient balance - need to pay via Razorpay
+        const shortfall = actualBidAmount - walletBalance;
+        await handlePaymentAndBid(shortfall, actualBidAmount, walletBalance);
       }
+    } catch (err) {
+      console.error('Bid error:', err);
+      window.alert('Failed to place bid. Please try again.');
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handlePaymentAndBid = async (amountToPay: number, totalBid: number, walletBalance: number) => {
+    try {
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        throw new Error('Failed to load payment gateway');
+      }
+
+      const { orderId, keyId } = await createRazorpayOrder({
+        amount: amountToPay,
+        userId: user!.id,
+        userEmail: user!.email,
+      });
+
+      const description = walletBalance > 0 
+        ? `Pay ${formatCurrency(amountToPay)} (Wallet: ${formatCurrency(walletBalance)}) for ${formatCurrency(totalBid)} bid`
+        : `Bid of ${formatCurrency(totalBid)} for ${event.title}`;
+
+      openRazorpayCheckout({
+        amount: amountToPay,
+        orderId,
+        keyId,
+        userEmail: user!.email,
+        description,
+        onSuccess: async (response: any) => {
+          try {
+            // Verify payment
+            await verifyRazorpayPayment(response);
+            
+            // Place the bid after successful payment
+            await placeBid(event.id, totalBid);
+            window.alert(`✅ Payment successful! Bid of ${formatCurrency(totalBid)} placed!\n\nYou'll be notified if someone outbids you.`);
+            setBidAmount('');
+          } catch (err) {
+            console.error('Error after payment:', err);
+            window.alert('Payment received but bid placement failed. Please contact support.');
+          } finally {
+            setIsProcessingPayment(false);
+          }
+        },
+        onDismiss: () => {
+          setIsProcessingPayment(false);
+        },
+      });
+    } catch (err) {
+      console.error('Payment error:', err);
+      window.alert('Failed to initiate payment. Please try again.');
+      setIsProcessingPayment(false);
     }
   };
 
@@ -177,19 +266,36 @@ export function EventDetailPage() {
           <CardContent className="gap-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div
-                className="flex flex-col gap-1 cursor-pointer group"
+                className="flex items-center gap-3 cursor-pointer group"
                 onClick={() => navigate(`/${event.creatorUsername}`)}
               >
-                <span className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">Hosted by</span>
-                <span className="text-sm font-semibold text-[#212529] group-hover:text-[#C045FF] transition-colors">
-                  {event.creatorDisplayName}
-                </span>
-                <span className="text-xs text-[#C045FF] underline decoration-dotted group-hover:decoration-solid transition-all">
-                  @{event.creatorUsername}
-                </span>
-                <span className="text-[10px] text-[#6C757D] mt-1 group-hover:text-[#C045FF] transition-colors">
-                  👆 Click to view profile
-                </span>
+                {/* Creator Avatar */}
+                <div className="relative flex-shrink-0">
+                  {creatorProfile?.profilePhotoUrl ? (
+                    <img
+                      src={creatorProfile.profilePhotoUrl}
+                      alt={event.creatorDisplayName}
+                      className="h-16 w-16 rounded-full object-cover ring-2 ring-[#C045FF]/20 group-hover:ring-[#C045FF]/40 transition-all"
+                    />
+                  ) : (
+                    <div className="h-16 w-16 rounded-full bg-gradient-to-br from-[#C045FF] to-[#7B2CBF] flex items-center justify-center text-white font-bold text-xl ring-2 ring-[#C045FF]/20 group-hover:ring-[#C045FF]/40 transition-all">
+                      {event.creatorDisplayName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                {/* Creator Info */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">Hosted by</span>
+                  <span className="text-sm font-semibold text-[#212529] group-hover:text-[#C045FF] transition-colors">
+                    {event.creatorDisplayName}
+                  </span>
+                  <span className="text-xs text-[#C045FF] underline decoration-dotted group-hover:decoration-solid transition-all">
+                    @{event.creatorUsername}
+                  </span>
+                  <span className="text-[10px] text-[#6C757D] mt-0.5 group-hover:text-[#C045FF] transition-colors">
+                    👆 Click to view profile
+                  </span>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 text-[11px] text-[#6C757D]">
                 <span className="rounded-full bg-[#F8F9FA] px-3 py-1">👥 {event.participants} participants</span>
@@ -234,6 +340,38 @@ export function EventDetailPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        {/* Bidding History */}
+        {bidHistory.length > 0 && (
+          <Card>
+            <CardHeader title="Recent Bids" subtitle="Live bidding activity" />
+            <CardContent className="gap-3">
+              {bidHistory.map((bid) => (
+                <div
+                  key={bid.id}
+                  className={`flex items-center justify-between p-3 rounded-[12px] ${
+                    bid.isCurrentLeader ? 'bg-[#C045FF]/10 border border-[#C045FF]/30' : 'bg-[#F8F9FA]'
+                  }`}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold text-[#212529]">@{bid.fanUsername}</span>
+                    <span className="text-xs text-[#6C757D]">
+                      {new Date(bid.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-lg font-semibold text-[#C045FF]">{formatCurrency(bid.amount)}</span>
+                    {bid.isCurrentLeader && (
+                      <span className="text-[10px] font-semibold text-[#C045FF] bg-white px-2 py-0.5 rounded-full">
+                        👑 Leading
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {/* What you'll get - dummy content */}
         <Card>
@@ -289,14 +427,36 @@ export function EventDetailPage() {
               <div className="flex-1">
                 <TextInput
                   type="number"
-                  label="Your bid amount"
+                  label={userCurrentBid > 0 ? "Add to your bid" : "Your bid amount"}
                   placeholder={String(event.basePrice)}
                   value={bidAmount}
                   onChange={(inputEvent) => setBidAmount(inputEvent.target.value)}
                 />
+                {bidIncrement > 0 && (
+                  <div className="mt-2 text-sm">
+                    {userCurrentBid > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[#6C757D]">
+                          Your current bid: <strong className="text-[#212529]">{formatCurrency(userCurrentBid)}</strong>
+                        </span>
+                        <span className="text-[#C045FF] font-semibold">
+                          Adding {formatCurrency(bidIncrement)} → New total: {formatCurrency(cumulativeTotal)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[#C045FF] font-semibold">
+                        Your bid: {formatCurrency(bidIncrement)}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-              <Button className="md:w-40" onClick={handlePlaceBid}>
-                Place Bid →
+              <Button 
+                className="md:w-40" 
+                onClick={handlePlaceBid}
+                disabled={isProcessingPayment}
+              >
+                {isProcessingPayment ? 'Processing...' : 'Place Bid →'}
               </Button>
             </div>
           </CardContent>

@@ -6,6 +6,7 @@ export interface CreatorProfile {
   username: string;
   displayName: string;
   bio: string;
+  profilePhotoUrl?: string;
 }
 
 export interface CreatorPost {
@@ -42,7 +43,7 @@ export const CreatorProfileProvider = ({ children }: { children: ReactNode }) =>
 
   useEffect(() => {
     const fetchProfiles = async () => {
-      const { data, error } = await supabase.from('profiles').select('username, display_name, bio');
+      const { data, error } = await supabase.from('profiles').select('username, display_name, bio, profile_photo_url');
 
       if (error) {
         console.error('Error fetching profiles:', error);
@@ -55,6 +56,7 @@ export const CreatorProfileProvider = ({ children }: { children: ReactNode }) =>
             username: p.username,
             displayName: p.display_name || '',
             bio: p.bio || '',
+            profilePhotoUrl: p.profile_photo_url || undefined,
           })),
         );
       }
