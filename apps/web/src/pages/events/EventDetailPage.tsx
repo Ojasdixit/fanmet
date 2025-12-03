@@ -161,66 +161,32 @@ export function EventDetailPage() {
     setIsProcessingPayment(true);
     
     try {
-      // First check wallet balance
-      const { data: walletData } = await import('../../lib/supabaseClient').then(m => 
-        m.supabase
-          .from('wallets')
-          .select('balance')
-          .eq('user_id', user!.id)
-          .single()
-      );
-      
-      const walletBalance = walletData?.balance || 0;
-      
-      if (walletBalance >= actualBidAmount) {
-        // Sufficient balance - place bid directly from wallet
-        await placeBid(event.id, actualBidAmount);
-        window.alert(`✅ Bid of ${formatCurrency(actualBidAmount)} placed from your wallet!\n\nYou'll be notified if someone outbids you.`);
-        setBidAmount('');
-        setIsProcessingPayment(false);
-      } else {
-        // Insufficient balance - need to pay via Razorpay
-        const shortfall = actualBidAmount - walletBalance;
-        await handlePaymentAndBid(shortfall, actualBidAmount, walletBalance);
-      }
-    } catch (err) {
-      console.error('Bid error:', err);
-      window.alert('Failed to place bid. Please try again.');
-      setIsProcessingPayment(false);
-    }
-  };
-
-  const handlePaymentAndBid = async (amountToPay: number, totalBid: number, walletBalance: number) => {
-    try {
+      // Always pay directly via Razorpay (auto-refund system handles unsuccessful bids)
       const loaded = await loadRazorpayScript();
       if (!loaded) {
         throw new Error('Failed to load payment gateway');
       }
 
       const { orderId, keyId } = await createRazorpayOrder({
-        amount: amountToPay,
+        amount: actualBidAmount,
         userId: user!.id,
         userEmail: user!.email,
       });
 
-      const description = walletBalance > 0 
-        ? `Pay ${formatCurrency(amountToPay)} (Wallet: ${formatCurrency(walletBalance)}) for ${formatCurrency(totalBid)} bid`
-        : `Bid of ${formatCurrency(totalBid)} for ${event.title}`;
-
       openRazorpayCheckout({
-        amount: amountToPay,
+        amount: actualBidAmount,
         orderId,
         keyId,
         userEmail: user!.email,
-        description,
+        description: `Bid of ${formatCurrency(actualBidAmount)} for ${event.title}`,
         onSuccess: async (response: any) => {
           try {
             // Verify payment
             await verifyRazorpayPayment(response);
             
             // Place the bid after successful payment
-            await placeBid(event.id, totalBid);
-            window.alert(`✅ Payment successful! Bid of ${formatCurrency(totalBid)} placed!\n\nYou'll be notified if someone outbids you.`);
+            await placeBid(event.id, actualBidAmount);
+            window.alert(`✅ Payment successful! Bid of ${formatCurrency(actualBidAmount)} placed!\n\nYou'll be notified if someone outbids you.\n\n💡 If you don't win, 90% will be auto-refunded.`);
             setBidAmount('');
           } catch (err) {
             console.error('Error after payment:', err);
@@ -234,7 +200,7 @@ export function EventDetailPage() {
         },
       });
     } catch (err) {
-      console.error('Payment error:', err);
+      console.error('Bid error:', err);
       window.alert('Failed to initiate payment. Please try again.');
       setIsProcessingPayment(false);
     }

@@ -148,7 +148,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
         const timeStr = startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         const creatorProfile = profileMap.get(e.creator_id);
-        const creatorUsername = creatorProfile?.username || `user${e.creator_id.substring(0, 8)}`;
+        const creatorUsername = (creatorProfile?.username || `user${e.creator_id.substring(0, 8)}`).toLowerCase();
 
         // Determine status based on bidding window
         let eventStatus: 'LIVE' | 'Upcoming' | 'Accepting Bids' | 'Completed';
@@ -316,7 +316,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     const newEvent: CreatorEvent = {
       id: data.id,
-      creatorUsername: user.username,
+      creatorUsername: user.username.toLowerCase(),
       creatorDisplayName: input.creatorDisplayName,
       title: data.title,
       description: data.description,
@@ -383,7 +383,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     return history;
   };
 
-  // Place bid - deducts from wallet if balance available
+  // Place bid - payment is handled directly via Razorpay before this is called
   const placeBid: EventContextValue['placeBid'] = async (eventId, amount) => {
     if (!amount || Number.isNaN(amount)) return;
     if (!user) {
@@ -391,29 +391,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Please log in to place a bid");
     }
 
-    // Check wallet balance and deduct if available
-    const { data: walletData } = await supabase
-      .from('wallets')
-      .select('id, balance')
-      .eq('user_id', user.id)
-      .single();
-
-    const walletBalance = walletData?.balance || 0;
-
-    // Deduct from wallet if there's balance (payment already handled in UI for shortfall)
-    if (walletBalance > 0 && walletData?.id) {
-      const deductAmount = Math.min(walletBalance, amount);
-      const { error: walletError } = await supabase
-        .from('wallets')
-        .update({ balance: walletBalance - deductAmount })
-        .eq('id', walletData.id);
-
-      if (walletError) {
-        console.error("Error deducting from wallet:", walletError);
-      }
-    }
-
-    // Place the bid
+    // Place the bid (payment already completed via Razorpay)
     const { error } = await supabase.from('bids').insert({
       event_id: eventId,
       fan_id: user.id,

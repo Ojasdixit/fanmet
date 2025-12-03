@@ -1,10 +1,9 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Avatar, Badge } from '@fanmeet/ui';
-import { classNames, formatCurrency } from '@fanmeet/utils';
+import { classNames } from '@fanmeet/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
-import { supabase } from '../lib/supabaseClient';
 import { format } from 'date-fns';
 
 type NavSectionItem = {
@@ -38,7 +37,7 @@ const roleConfig: Record<
       { type: 'link', to: '/fan/bids', label: 'My Bids', icon: '🎫' },
       { type: 'link', to: '/fan/meets', label: 'Upcoming Meets', icon: '📹' },
       { type: 'link', to: '/fan/history', label: 'History', icon: '📜' },
-      { type: 'link', to: '/fan/wallet', label: 'Wallet & Refunds', icon: '💰' },
+      { type: 'link', to: '/fan/wallet', label: 'Payment History', icon: '💳' },
       { type: 'link', to: '/fan/messages', label: 'Messages', icon: '💬' },
       { type: 'link', to: '/fan/notifications', label: 'Notifications', icon: '🔔' },
       { type: 'link', to: '/fan/settings', label: 'Settings', icon: '⚙️' },
@@ -129,27 +128,8 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [activeRightPanel, setActiveRightPanel] = useState<'none' | 'notifications' | 'profile'>('none');
-  const [walletBalance, setWalletBalance] = useState(0);
-  const [searchQuery, setSearchQuery] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch wallet balance for fans
-  useEffect(() => {
-    const fetchWallet = async () => {
-      if (!user || role !== 'fan') return;
-
-      const { data } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single();
-
-      if (data) {
-        setWalletBalance(data.balance);
-      }
-    };
-
-    fetchWallet();
-  }, [user, role]);
 
   const handleLogout = () => {
     logout();
@@ -305,9 +285,9 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
             <div className="rounded-[12px] bg-white/90 p-3 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">Wallet</div>
-              <div className="mt-1 text-lg font-semibold text-[#212529]">{formatCurrency(walletBalance)} balance</div>
-              <div className="mt-1 text-xs text-[#6C757D]">Quick access to bids and refunds.</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">Payment Info</div>
+              <div className="mt-1 text-sm font-semibold text-[#212529]">Auto-refund enabled</div>
+              <div className="mt-1 text-xs text-[#6C757D]">90% refund for unsuccessful bids</div>
             </div>
             <div className="grid gap-2 text-sm text-[#343A40]">
               <button
@@ -315,7 +295,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
                 className="flex w-full items-center justify-between rounded-[10px] bg-white/90 px-3 py-2 text-left shadow-sm hover:bg-[#F8F9FA]"
                 onClick={() => navigate(`/${role}/wallet`)}
               >
-                <span>Wallet & refunds</span>
+                <span>Payment history</span>
                 <span>→</span>
               </button>
               <button

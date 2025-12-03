@@ -12,7 +12,7 @@ import { ForCreatorsPage } from './pages/ForCreatorsPage';
 import { FanDashboard } from './pages/fan/FanDashboard';
 import { FanBids } from './pages/fan/FanBids';
 import { FanMeets } from './pages/fan/FanMeets';
-import { FanWallet } from './pages/fan/FanWallet';
+import { FanPaymentHistory } from './pages/fan/FanPaymentHistory';
 import { FanFollowing } from './pages/fan/FanFollowing';
 import { FanHistory } from './pages/fan/FanHistory';
 import { FanNotifications } from './pages/fan/FanNotifications';
@@ -108,7 +108,7 @@ export default function App() {
                   <Route index element={<FanDashboard />} />
                   <Route path="bids" element={<FanBids />} />
                   <Route path="meets" element={<FanMeets />} />
-                  <Route path="wallet" element={<FanWallet />} />
+                  <Route path="wallet" element={<FanPaymentHistory />} />
                   <Route path="following" element={<FanFollowing />} />
                   <Route path="history" element={<FanHistory />} />
                   <Route path="messages" element={<FanMessages />} />
