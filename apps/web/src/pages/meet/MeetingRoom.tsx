@@ -313,6 +313,35 @@ function WaitingRoom({ meeting, onBack }: { meeting: MeetingLifecycleState; onBa
     );
 }
 
+// Supabase Edge Function URL for token generation
+const SUPABASE_URL = 'https://iktldcrkyphkvxjwmxyb.supabase.co';
+
+async function fetchAgoraToken(channelName: string, uid: number = 0): Promise<string | null> {
+    try {
+        console.log('🎫 Fetching Agora token for channel:', channelName);
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-agora-token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ channelName, uid, role: 1 }),
+        });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('❌ Token fetch failed:', error);
+            return null;
+        }
+        
+        const data = await response.json();
+        console.log('✅ Token received:', data.token ? 'yes' : 'no');
+        return data.token || null;
+    } catch (error) {
+        console.error('❌ Error fetching token:', error);
+        return null;
+    }
+}
+
 function LiveCall({
     user,
     meeting,
@@ -330,19 +359,36 @@ function LiveCall({
 }) {
     const [active, setActive] = useState(false);
     const [hasMarkedLive, setHasMarkedLive] = useState(false);
+    const [agoraToken, setAgoraToken] = useState<string | null>(null);
+    const [tokenLoading, setTokenLoading] = useState(true);
+    
     // CRITICAL: Use meeting.id (database UUID) as channel name, NOT meetId from URL
     // This ensures both creator and fan join the SAME Agora channel regardless of URL case
     const channelName = meeting.id;
     console.log('🎯 Agora channel name:', channelName, '(meeting.id, not URL param)');
-    const { isConnected } = useJoin({ appid: APP_ID, channel: channelName, token: null }, active);
-    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active);
-    const { localCameraTrack } = useLocalCameraTrack(active);
+    
+    // Fetch token on mount
+    useEffect(() => {
+        async function getToken() {
+            setTokenLoading(true);
+            const token = await fetchAgoraToken(channelName);
+            setAgoraToken(token);
+            setTokenLoading(false);
+            // Activate Agora after token is fetched
+            setActive(true);
+        }
+        getToken();
+    }, [channelName]);
+    
+    // Join with token (or null if token generation failed - will work in testing mode)
+    const { isConnected } = useJoin(
+        { appid: APP_ID, channel: channelName, token: agoraToken },
+        active && !tokenLoading
+    );
+    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active && !tokenLoading);
+    const { localCameraTrack } = useLocalCameraTrack(active && !tokenLoading);
     usePublish([localMicrophoneTrack, localCameraTrack]);
     const remoteUsers = useRemoteUsers();
-
-    useEffect(() => {
-        setActive(true);
-    }, []);
 
     // Log connection status for debugging
     useEffect(() => {

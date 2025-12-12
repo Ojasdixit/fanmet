@@ -16,7 +16,36 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 
 // IMPORTANT: Replace with your actual Agora App ID
-const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "8f73117280e84d43997dbdf5072049e6"; // Placeholder
+const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "147414ee52fa4baaa112702a2e49f189";
+
+// Supabase Edge Function URL for token generation
+const SUPABASE_URL = 'https://iktldcrkyphkvxjwmxyb.supabase.co';
+
+async function fetchAgoraToken(channelName: string, uid: number = 0): Promise<string | null> {
+    try {
+        console.log('🎫 Fetching Agora token for channel:', channelName);
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-agora-token`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ channelName, uid, role: 1 }),
+        });
+        
+        if (!response.ok) {
+            const error = await response.text();
+            console.error('❌ Token fetch failed:', error);
+            return null;
+        }
+        
+        const data = await response.json();
+        console.log('✅ Token received:', data.token ? 'yes' : 'no');
+        return data.token || null;
+    } catch (error) {
+        console.error('❌ Error fetching token:', error);
+        return null;
+    }
+}
 
 export const AgoraMeet = () => {
     const { meetId } = useParams<{ meetId: string }>();
@@ -37,43 +66,50 @@ export const AgoraMeet = () => {
 
 function Call({ checkUser, meetId, onLeave }: { checkUser: any, meetId: string, onLeave: () => void }) {
     const [active, setActive] = useState(false);
-    const [timeLeft, setTimeLeft] = useState<number | null>(null); // Start null, wait for data
+    const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
-
     const [channelName, setChannelName] = useState<string | null>(null);
+    const [agoraToken, setAgoraToken] = useState<string | null>(null);
+    const [tokenLoading, setTokenLoading] = useState(true);
 
     useEffect(() => {
-        async function fetchMeetingData() {
+        async function fetchMeetingDataAndToken() {
             const { data, error } = await supabase
                 .from('meets')
                 .select('id, duration_minutes')
                 .ilike('meeting_link', `%${meetId}%`)
                 .single();
 
+            let channel = meetId;
             if (data) {
                 console.log('Fetched meeting:', data.id, 'duration:', data.duration_minutes);
                 setTimeLeft(data.duration_minutes * 60);
-                // CRITICAL: Use database ID as channel name for consistency
+                channel = data.id;
                 setChannelName(data.id);
             } else {
                 console.error('Could not fetch meeting data, defaulting to 5 mins', error);
                 setTimeLeft(300);
-                // Fallback to meetId from URL if no data (not ideal but prevents crash)
                 setChannelName(meetId);
             }
+            
+            // Fetch Agora token
+            const token = await fetchAgoraToken(channel);
+            setAgoraToken(token);
+            setTokenLoading(false);
+            setActive(true);
         }
-        fetchMeetingData();
+        fetchMeetingDataAndToken();
     }, [meetId]);
 
-    // Join hook - use meeting.id as channel name for consistency with MeetingRoom.tsx
+    // Join hook - use meeting.id as channel name and fetched token
     const { isConnected } = useJoin(
-        { appid: APP_ID, channel: channelName || '', token: null },
-        active && channelName !== null
+        { appid: APP_ID, channel: channelName || '', token: agoraToken },
+        active && channelName !== null && !tokenLoading
     );
-
-    useEffect(() => {
-        setActive(true);
-    }, []);
+    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active && !tokenLoading);
+    const { localCameraTrack } = useLocalCameraTrack(active && !tokenLoading);
+    usePublish([localMicrophoneTrack, localCameraTrack]);
+    const remoteUsers = useRemoteUsers();
 
     useEffect(() => {
         if (isConnected) {
@@ -99,16 +135,6 @@ function Call({ checkUser, meetId, onLeave }: { checkUser: any, meetId: string, 
         }
         return () => clearInterval(interval);
     }, [isTimerRunning, timeLeft, onLeave]);
-
-    // Local Tracks
-    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active);
-    const { localCameraTrack } = useLocalCameraTrack(active);
-
-    // Publish tracks
-    usePublish([localMicrophoneTrack, localCameraTrack]);
-
-    // Remote Users
-    const remoteUsers = useRemoteUsers();
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
