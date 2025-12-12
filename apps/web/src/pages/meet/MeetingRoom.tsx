@@ -330,7 +330,11 @@ function LiveCall({
 }) {
     const [active, setActive] = useState(false);
     const [hasMarkedLive, setHasMarkedLive] = useState(false);
-    const { isConnected } = useJoin({ appid: APP_ID, channel: meetId, token: null }, active);
+    // CRITICAL: Use meeting.id (database UUID) as channel name, NOT meetId from URL
+    // This ensures both creator and fan join the SAME Agora channel regardless of URL case
+    const channelName = meeting.id;
+    console.log('🎯 Agora channel name:', channelName, '(meeting.id, not URL param)');
+    const { isConnected } = useJoin({ appid: APP_ID, channel: channelName, token: null }, active);
     const { localMicrophoneTrack } = useLocalMicrophoneTrack(active);
     const { localCameraTrack } = useLocalCameraTrack(active);
     usePublish([localMicrophoneTrack, localCameraTrack]);
@@ -339,6 +343,15 @@ function LiveCall({
     useEffect(() => {
         setActive(true);
     }, []);
+
+    // Log connection status for debugging
+    useEffect(() => {
+        console.log('🔌 Agora connection status:', isConnected ? 'CONNECTED' : 'DISCONNECTED');
+        console.log('📹 Remote users count:', remoteUsers.length);
+        if (remoteUsers.length > 0) {
+            console.log('👥 Remote users:', remoteUsers.map(u => u.uid));
+        }
+    }, [isConnected, remoteUsers]);
 
     // CRITICAL: Mark meeting as LIVE immediately when creator enters LiveCall view
     // This happens BEFORE waiting for Agora connection so fan can join seamlessly

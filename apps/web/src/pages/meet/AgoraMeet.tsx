@@ -40,39 +40,35 @@ function Call({ checkUser, meetId, onLeave }: { checkUser: any, meetId: string, 
     const [timeLeft, setTimeLeft] = useState<number | null>(null); // Start null, wait for data
     const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-    useEffect(() => {
-        async function fetchDuration() {
-            // We have meetId which is the meet.meeting_link UUID usually, BUT 
-            // our route is /meet/:meetId
-            // In CreatorCreateEvent, we set meetingLink = .../meet/${crypto.randomUUID()}
-            // So meetId from URL IS the randomUUID.
-            // However, we don't store this UUID as a primary key 'id' in 'meets' table easily lookup-able 
-            // unless we query by meeting_link column contains this UUID.
-            // Actually, let's look at how we store it.
-            // meeting_link: `.../meet/${uuid}`
-            // So we can search where meeting_link like `%${meetId}`.
+    const [channelName, setChannelName] = useState<string | null>(null);
 
+    useEffect(() => {
+        async function fetchMeetingData() {
             const { data, error } = await supabase
                 .from('meets')
-                .select('duration_minutes')
+                .select('id, duration_minutes')
                 .ilike('meeting_link', `%${meetId}%`)
                 .single();
 
             if (data) {
-                console.log('Fetched duration:', data.duration_minutes);
+                console.log('Fetched meeting:', data.id, 'duration:', data.duration_minutes);
                 setTimeLeft(data.duration_minutes * 60);
+                // CRITICAL: Use database ID as channel name for consistency
+                setChannelName(data.id);
             } else {
-                console.error('Could not fetch meet duration, defaulting to 5 mins', error);
+                console.error('Could not fetch meeting data, defaulting to 5 mins', error);
                 setTimeLeft(300);
+                // Fallback to meetId from URL if no data (not ideal but prevents crash)
+                setChannelName(meetId);
             }
         }
-        fetchDuration();
+        fetchMeetingData();
     }, [meetId]);
 
-    // Join hook
+    // Join hook - use meeting.id as channel name for consistency with MeetingRoom.tsx
     const { isConnected } = useJoin(
-        { appid: APP_ID, channel: meetId, token: null },
-        active
+        { appid: APP_ID, channel: channelName || '', token: null },
+        active && channelName !== null
     );
 
     useEffect(() => {
