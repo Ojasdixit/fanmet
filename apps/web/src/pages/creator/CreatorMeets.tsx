@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, Badge, Button } from '@fanmeet/ui';
 import { formatDateTime, formatCurrency } from '@fanmeet/utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -13,13 +14,16 @@ const preparationChecklist = [
 
 const statusVariantMap: Record<string, 'success' | 'warning' | 'primary' | 'danger' | 'default'> = {
   scheduled: 'success',
+  live: 'primary',
   completed: 'primary',
   cancelled: 'danger',
+  cancelled_no_show_creator: 'danger',
   no_show: 'warning'
 };
 
 export function CreatorMeets() {
-  const { user } = useAuth();
+  const { user, onlineUsers } = useAuth();
+  const navigate = useNavigate();
   const [meets, setMeets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -80,58 +84,14 @@ export function CreatorMeets() {
     fetchMeets();
   }, [user]);
 
-  const markMeetAsComplete = async (meetId: string) => {
-    if (!user) return;
+  // Meeting completion is handled automatically by the cron job
+  // No manual status changes allowed
 
-    console.log('🔁 Marking meet as complete:', meetId);
-
-    const { data, error } = await supabase
-      .from('meets')
-      .update({ status: 'completed', updated_at: new Date().toISOString() })
-      .eq('id', meetId)
-      .eq('creator_id', user.id)
-      .select('id, status');
-
-    if (error) {
-      console.error('Error marking meet as complete:', error);
-      alert('Failed to mark meeting as complete');
-      return;
-    }
-
-    console.log('✅ Meet update result:', data);
-
-    // Refresh the meets list
-    fetchMeets();
-  };
-
-  const markMeetAsPending = async (meetId: string) => {
-    if (!user) return;
-
-    console.log('🔁 Marking meet as pending:', meetId);
-
-    const { data, error } = await supabase
-      .from('meets')
-      .update({ status: 'scheduled', updated_at: new Date().toISOString() })
-      .eq('id', meetId)
-      .eq('creator_id', user.id)
-      .select('id, status');
-
-    if (error) {
-      console.error('Error marking meet as pending:', error);
-      alert('Failed to mark meeting as pending');
-      return;
-    }
-
-    console.log('✅ Meet update result (pending):', data);
-
-    // Refresh the meets list
-    fetchMeets();
-  };
-
-  // Separate scheduled from completed meets
-  // Show all scheduled meets regardless of date so creators can mark past meetings as complete
-  const upcomingMeets = meets.filter((m) => m.status === 'scheduled');
+  // Separate active (scheduled/live) from completed meets
+  // Show all scheduled and live meets regardless of date so creators can manage them
+  const upcomingMeets = meets.filter((m) => m.status === 'scheduled' || m.status === 'live');
   const completedMeets = meets.filter((m) => m.status === 'completed');
+  const cancelledMeets = meets.filter((m) => m.status === 'cancelled' || m.status === 'cancelled_no_show_creator');
 
   console.log('📅 Upcoming meets (scheduled):', upcomingMeets.length, upcomingMeets);
   console.log('✅ Completed meets:', completedMeets.length, completedMeets);
@@ -162,10 +122,25 @@ export function CreatorMeets() {
         </CardContent>
       </Card>
 
+      {/* Auto-completion info banner */}
+      <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">⚡</span>
+          <div>
+            <p className="font-semibold text-blue-800">Automatic Meeting System</p>
+            <p className="text-sm text-blue-600 mt-1">
+              <strong>Important:</strong> You must start your call <strong>before</strong> the scheduled time. 
+              If you don't join before the scheduled time, the meeting will be auto-cancelled and the fan will receive a full refund.
+              Meetings automatically complete at the scheduled end time and your earnings (90%) will be credited to your wallet.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardHeader
           title="Upcoming Sessions"
-          subtitle="Direct links and status updates for your upcoming meets."
+          subtitle="Start your call before the scheduled time to avoid no-show cancellation."
           className="border-b border-[#E9ECEF] pb-4"
         />
         <CardContent className="gap-4">
@@ -199,17 +174,58 @@ export function CreatorMeets() {
                   </div>
                   <div className="flex flex-col gap-2">
                     {session.meeting_link && (
-                      <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(session.meeting_link)}>
-                        Copy Link
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => navigator.clipboard.writeText(session.meeting_link)}
+                          >
+                            Copy Link
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => navigate(`/messages?chatWith=${session.fan_id}`)}
+                          >
+                            Message Fan
+                          </Button>
+                        </div>
+                        {(() => {
+                          const now = new Date();
+                          const scheduledStart = new Date(session.scheduled_at);
+                          const scheduledEnd = new Date(scheduledStart.getTime() + session.duration_minutes * 60 * 1000);
+                          const canStartEarly = now >= new Date(scheduledStart.getTime() - 30000); // 30s buffer
+                          const meetingEnded = now >= scheduledEnd || session.status === 'completed' || session.status === 'cancelled' || session.status === 'cancelled_no_show_creator';
+                          const isLive = session.status === 'live';
+                          
+                          return (
+                            <Button
+                              size="sm"
+                              disabled={meetingEnded || (!isLive && !onlineUsers.has(session.fan_id)) || (!isLive && !canStartEarly)}
+                              variant={meetingEnded ? 'secondary' : 'primary'}
+                              title={
+                                meetingEnded
+                                  ? "This meeting has ended"
+                                  : isLive
+                                    ? "Rejoin your live call"
+                                    : !onlineUsers.has(session.fan_id)
+                                      ? "Fan is offline. You cannot start the call."
+                                      : !canStartEarly
+                                        ? `Call starts at ${formatDateTime(session.scheduled_at)} (30s early buffer available)`
+                                        : "Start the call"
+                              }
+                              onClick={() => window.open(session.meeting_link, '_blank', 'noopener,noreferrer')}
+                            >
+                              {meetingEnded ? '✓ Completed' : isLive ? 'Rejoin Call' : 'Start Call'}
+                            </Button>
+                          );
+                        })()}
+                        {!onlineUsers.has(session.fan_id) && (
+                          <span className="text-[10px] text-red-500">Fan is offline</span>
+                        )}
+                      </div>
                     )}
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => markMeetAsComplete(session.id)}
-                    >
-                      ✓ Mark as Done
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -254,15 +270,6 @@ export function CreatorMeets() {
                       <p className="text-sm text-[#6C757D]">with {session.fan_profile?.display_name || session.fan_profile?.username || 'Unknown Fan'}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => markMeetAsPending(session.id)}
-                    >
-                      ← Mark as Pending
-                    </Button>
-                  </div>
                 </div>
               </div>
             );
@@ -272,6 +279,44 @@ export function CreatorMeets() {
           )}
         </CardContent>
       </Card>
+
+      {/* Cancelled Sessions */}
+      {cancelledMeets.length > 0 && (
+        <Card>
+          <CardHeader
+            title="Cancelled Sessions"
+            subtitle="Meetings that were cancelled due to no-show."
+            className="border-b border-[#E9ECEF] pb-4"
+          />
+          <CardContent className="gap-4">
+            {cancelledMeets.map((session) => (
+              <div
+                key={session.id}
+                className="flex flex-col gap-4 rounded-[14px] border border-red-200 bg-gradient-to-r from-red-50 to-white p-4">
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant="danger">
+                      {session.status === 'cancelled_no_show_creator' ? '🚫 No-Show' : '❌ Cancelled'}
+                    </Badge>
+                    <span className="text-xs text-[#6C757D]">
+                      {formatDateTime(session.scheduled_at)} • {session.duration_minutes} mins
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#212529]">{session.events?.title || 'Untitled Event'}</h3>
+                    <p className="text-sm text-[#6C757D]">with {session.fan_profile?.display_name || session.fan_profile?.username || 'Unknown Fan'}</p>
+                  </div>
+                  {session.status === 'cancelled_no_show_creator' && (
+                    <p className="text-xs text-red-600">
+                      ⚠️ You did not start the call before the scheduled time. Fan received a full refund.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

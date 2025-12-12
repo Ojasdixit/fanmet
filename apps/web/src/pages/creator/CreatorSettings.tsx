@@ -33,6 +33,7 @@ export function CreatorSettings() {
 
   const [bankDetails, setBankDetails] = useState({
     bank_account_number: '',
+    confirm_bank_account_number: '',
     bank_ifsc: '',
     bank_account_name: '',
     upi_id: ''
@@ -85,6 +86,7 @@ export function CreatorSettings() {
           });
           setBankDetails({
             bank_account_number: profileData.bank_account_number || '',
+            confirm_bank_account_number: profileData.bank_account_number || '',
             bank_ifsc: profileData.bank_ifsc || '',
             bank_account_name: profileData.bank_account_name || '',
             upi_id: profileData.upi_id || ''
@@ -96,7 +98,7 @@ export function CreatorSettings() {
           .from('creator_settings')
           .select('*')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (settingsData) {
           setSettings({
@@ -213,7 +215,7 @@ export function CreatorSettings() {
 
   const handleRemovePhoto = async () => {
     if (!user) return;
-    
+
     if (!confirm('Are you sure you want to remove your profile photo?')) return;
 
     setUploadingPhoto(true);
@@ -292,15 +294,68 @@ export function CreatorSettings() {
 
   const handleSaveBankDetails = async () => {
     if (!user) return;
+
+    // Validation
+    const isUpi = !!bankDetails.upi_id;
+    const isBank = !!bankDetails.bank_account_number;
+
+    if (!isUpi && !isBank) {
+      alert('Please provide either Bank Account details or a UPI ID.');
+      return;
+    }
+
+    if (isBank) {
+      if (!bankDetails.bank_account_name) {
+        alert('Please enter the Account Holder Name.');
+        return;
+      }
+      if (!bankDetails.bank_ifsc || bankDetails.bank_ifsc.length !== 11) {
+        alert('Please enter a valid 11-character IFSC code.');
+        return;
+      }
+      if (bankDetails.bank_account_number !== bankDetails.confirm_bank_account_number) {
+        alert('Account numbers do not match. Please re-enter.');
+        return;
+      }
+    }
+
     setSavingBank(true);
     try {
+      const payload: any = {
+        name: bankDetails.bank_account_name,
+        ifsc: bankDetails.bank_ifsc,
+        account_number: bankDetails.bank_account_number,
+        upi_id: bankDetails.upi_id,
+      };
+
+      // 1. Call Edge Function to create Razorpay Contact & Fund Account
+      const { data: payoutData, error: payoutError } = await supabase.functions.invoke('create-razorpay-fund-account', {
+        body: payload
+      });
+
+      if (payoutError) {
+        console.error('Edge function error:', payoutError);
+        alert(`Verification failed: ${payoutError.message || 'Unknown error'}`);
+        setSavingBank(false);
+        return;
+      }
+
+      // 2. Update Profile in DB
+      // Exclude confirm_bank_account_number from standard DB update
+      const { confirm_bank_account_number, ...dbUpdates } = bankDetails;
+
+      const updates: any = { ...dbUpdates };
+      if (payoutData?.fund_account_id) {
+        updates.razorpay_fund_account_id = payoutData.fund_account_id;
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update(bankDetails)
+        .update(updates)
         .eq('user_id', user.id);
 
       if (error) throw error;
-      alert('Bank details updated successfully! Your earnings will be auto-withdrawn to this account after 24 hours.');
+      alert('Bank details updated successfully! Your earnings will be available for withdrawal 48 hours after event completion.');
     } catch (error) {
       console.error('Error updating bank details:', error);
       alert('Failed to update bank details.');
@@ -456,9 +511,9 @@ export function CreatorSettings() {
       </div>
 
       <Card elevated>
-        <CardHeader 
-          title="Social Media Links" 
-          subtitle="Add your social media profiles so fans can find and follow you." 
+        <CardHeader
+          title="Social Media Links"
+          subtitle="Add your social media profiles so fans can find and follow you."
         />
         <CardContent className="gap-5">
           <div className="grid gap-4 md:grid-cols-2">
@@ -502,49 +557,78 @@ export function CreatorSettings() {
       </Card>
 
       <Card elevated>
-        <CardHeader 
-          title="Bank & Payout Details" 
-          subtitle="Add your bank account or UPI for automatic withdrawals. Earnings are auto-transferred 24 hours after event completion." 
+        <CardHeader
+          title="Bank & Payout Details"
+          subtitle="Add your bank account or UPI for automatic withdrawals. Earnings are available 48 hours after event completion."
         />
         <CardContent className="gap-5">
           <div className="rounded-[12px] bg-[#F4E6FF]/60 p-4">
             <p className="text-sm text-[#6C757D]">
-              💰 <strong>Auto-withdrawal:</strong> Your earnings (90% after platform fee) are automatically transferred to your account 24 hours after each event ends. Add either bank account OR UPI details below.
+              💰 <strong>Auto-withdrawal:</strong> Your earnings (90% after platform fee) become available for withdrawal 48 hours after each event ends. Add either bank account OR UPI details below.
             </p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+
+          {/* Option 1: Bank Account */}
+          <div className="flex flex-col gap-4 rounded-xl border border-[#E9ECEF] p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E9ECEF] text-sm font-bold text-[#495057]">1</div>
+              <h3 className="font-semibold text-[#212529]">Bank Transfer (NEFT/IMPS)</h3>
+            </div>
+
             <TextInput
-              label="Bank Account Number"
-              placeholder="Enter account number"
-              value={bankDetails.bank_account_number}
-              onChange={(e) => setBankDetails({ ...bankDetails, bank_account_number: e.target.value })}
+              label="Beneficiary Name"
+              placeholder="Name as per bank records"
+              value={bankDetails.bank_account_name}
+              onChange={(e) => setBankDetails({ ...bankDetails, bank_account_name: e.target.value })}
             />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextInput
+                label="Account Number"
+                placeholder="e.g. 1234567890"
+                type="password"
+                value={bankDetails.bank_account_number}
+                onChange={(e) => setBankDetails({ ...bankDetails, bank_account_number: e.target.value })}
+              />
+              <TextInput
+                label="Confirm Account Number"
+                placeholder="Re-enter account number"
+                value={bankDetails.confirm_bank_account_number}
+                onChange={(e) => setBankDetails({ ...bankDetails, confirm_bank_account_number: e.target.value })}
+              />
+            </div>
+
             <TextInput
               label="IFSC Code"
               placeholder="e.g. HDFC0001234"
               value={bankDetails.bank_ifsc}
               onChange={(e) => setBankDetails({ ...bankDetails, bank_ifsc: e.target.value.toUpperCase() })}
+              maxLength={11}
             />
           </div>
-          <TextInput
-            label="Account Holder Name"
-            placeholder="Name as per bank records"
-            value={bankDetails.bank_account_name}
-            onChange={(e) => setBankDetails({ ...bankDetails, bank_account_name: e.target.value })}
-          />
+
           <div className="flex items-center gap-4">
             <div className="h-px flex-1 bg-[#E9ECEF]" />
-            <span className="text-sm text-[#6C757D]">OR</span>
+            <span className="text-sm font-medium text-[#6C757D]">OR USE UPI</span>
             <div className="h-px flex-1 bg-[#E9ECEF]" />
           </div>
-          <TextInput
-            label="UPI ID"
-            placeholder="yourname@upi"
-            value={bankDetails.upi_id}
-            onChange={(e) => setBankDetails({ ...bankDetails, upi_id: e.target.value })}
-          />
+
+          {/* Option 2: UPI */}
+          <div className="flex flex-col gap-4 rounded-xl border border-[#E9ECEF] p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E9ECEF] text-sm font-bold text-[#495057]">2</div>
+              <h3 className="font-semibold text-[#212529]">UPI ID (VPA)</h3>
+            </div>
+            <TextInput
+              label="UPI ID"
+              placeholder="e.g. username@oksbi"
+              value={bankDetails.upi_id}
+              onChange={(e) => setBankDetails({ ...bankDetails, upi_id: e.target.value })}
+            />
+          </div>
+
           <Button size="lg" onClick={handleSaveBankDetails} disabled={savingBank}>
-            {savingBank ? 'Saving...' : 'Save Payout Details'}
+            {savingBank ? 'Verifying & Saving...' : 'Save Payout Details'}
           </Button>
         </CardContent>
       </Card>

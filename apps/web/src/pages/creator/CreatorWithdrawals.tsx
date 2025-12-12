@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, Button, TextInput, Badge } from '@fanmeet/ui';
 import { formatCurrency, formatDateTime } from '@fanmeet/utils';
 import { useEffect, useState } from 'react';
@@ -93,6 +94,25 @@ export function CreatorWithdrawals() {
           return;
         }
 
+        // Fetch linked bank account from profile
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('bank_account_number, bank_ifsc, upi_id, razorpay_fund_account_id')
+          .eq('user_id', user.id)
+          .single();
+
+        if (profile) {
+          const accountDisplay = profile.razorpay_fund_account_id
+            ? 'Linked Payout Account'
+            : profile.bank_account_number
+              ? `Bank Account ending in ${profile.bank_account_number.slice(-4)}`
+              : profile.upi_id
+                ? `UPI: ${profile.upi_id}`
+                : '';
+
+          if (accountDisplay) setDestination(accountDisplay);
+        }
+
         // Fetch creator's events and won bids to calculate total earnings
         const { data: eventsData } = await supabase
           .from('events')
@@ -113,7 +133,7 @@ export function CreatorWithdrawals() {
 
           const { data: meetsData } = await supabase
             .from('meets')
-            .select('event_id, status')
+            .select('event_id, status, updated_at')
             .in('event_id', eventIds);
 
           const meetsByEvent = new Map<string, any[]>();
@@ -123,16 +143,21 @@ export function CreatorWithdrawals() {
             meetsByEvent.set(meet.event_id, list);
           }
 
+          const now = new Date();
+          const RELEASE_DELAY_MS = 48 * 60 * 60 * 1000; // 48 hours
+
           for (const bid of (bidsData ?? []) as any[]) {
             // Calculate net earnings (90% after 10% platform fee)
             const netAmount = calculateNetEarnings(bid.amount ?? 0);
             totalEarnings += netAmount;
 
-            // Check if the meet for this event is completed
+            // Check if the meet for this event is completed AND > 48h old
             const eventMeets = meetsByEvent.get(bid.event_id) ?? [];
-            const hasCompletedMeet = eventMeets.some((m: any) => m.status === 'completed');
+            const completedMeet = eventMeets.find((m: any) => m.status === 'completed');
 
-            if (!hasCompletedMeet) {
+            const isReleased = completedMeet && completedMeet.updated_at && (now.getTime() - new Date(completedMeet.updated_at).getTime() > RELEASE_DELAY_MS);
+
+            if (!isReleased) {
               pendingEarnings += netAmount;
             }
           }
@@ -199,7 +224,7 @@ export function CreatorWithdrawals() {
     if (isWithdrawBlocked) {
       alert(
         withdrawBlockReason ||
-          'Withdrawals are currently unavailable for your account. Please contact support.',
+        'Withdrawals are currently unavailable for your account. Please contact support.',
       );
       return;
     }
@@ -228,20 +253,28 @@ export function CreatorWithdrawals() {
     setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.from('withdrawal_requests').insert({
+      const { data: insertedData, error } = await supabase.from('withdrawal_requests').insert({
         creator_id: user.id,
         amount,
         destination: destination.trim(),
         status: 'pending',
         requested_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
-      });
+      }).select().single();
 
-      if (error) {
+      if (error || !insertedData) {
         console.error('Error submitting withdrawal:', error);
         alert('Failed to submit withdrawal request. Please try again.');
         return;
       }
+
+      // Trigger Auto Payout via Razorpay (async)
+      // We don't block the UI for this, but we log if it fails.
+      supabase.functions.invoke('trigger-payout', {
+        body: { withdrawal_request_id: insertedData.id },
+      }).then(({ error: payoutError }) => {
+        if (payoutError) console.error('Auto-payout trigger failed:', payoutError);
+      });
 
       alert(`Withdrawal request of ${formatCurrency(amount)} submitted successfully!`);
       setWithdrawAmount('');
@@ -288,7 +321,7 @@ export function CreatorWithdrawals() {
                 <p className="text-xl font-semibold text-[#212529]">
                   {isLoading ? '…' : formatCurrency(pendingClearance)}
                 </p>
-                <p className="text-xs text-[#6C757D]">Net earnings (90%) after 10% platform fee. Available after 24h.</p>
+                <p className="text-xs text-[#6C757D]">Net earnings (90%) after 10% platform fee. Available after 48 hours.</p>
               </div>
               <div className="rounded-[12px] border border-[#E9ECEF] bg-white p-4">
                 <span className="text-sm text-[#6C757D]">Last payout</span>
@@ -321,12 +354,26 @@ export function CreatorWithdrawals() {
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
               />
-              <TextInput
-                label="Destination account"
-                placeholder="HDFC Bank ••8290"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-              />
+              <div className="flex flex-col gap-1">
+                <TextInput
+                  label="Destination account"
+                  placeholder="No linked account"
+                  value={destination}
+                  disabled
+                  onChange={() => { }}
+                />
+                {!destination && (
+                  <p className="text-xs text-red-500">
+                    Please <Link to="/creator/settings" className="underline">add your bank details</Link> in settings to withdraw.
+                  </p>
+                )}
+                {destination && (
+                  <p className="text-xs text-[#6C757D]">
+                    To change this, go to <Link to="/creator/settings" className="underline">Settings</Link>.
+                  </p>
+                )}
+
+              </div>
             </div>
             <div className="rounded-[12px] bg-[#F8F9FA] p-4 text-sm text-[#6C757D]">
               Note: We process withdrawals above ₹500. Ensure your KYC details are up to date for smoother payouts.

@@ -19,6 +19,7 @@ interface AuthContextValue {
   login: (params: { email: string; password: string }) => Promise<AuthUser>;
   signup: (params: { email: string; password: string; role: UserRole }) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  onlineUsers: Set<string>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -148,6 +149,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase.channel('online-users');
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const newState = channel.presenceState();
+        const users = new Set<string>();
+
+        Object.values(newState).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            if (p.user_id) users.add(p.user_id);
+          });
+        });
+
+        setOnlineUsers(users);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ user_id: user.id, online_at: new Date().toISOString() });
+        }
+      });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user]);
+
   const value = useMemo(
     () => ({
       user,
@@ -156,8 +188,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       signup,
       logout,
+      onlineUsers,
     }),
-    [isLoading, user],
+    [isLoading, user, onlineUsers],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

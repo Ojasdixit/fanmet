@@ -20,7 +20,7 @@ export function CreatorCreateEvent() {
   const [time, setTime] = useState('');
   const [biddingDeadlineDate, setBiddingDeadlineDate] = useState('');
   const [biddingDeadlineTime, setBiddingDeadlineTime] = useState('');
-  const [meetingLink, setMeetingLink] = useState('');
+
   const [formError, setFormError] = useState('');
   const [eventType, setEventType] = useState<'paid' | 'free'>('paid');
 
@@ -33,14 +33,14 @@ export function CreatorCreateEvent() {
 
     // Check if creator is approved by admin
     if (user.creatorProfileStatus !== 'approved') {
-      const statusMsg = user.creatorProfileStatus === 'pending' 
+      const statusMsg = user.creatorProfileStatus === 'pending'
         ? 'Your creator profile is pending approval. Please wait for admin approval before creating events.'
         : 'Your creator profile has been rejected. Please contact support for more information.';
       window.alert(`⚠️ ${statusMsg}`);
       return;
     }
 
-    if (!title.trim() || basePrice === null || !duration || !date || !time || !biddingDeadlineDate || !biddingDeadlineTime || !meetingLink) {
+    if (!title.trim() || basePrice === null || !duration || !date || !time || !biddingDeadlineDate || !biddingDeadlineTime) {
       setFormError('Please fill in all required fields before creating the event.');
       return;
     }
@@ -61,7 +61,7 @@ export function CreatorCreateEvent() {
         time,
         biddingDeadlineDate,
         biddingDeadlineTime,
-        meetingLink: meetingLink.trim(),
+        meetingLink: `${window.location.origin}/meet/${crypto.randomUUID()}`,
       });
 
       const url = `${window.location.origin}/events/${event.id}`;
@@ -102,7 +102,7 @@ export function CreatorCreateEvent() {
                 {isPending ? 'Profile Pending Approval' : 'Profile Not Approved'}
               </h3>
               <p className={`text-sm ${isPending ? 'text-yellow-700' : 'text-red-700'}`}>
-                {isPending 
+                {isPending
                   ? 'Your creator profile is being reviewed by our team. You cannot create events until approved.'
                   : 'Your creator profile was not approved. Please contact support for more information.'}
               </p>
@@ -260,20 +260,7 @@ export function CreatorCreateEvent() {
               </div>
             </div>
 
-            <div className="rounded-[12px] border border-[#E9ECEF] bg-[#F8F9FA] p-4">
-              <div className="mb-3 text-sm font-semibold text-[#212529]">📹 Meeting Link *</div>
-              <p className="mb-4 text-xs text-[#6C757D]">
-                Add the Google Meet link for the session. This will be automatically sent to the winner.
-              </p>
-              <TextInput
-                type="url"
-                label="Google Meet Link"
-                placeholder="https://meet.google.com/..."
-                required
-                value={meetingLink}
-                onChange={(event) => setMeetingLink(event.target.value)}
-              />
-            </div>
+            {/* Meeting Link is auto-generated */}
 
             <div className="flex flex-col gap-3">
               <span className="text-sm font-semibold text-[#212529]">Cover Image (optional)</span>

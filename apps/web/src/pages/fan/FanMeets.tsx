@@ -29,12 +29,17 @@ function getStartsIn(scheduledAt: string) {
 export function FanMeets() {
   const { myMeets } = useEvents();
 
+  // Filter for scheduled and live meets
   const upcomingMeets = myMeets
-    .filter((meet) => meet.status === 'scheduled')
+    .filter((meet) => meet.status === 'scheduled' || meet.status === 'live')
     .sort(
       (a, b) =>
         new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
     );
+
+  // Live meets that creator has started
+  const liveMeets = upcomingMeets.filter((meet) => meet.status === 'live');
+  const scheduledMeets = upcomingMeets.filter((meet) => meet.status === 'scheduled');
 
   const handleCopy = (link?: string) => {
     if (!link) return;
@@ -76,8 +81,11 @@ export function FanMeets() {
           <CardContent className="gap-6">
             {upcomingMeets.map((meet) => (
               <div key={meet.id} className="grid gap-4 md:grid-cols-[auto_1fr] md:gap-6">
-                <Badge variant="primary" className="w-fit px-4 py-2 text-sm">
-                  {meet.status}
+                <Badge 
+                  variant={meet.status === 'live' ? 'success' : 'primary'} 
+                  className={`w-fit px-4 py-2 text-sm ${meet.status === 'live' ? 'animate-pulse' : ''}`}
+                >
+                  {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' : meet.status}
                 </Badge>
                 <div className="flex flex-col gap-4">
                   <div>

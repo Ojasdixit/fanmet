@@ -19,6 +19,7 @@ import { FanNotifications } from './pages/fan/FanNotifications';
 import { FanSettings } from './pages/fan/FanSettings';
 import { FanMessages } from './pages/fan/FanMessages';
 import { FanSupport } from './pages/fan/FanSupport';
+import { FanAllEvents } from './pages/fan/FanAllEvents';
 import { CreatorOverview } from './pages/creator/CreatorOverview';
 import { CreatorEvents } from './pages/creator/CreatorEvents';
 import { CreatorCreateEvent } from './pages/creator/CreatorCreateEvent';
@@ -61,8 +62,10 @@ import { AdminSystemBulkActions } from './pages/admin/AdminSystemBulkActions';
 import { AdminSystemBackup } from './pages/admin/AdminSystemBackup';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { AdminMeetsDebug } from './pages/admin/AdminMeetsDebug';
+import { AdminMeetingLogs } from './pages/admin/AdminMeetingLogs';
 import { InfluencerPage } from './pages/influencer/InfluencerPage';
 import { EventDetailPage } from './pages/events/EventDetailPage';
+import { MeetingRoom } from './pages/meet/MeetingRoom';
 import { AuthProvider } from './contexts/AuthContext';
 import { EventProvider } from './contexts/EventContext';
 import { CreatorProfileProvider } from './contexts/CreatorProfileContext';
@@ -86,6 +89,7 @@ export default function App() {
           <CreatorProfileProvider>
             <NotificationsProvider>
               <Routes>
+                <Route path="meet/:meetId" element={<MeetingRoom />} />
                 <Route element={<AppShell />}>
                   <Route index element={<LandingPage />} />
                   <Route path="auth" element={<AuthPage />} />
@@ -106,6 +110,7 @@ export default function App() {
                   }
                 >
                   <Route index element={<FanDashboard />} />
+                  <Route path="all-events" element={<FanAllEvents />} />
                   <Route path="bids" element={<FanBids />} />
                   <Route path="meets" element={<FanMeets />} />
                   <Route path="wallet" element={<FanPaymentHistory />} />
@@ -178,6 +183,7 @@ export default function App() {
                   <Route path="system/bulk-actions" element={<AdminSystemBulkActions />} />
                   <Route path="system/backup" element={<AdminSystemBackup />} />
                   <Route path="debug/meets" element={<AdminMeetsDebug />} />
+                  <Route path="meeting-logs" element={<AdminMeetingLogs />} />
                   <Route path="profile" element={<AdminProfile />} />
                   <Route path="*" element={<Navigate to="." replace />} />
                 </Route>

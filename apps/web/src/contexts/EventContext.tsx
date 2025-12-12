@@ -46,8 +46,13 @@ export interface Meet {
   scheduledAt: string;
   durationMinutes: number;
   meetingLink?: string;
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  status: 'scheduled' | 'live' | 'completed' | 'cancelled' | 'cancelled_no_show_creator' | 'no_show';
   amount?: number;
+  creatorStartedAt?: string;
+  creatorJoinedAt?: string;
+  fanJoinedAt?: string;
+  recordingStartedAt?: string;
+  recordingStoppedAt?: string;
 }
 
 interface CreateEventInput {
@@ -74,10 +79,11 @@ interface EventContextValue {
   getEventsForCreator: (creatorUsername: string) => CreatorEvent[];
   placeBid: (eventId: string, amount: number) => Promise<void>;
   placeBidWithPayment: (eventId: string, amount: number, userEmail: string) => Promise<void>;
-  updateMeetStatus: (meetId: string, status: 'scheduled' | 'completed' | 'cancelled' | 'no_show') => Promise<void>;
+  updateMeetStatus: (meetId: string, status: 'scheduled' | 'live' | 'completed' | 'cancelled' | 'cancelled_no_show_creator' | 'no_show') => Promise<void>;
   refreshMeets: () => Promise<void>;
   getBidHistory: (eventId: string) => Promise<BidHistoryItem[]>;
   getUserCurrentBidForEvent: (eventId: string) => number;
+  finalizeEvent: (eventId: string) => Promise<void>;
 }
 
 const EventContext = createContext<EventContextValue | undefined>(undefined);
@@ -216,9 +222,9 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
         const { data: profilesData } = creatorIds.length
           ? await supabase
-              .from('profiles')
-              .select('user_id, username')
-              .in('user_id', creatorIds)
+            .from('profiles')
+            .select('user_id, username')
+            .in('user_id', creatorIds)
           : { data: null };
 
         const profileMap = new Map(
@@ -420,7 +426,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     // Refresh user's bids
     await refreshUserBids();
-    
+
     // Refresh bid history for the event
     await getBidHistory(eventId);
   };
@@ -439,7 +445,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   // Helper to refresh user's bids
   const refreshUserBids = async () => {
     if (!user) return;
-    
+
     const { data: bidsData } = await supabase
       .from('bids')
       .select('*')
@@ -460,9 +466,9 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
       const { data: profilesData } = creatorIds.length
         ? await supabase
-            .from('profiles')
-            .select('user_id, username')
-            .in('user_id', creatorIds)
+          .from('profiles')
+          .select('user_id, username')
+          .in('user_id', creatorIds)
         : { data: null };
 
       const profileMap = new Map(
@@ -510,7 +516,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       .from('meets')
       .select('*')
       .eq('fan_id', user.id)
-      .eq('status', 'scheduled'); // Only fetch scheduled meets for fans
+      .in('status', ['scheduled', 'live']); // Fetch scheduled and live meets for fans
 
     if (!meetsError && meetsData) {
       const creatorIds = meetsData.map((m) => m.creator_id);
@@ -534,10 +540,84 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
             durationMinutes: m.duration_minutes,
             meetingLink: m.meeting_link,
             status: m.status,
+            creatorStartedAt: m.creator_started_at,
+            creatorJoinedAt: m.creator_joined_at,
+            fanJoinedAt: m.fan_joined_at,
+            recordingStartedAt: m.recording_started_at,
+            recordingStoppedAt: m.recording_stopped_at,
           };
         })
       );
     }
+  };
+
+
+  const finalizeEvent: EventContextValue['finalizeEvent'] = async (eventId) => {
+    if (!user) return;
+
+    // 1. Get the event
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError || !event) {
+      console.error('Error fetching event to finalize:', eventError);
+      throw new Error('Event not found');
+    }
+
+    // 2. Get highest bid
+    const { data: bids, error: bidsError } = await supabase
+      .from('bids')
+      .select('*')
+      .eq('event_id', eventId)
+      .eq('status', 'active')
+      .order('amount', { ascending: false })
+      .limit(1);
+
+    if (bidsError) {
+      console.error('Error fetching winning bid:', bidsError);
+      throw new Error('Could not determine winner');
+    }
+
+    const winnerBid = bids && bids.length > 0 ? bids[0] : null;
+
+    if (!winnerBid && event.is_paid) {
+      console.log('No bids for event, closing without meet.');
+    }
+
+    // 3. Create Meet if there is a winner
+    if (winnerBid) {
+      const { error: meetError } = await supabase
+        .from('meets')
+        .insert({
+          event_id: eventId,
+          creator_id: user.id,
+          fan_id: winnerBid.fan_id,
+          scheduled_at: event.starts_at,
+          duration_minutes: event.duration_minutes,
+          meeting_link: event.meeting_link,
+          status: 'scheduled'
+        });
+
+      if (meetError) {
+        console.error('Error creating meet:', meetError);
+        throw new Error('Failed to create meet');
+      }
+    }
+
+    // 4. Update event status
+    const { error: updateError } = await supabase
+      .from('events')
+      .update({ status: 'completed' })
+      .eq('id', eventId);
+
+    if (updateError) {
+      console.error('Error updating event status:', updateError);
+    }
+
+    await refreshMeets();
   };
 
   const value = useMemo(
@@ -555,9 +635,47 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       refreshMeets,
       getBidHistory,
       getUserCurrentBidForEvent,
+      finalizeEvent,
     }),
     [events, myBids, myMeets, bidHistory, isLoading],
   );
+
+  // Auto-finalize events that have passed their deadline
+  useEffect(() => {
+    if (!user || user.role !== 'creator') return;
+
+    const checkExpiredEvents = async () => {
+      // Find events created by this user that are active but passed deadline
+      const { data: expiredEvents } = await supabase
+        .from('events')
+        .select('id, title')
+        .eq('creator_id', user.id)
+        .in('status', ['upcoming', 'live'])
+        .lt('bidding_closes_at', new Date().toISOString());
+
+      if (expiredEvents && expiredEvents.length > 0) {
+        console.log('🔄 Auto-finalizing expired events:', expiredEvents);
+        for (const ev of expiredEvents) {
+          try {
+            await finalizeEvent(ev.id); // This will create the meet and set status to completed
+            console.log(`✅ Auto-finalized event: ${ev.title}`);
+          } catch (err) {
+            console.error(`❌ Failed to auto-finalize event ${ev.id}:`, err);
+          }
+        }
+        // Force refresh events to update UI
+        // Since we don't have a public refreshEvents, we can't easily trigger it. 
+        // But finalizeEvent calls refreshMeets. 
+        // To update the Events list, we might need to reload or add a refreshEvents function.
+        // For now, the database is updated, so next fetch/page load will be correct.
+      }
+    };
+
+    const timer = setInterval(checkExpiredEvents, 30000); // Check every 30 seconds
+    checkExpiredEvents(); // Initial check
+
+    return () => clearInterval(timer);
+  }, [user]); // user is the main dependency
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;
 };

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, Card, CardContent, CardHeader, Badge } from '@fanmeet/ui';
+import { Button, Card, CardContent, Badge } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
 import { useEvents } from '../../contexts/EventContext';
 
@@ -26,20 +26,33 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'newest', label: 'Newly Added' },
 ];
 
-export function FanDashboard() {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { events, myBids } = useEvents();
-  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('popular');
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+const EVENTS_PER_PAGE = 20;
 
+export function FanAllEvents() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { events } = useEvents();
+  
+  const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>(
+    (searchParams.get('category') as CategoryFilter) || 'all'
+  );
+  const [sortBy, setSortBy] = useState<SortOption>(
+    (searchParams.get('sort') as SortOption) || 'popular'
+  );
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+  const [currentPage, setCurrentPage] = useState(
+    parseInt(searchParams.get('page') || '1', 10)
+  );
+
+  // Update URL when filters change
   useEffect(() => {
-    const query = searchParams.get('q');
-    if (query !== null && query !== searchQuery) {
-      setSearchQuery(query);
-    }
-  }, [searchParams]);
+    const params = new URLSearchParams();
+    if (selectedCategory !== 'all') params.set('category', selectedCategory);
+    if (sortBy !== 'popular') params.set('sort', sortBy);
+    if (searchQuery) params.set('q', searchQuery);
+    if (currentPage > 1) params.set('page', String(currentPage));
+    setSearchParams(params, { replace: true });
+  }, [selectedCategory, sortBy, searchQuery, currentPage]);
 
   // Filter and sort events
   const filteredAndSortedEvents = useMemo(() => {
@@ -72,9 +85,8 @@ export function FanDashboard() {
         case 'price-high':
           return b.basePrice - a.basePrice;
         case 'newest':
-          return b.id.localeCompare(a.id); // Using ID as proxy for creation time
+          return b.id.localeCompare(a.id);
         case 'ending-soon':
-          // Parse "X hours left to bid" to sort by time
           const getTimeValue = (endsIn: string) => {
             if (endsIn.includes('Closed')) return 999999;
             if (endsIn.includes('days')) {
@@ -99,51 +111,37 @@ export function FanDashboard() {
     return sorted;
   }, [events, selectedCategory, sortBy, searchQuery]);
 
-  // Pagination - show only 20 events on dashboard
-  const MAX_EVENTS_DISPLAY = 20;
-  const hasMoreEvents = filteredAndSortedEvents.length > MAX_EVENTS_DISPLAY;
-  const displayedEvents = filteredAndSortedEvents.slice(0, MAX_EVENTS_DISPLAY);
+  // Pagination
+  const totalPages = Math.ceil(filteredAndSortedEvents.length / EVENTS_PER_PAGE);
+  const startIndex = (currentPage - 1) * EVENTS_PER_PAGE;
+  const paginatedEvents = filteredAndSortedEvents.slice(startIndex, startIndex + EVENTS_PER_PAGE);
 
-  // Calculate analytics
-  const analytics = useMemo(() => {
-    const totalBids = myBids.length;
-    const wonBids = myBids.filter(b => b.status === 'won').length;
-    const winRate = totalBids > 0 ? Math.round((wonBids / totalBids) * 100) : 0;
-    const totalRefunds = myBids
-      .filter(b => b.status === 'lost')
-      .reduce((sum, b) => sum + Math.floor(b.amount * 0.9), 0);
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, sortBy, searchQuery]);
 
-    return [
-      { id: 'stat-1', label: 'Bids placed', value: String(totalBids), hint: `${myBids.filter(b => b.status === 'active' || b.status === 'outbid').length} active` },
-      { id: 'stat-2', label: 'Win rate', value: `${winRate}%`, hint: `${wonBids} wins out of ${totalBids}` },
-      { id: 'stat-3', label: 'Refunds received', value: formatCurrency(totalRefunds), hint: '90% back on lost bids' },
-      { id: 'stat-4', label: 'Meets completed', value: String(wonBids), hint: `Across ${new Set(myBids.filter(b => b.status === 'won').map(b => b.creatorUsername)).size} creators` },
-    ];
-  }, [myBids]);
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div className="flex flex-col gap-8">
-      <Card
-        elevated
-        className="overflow-hidden border-none bg-gradient-to-r from-[#FCE7FF] via-[#F4E6FF] to-[#E5DEFF] shadow-[0_24px_60px_rgba(160,64,255,0.18)]"
-      >
-        <div className="relative flex flex-col gap-6 px-6 py-6 md:flex-row md:items-center md:px-8 md:py-8">
-          <div className="max-w-xl space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#C045FF]">
-              Browse Events
-            </p>
-            <h1 className="text-2xl font-semibold text-[#050014] md:text-3xl">
-              Find a live FanMeet that matches your vibe.
-            </h1>
-            <p className="text-sm text-[#4B445F]">
-              Browse, bid, and secure your spot with your favorite creators in small, exclusive meetups.
-            </p>
-          </div>
-          <div className="flex-shrink-0 text-6xl md:text-7xl">🎯</div>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-[#212529]">All Events</h1>
+          <p className="text-sm text-[#6C757D]">
+            Browse through all {filteredAndSortedEvents.length} available events
+          </p>
         </div>
-      </Card>
+        <Button variant="secondary" onClick={() => navigate('/fan')}>
+          ← Back to Dashboard
+        </Button>
+      </div>
 
-      {/* Search and Filters */}
+      {/* Filters Card */}
       <Card>
         <CardContent className="gap-6">
           {/* Search Bar */}
@@ -199,44 +197,48 @@ export function FanDashboard() {
         </CardContent>
       </Card>
 
-      {/* Events Grid */}
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-[#212529]">
-            {filteredAndSortedEvents.length} {filteredAndSortedEvents.length === 1 ? 'Event' : 'Events'} Found
-            {hasMoreEvents && (
-              <span className="ml-2 text-sm font-normal text-[#6C757D]">
-                (showing {displayedEvents.length})
-              </span>
-            )}
-          </h2>
-          {hasMoreEvents && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate('/fan/all-events')}
-            >
-              View All Events →
-            </Button>
+      {/* Results Header */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-[#212529]">
+          {filteredAndSortedEvents.length} {filteredAndSortedEvents.length === 1 ? 'Event' : 'Events'}
+          {filteredAndSortedEvents.length > EVENTS_PER_PAGE && (
+            <span className="ml-2 text-sm font-normal text-[#6C757D]">
+              (Page {currentPage} of {totalPages})
+            </span>
           )}
-        </div>
+        </h2>
+        {(selectedCategory !== 'all' || searchQuery) && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setSelectedCategory('all');
+              setSearchQuery('');
+            }}
+          >
+            Clear Filters
+          </Button>
+        )}
+      </div>
 
-        {displayedEvents.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <div className="text-6xl mb-4">😔</div>
-              <h3 className="text-lg font-semibold text-[#212529] mb-2">No events found</h3>
-              <p className="text-sm text-[#6C757D] mb-4">
-                Try adjusting your filters or search query
-              </p>
-              <Button onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}>
-                Clear Filters
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
+      {/* Events Grid */}
+      {paginatedEvents.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <div className="text-6xl mb-4">😔</div>
+            <h3 className="text-lg font-semibold text-[#212529] mb-2">No events found</h3>
+            <p className="text-sm text-[#6C757D] mb-4">
+              Try adjusting your filters or search query
+            </p>
+            <Button onClick={() => { setSelectedCategory('all'); setSearchQuery(''); }}>
+              Clear Filters
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {displayedEvents.map((event) => (
+            {paginatedEvents.map((event) => (
               <Card
                 key={event.id}
                 className="group cursor-pointer transition-all hover:shadow-[0_12px_30px_rgba(160,64,255,0.15)]"
@@ -288,47 +290,67 @@ export function FanDashboard() {
               </Card>
             ))}
           </div>
-        )}
 
-        {/* View All Events CTA when more events exist */}
-        {hasMoreEvents && displayedEvents.length > 0 && (
-          <Card className="mt-6 border-dashed border-2 border-[#C045FF]/30 bg-gradient-to-r from-[#FCE7FF]/50 via-white to-[#E5DEFF]/50">
-            <CardContent className="py-8 text-center">
-              <div className="text-4xl mb-3">🎪</div>
-              <h3 className="text-lg font-semibold text-[#212529] mb-2">
-                {filteredAndSortedEvents.length - displayedEvents.length} more events available
-              </h3>
-              <p className="text-sm text-[#6C757D] mb-4">
-                Explore all events to find the perfect creator meet for you
-              </p>
-              <Button onClick={() => navigate('/fan/all-events')}>
-                Browse All Events →
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Fan Analytics */}
-      <Card>
-        <CardHeader title="Your Activity" subtitle="Track your bidding performance" />
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {analytics.map((stat) => (
-              <div
-                key={stat.id}
-                className="rounded-[16px] border border-[#E9ECEF] bg-gradient-to-br from-[#F8F9FA] to-white p-4"
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
               >
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">
-                  {stat.label}
-                </div>
-                <div className="mt-1 text-2xl font-bold text-[#212529]">{stat.value}</div>
-                <div className="mt-1 text-xs text-[#6C757D]">{stat.hint}</div>
+                ← Previous
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Show first, last, current, and adjacent pages
+                  const showPage = 
+                    page === 1 || 
+                    page === totalPages || 
+                    Math.abs(page - currentPage) <= 1;
+                  
+                  const showEllipsis = 
+                    (page === 2 && currentPage > 3) ||
+                    (page === totalPages - 1 && currentPage < totalPages - 2);
+
+                  if (!showPage && !showEllipsis) return null;
+                  
+                  if (showEllipsis && !showPage) {
+                    return (
+                      <span key={page} className="px-2 text-[#6C757D]">...</span>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`min-w-[36px] rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                        currentPage === page
+                          ? 'bg-[#C045FF] text-white'
+                          : 'bg-[#F8F9FA] text-[#6C757D] hover:bg-[#E9ECEF]'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                Next →
+              </Button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

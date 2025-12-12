@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, Button, Avatar } from '@fanmeet/ui';
 import { MoreVertical, MoreHorizontal, Reply, Copy, Trash2, Flag, UserMinus2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '../../lib/supabaseClient';
 import { useNotifications } from '../../contexts/NotificationsContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDmPreferences } from '../../state/dmPreferences';
@@ -93,10 +95,7 @@ export function CreatorMessages() {
     );
   }, [messages, user]);
 
-  const activeConversation = useMemo(
-    () => conversations.find((c) => c.id === activeConversationId) || null,
-    [conversations, activeConversationId]
-  );
+
 
   const activeMessages = useMemo(
     () =>
@@ -117,6 +116,56 @@ export function CreatorMessages() {
       unreadMessages.forEach((m) => markMessageAsRead(m.id));
     }
   }, [activeConversationId, activeMessages, user, markMessageAsRead]);
+
+  const [searchParams] = useSearchParams();
+  const [tempConversation, setTempConversation] = useState<ConversationSummary | null>(null);
+
+  useEffect(() => {
+    const chatWith = searchParams.get('chatWith');
+    if (chatWith) {
+      setActiveConversationId(chatWith);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const conversationExists = conversations.some(c => c.id === activeConversationId);
+
+    if (activeConversationId && !conversationExists) {
+      const fetchProfile = async () => {
+        // Check if we already have a temp conversation for this ID
+        if (tempConversation?.id === activeConversationId) return;
+
+        const { data } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, username')
+          .eq('user_id', activeConversationId)
+          .single();
+
+        if (data) {
+          setTempConversation({
+            id: data.user_id,
+            participant: {
+              id: data.user_id,
+              name: data.display_name || data.username || 'User',
+              username: data.username || 'user',
+              avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${data.display_name || data.username || 'User'}`,
+              status: 'offline',
+            },
+            lastMessage: '',
+            lastTime: new Date().toISOString(),
+            unread: 0,
+          });
+        }
+      };
+
+      fetchProfile();
+    }
+  }, [activeConversationId, conversations, tempConversation]);
+
+  const activeConversation = useMemo(
+    () => conversations.find((c) => c.id === activeConversationId) || tempConversation,
+    [conversations, activeConversationId, tempConversation]
+  );
 
   const handleSend = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -173,8 +222,8 @@ export function CreatorMessages() {
                     type="button"
                     onClick={() => setActiveConversationId(conversation.id)}
                     className={`mb-2 flex w-full items-center gap-3 rounded-[12px] border px-3 py-2 text-left text-sm transition-colors ${isActive
-                        ? 'border-[#C045FF] bg-[#F4E6FF] text-[#140423]'
-                        : 'border-[#E9ECEF] bg-white text-[#212529] hover:border-[#C045FF]/50 hover:bg-[#F8F5FF]'
+                      ? 'border-[#C045FF] bg-[#F4E6FF] text-[#140423]'
+                      : 'border-[#E9ECEF] bg-white text-[#212529] hover:border-[#C045FF]/50 hover:bg-[#F8F5FF]'
                       }`}
                   >
                     <Avatar
@@ -291,8 +340,8 @@ export function CreatorMessages() {
                         <div>
                           <div
                             className={`rounded-2xl px-3 py-2 text-sm ${isMe
-                                ? 'bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
-                                : 'border border-[#E9ECEF] bg-white text-[#212529]'
+                              ? 'bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+                              : 'border border-[#E9ECEF] bg-white text-[#212529]'
                               }`}
                           >
                             {msg.message}

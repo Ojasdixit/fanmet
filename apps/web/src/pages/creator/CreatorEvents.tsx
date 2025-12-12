@@ -7,7 +7,7 @@ import { useEvents } from '../../contexts/EventContext';
 export function CreatorEvents() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { events } = useEvents();
+  const { events, finalizeEvent } = useEvents();
 
   const creatorUsername = user?.role === 'creator' ? user.username : null;
   const creatorEvents = creatorUsername
@@ -84,6 +84,25 @@ export function CreatorEvents() {
                 <Button variant="secondary">Edit</Button>
                 <Button variant="danger">Delete</Button>
                 <Button onClick={() => handleShareEventLink(event.id)}>Copy Link</Button>
+                {/* Show End Bidding button for active events */}
+                {(event.status === 'Accepting Bids' || event.status === 'Upcoming') && (
+                  <Button
+                    variant="primary"
+                    className="bg-green-600 hover:bg-green-700 text-white border-none"
+                    onClick={async () => {
+                      if (window.confirm('Close bidding and generate meeting link for the highest bidder?')) {
+                        try {
+                          await finalizeEvent(event.id);
+                          window.alert('Success! Meeting created. Check "My Meets" tab.');
+                        } catch (err) {
+                          window.alert('Error finalizing event. Please try again.');
+                        }
+                      }
+                    }}
+                  >
+                    End Bidding & Create Meet
+                  </Button>
+                )}
                 <Button variant="ghost" onClick={() => navigate(`/events/${event.id}`)}>
                   View Details →
                 </Button>
