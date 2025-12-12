@@ -20,6 +20,7 @@ const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "147414ee52fa4baaa1
 
 // Supabase Edge Function URL for token generation
 const SUPABASE_URL = 'https://iktldcrkyphkvxjwmxyb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrdGxkY3JreXBoa3Z4andteHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwNTM4NTUsImV4cCI6MjA3ODYyOTg1NX0.ToXGJWTGBj0xaKp6EEHJY0H3hrqW122CE486oju4opI';
 
 async function fetchAgoraToken(channelName: string, uid: number = 0): Promise<string | null> {
     try {
@@ -28,6 +29,8 @@ async function fetchAgoraToken(channelName: string, uid: number = 0): Promise<st
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'apikey': SUPABASE_ANON_KEY,
             },
             body: JSON.stringify({ channelName, uid, role: 1 }),
         });

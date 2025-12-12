@@ -61,28 +61,137 @@ function MeetingController({ user, meetId, onLeave }: { user: any; meetId: strin
     const [isCreator, setIsCreator] = useState(false);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [creatorStarted, setCreatorStarted] = useState(false);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
+    const realtimeChannelRef = useRef<any>(null);
 
-    const fetchMeeting = useCallback(async () => {
-        const meetingData = await getMeetingByLink(meetId);
-        if (!meetingData) {
-            setError('Meeting not found');
-            setViewState('error');
-            return null;
+    // Helper functions using refs to avoid dependency issues
+    const stopPollingFn = () => {
+        if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
         }
-        setMeeting(meetingData);
-        setIsCreator(meetingData.creatorId === user.id);
-        return meetingData;
-    }, [meetId, user.id]);
+    };
 
-    useEffect(() => {
-        async function init() {
-            const meetingData = await fetchMeeting();
+    const cleanupRealtimeFn = () => {
+        if (realtimeChannelRef.current) {
+            console.log('📡 Cleaning up Realtime subscription');
+            supabase.removeChannel(realtimeChannelRef.current);
+            realtimeChannelRef.current = null;
+        }
+    };
+
+    // Setup Supabase Realtime subscription for instant updates
+    const setupRealtimeSubscription = (meetingId: string) => {
+        if (realtimeChannelRef.current) return;
+        
+        console.log('📡 Setting up Supabase Realtime for meeting:', meetingId);
+        
+        const channel = supabase
+            .channel(`meeting-${meetingId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'meets',
+                    filter: `id=eq.${meetingId}`
+                },
+                async (payload) => {
+                    console.log('📡 Realtime update received:', payload.new);
+                    const newData = payload.new as any;
+                    
+                    // Update meeting state
+                    setMeeting(prev => prev ? {
+                        ...prev,
+                        status: newData.status,
+                        creatorStartedAt: newData.creator_started_at,
+                        creatorJoinedAt: newData.creator_joined_at,
+                        fanJoinedAt: newData.fan_joined_at,
+                    } : null);
+                    
+                    // Handle fan joining when creator starts
+                    if (newData.status === 'live' && newData.creator_started_at) {
+                        console.log('🎬 Creator started meeting! (Realtime)');
+                        stopPollingFn();
+                        const result = await onFanAttemptJoin(meetingId, user.id);
+                        if (result.canJoin) {
+                            setViewState('live');
+                            const scheduledEnd = new Date(newData.scheduled_at);
+                            scheduledEnd.setMinutes(scheduledEnd.getMinutes() + newData.duration_minutes);
+                            const remaining = Math.max(0, Math.floor((scheduledEnd.getTime() - Date.now()) / 1000));
+                            setTimeLeft(remaining);
+                        }
+                    }
+                    
+                    if (newData.status === 'cancelled_no_show_creator' || newData.status === 'cancelled') {
+                        console.log('🚫 Meeting cancelled (Realtime)');
+                        stopPollingFn();
+                        setViewState('cancelled');
+                    }
+                    
+                    if (newData.status === 'completed') {
+                        console.log('✅ Meeting completed (Realtime)');
+                        setViewState('ended');
+                    }
+                    
+                    // Log when fan joins (for creator notification)
+                    if (newData.fan_joined_at) {
+                        console.log('👋 Fan joined the meeting! (Realtime)');
+                    }
+                }
+            )
+            .subscribe((status) => {
+                console.log('📡 Realtime subscription status:', status);
+            });
+        
+        realtimeChannelRef.current = channel;
+    };
+
+    // Fallback polling for meeting updates
+    const startPollingFn = (meetingIdToWatch: string) => {
+        if (pollingRef.current) return;
+        console.log('🎯 Starting polling + Realtime for meeting updates...');
+        
+        // Setup realtime first
+        setupRealtimeSubscription(meetingIdToWatch);
+        
+        // Also poll as backup every 3 seconds
+        pollingRef.current = setInterval(async () => {
+            const meetingData = await getMeetingByLink(meetId);
             if (!meetingData) return;
 
+            if (meetingData.status === 'live' && meetingData.creatorStartedAt) {
+                console.log('🎬 Creator started! (Polling)');
+                stopPollingFn();
+                const result = await onFanAttemptJoin(meetingData.id, user.id);
+                if (result.canJoin) {
+                    setMeeting(meetingData);
+                    setViewState('live');
+                    setTimeLeft(calculateRemainingTime(meetingData));
+                }
+            }
+            if (meetingData.status === 'cancelled_no_show_creator') {
+                console.log('🚫 Meeting cancelled (Polling)');
+                stopPollingFn();
+                setViewState('cancelled');
+            }
+        }, 3000);
+    };
+
+    // Main initialization effect
+    useEffect(() => {
+        async function init() {
+            const meetingData = await getMeetingByLink(meetId);
+            if (!meetingData) {
+                setError('Meeting not found');
+                setViewState('error');
+                return;
+            }
+            
+            setMeeting(meetingData);
             const userIsCreator = meetingData.creatorId === user.id;
             const userIsFan = meetingData.fanId === user.id;
+            setIsCreator(userIsCreator);
 
             if (!userIsCreator && !userIsFan) {
                 setError('You are not a participant of this meeting');
@@ -106,10 +215,13 @@ function MeetingController({ user, meetId, onLeave }: { user: any; meetId: strin
                 return;
             }
 
+            // Creator goes straight to live view
             if (userIsCreator) {
+                setupRealtimeSubscription(meetingData.id); // Listen for fan joining
                 setViewState('live');
                 setTimeLeft(calculateRemainingTime(meetingData));
             } else {
+                // Fan checks if meeting is already live
                 if (meetingData.status === 'live' && meetingData.creatorStartedAt) {
                     const result = await onFanAttemptJoin(meetingData.id, user.id);
                     if (result.canJoin) {
@@ -119,57 +231,24 @@ function MeetingController({ user, meetId, onLeave }: { user: any; meetId: strin
                         setViewState('ended');
                     } else {
                         setViewState('waiting_room');
-                        startPolling();
+                        startPollingFn(meetingData.id);
                     }
                 } else {
+                    // Wait for creator to start
                     setViewState('waiting_room');
-                    startPolling();
+                    startPollingFn(meetingData.id);
                 }
             }
         }
 
         init();
-        return () => stopPolling();
-    }, [fetchMeeting, user.id]);
+        return () => {
+            stopPollingFn();
+            cleanupRealtimeFn();
+        };
+    }, [meetId, user.id]);
 
-    const startPolling = () => {
-        if (pollingRef.current) return;
-        console.log('🎯 Starting polling for meeting updates...');
-        pollingRef.current = setInterval(async () => {
-            console.log('🔄 Polling for meeting status...');
-            const meetingData = await fetchMeeting();
-            console.log('📊 Meeting data:', meetingData?.status, meetingData?.creatorStartedAt);
-
-            if (meetingData && meetingData.status === 'live' && meetingData.creatorStartedAt) {
-                console.log('🎬 Creator started! Stopping polling and attempting to join...');
-                stopPolling();
-                const result = await onFanAttemptJoin(meetingData.id, user.id);
-                console.log('🤝 Fan join attempt result:', result);
-                if (result.canJoin) {
-                    setCreatorStarted(true);
-                    setViewState('live');
-                    setTimeLeft(calculateRemainingTime(meetingData));
-                } else {
-                    console.log('❌ Fan cannot join:', result.error);
-                    // Continue polling if can't join yet
-                    startPolling();
-                }
-            }
-            if (meetingData?.status === 'cancelled_no_show_creator') {
-                console.log('🚫 Meeting cancelled - creator no show');
-                stopPolling();
-                setViewState('cancelled');
-            }
-        }, 3000);
-    };
-
-    const stopPolling = () => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
-    };
-
+    // Timer countdown effect
     useEffect(() => {
         if (viewState !== 'live' || timeLeft === null) return;
         const interval = setInterval(() => {
@@ -315,6 +394,7 @@ function WaitingRoom({ meeting, onBack }: { meeting: MeetingLifecycleState; onBa
 
 // Supabase Edge Function URL for token generation
 const SUPABASE_URL = 'https://iktldcrkyphkvxjwmxyb.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrdGxkY3JreXBoa3Z4andteHliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwNTM4NTUsImV4cCI6MjA3ODYyOTg1NX0.ToXGJWTGBj0xaKp6EEHJY0H3hrqW122CE486oju4opI';
 
 async function fetchAgoraToken(channelName: string, uid: number = 0): Promise<string | null> {
     try {
@@ -323,6 +403,8 @@ async function fetchAgoraToken(channelName: string, uid: number = 0): Promise<st
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'apikey': SUPABASE_ANON_KEY,
             },
             body: JSON.stringify({ channelName, uid, role: 1 }),
         });
