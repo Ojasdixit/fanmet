@@ -449,26 +449,32 @@ function LiveCall({
     const channelName = meeting.id;
     console.log('🎯 Agora channel name:', channelName, '(meeting.id, not URL param)');
     
-    // Fetch token on mount
+    // Fetch token on mount - with fallback to null for testing mode
     useEffect(() => {
         async function getToken() {
+            console.log('🎫 Starting token fetch for channel:', channelName);
             setTokenLoading(true);
-            const token = await fetchAgoraToken(channelName);
-            setAgoraToken(token);
+            try {
+                const token = await fetchAgoraToken(channelName);
+                console.log('🎫 Token result:', token ? 'received' : 'null (using testing mode)');
+                setAgoraToken(token);
+            } catch (err) {
+                console.error('🎫 Token fetch error, using null:', err);
+                setAgoraToken(null);
+            }
             setTokenLoading(false);
-            // Activate Agora after token is fetched
             setActive(true);
         }
         getToken();
     }, [channelName]);
     
-    // Join with token (or null if token generation failed - will work in testing mode)
+    // Join with token (or null for testing mode)
     const { isConnected } = useJoin(
         { appid: APP_ID, channel: channelName, token: agoraToken },
         active && !tokenLoading
     );
-    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active && !tokenLoading);
-    const { localCameraTrack } = useLocalCameraTrack(active && !tokenLoading);
+    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active);
+    const { localCameraTrack } = useLocalCameraTrack(active);
     usePublish([localMicrophoneTrack, localCameraTrack]);
     const remoteUsers = useRemoteUsers();
 
