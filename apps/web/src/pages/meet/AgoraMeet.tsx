@@ -16,7 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 
 // IMPORTANT: Replace with your actual Agora App ID
-const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "147414ee52fa4baaa112702a2e49f189";
+const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "4cc829c3ab144792a3f65fea1f905671";
 
 // Supabase Edge Function URL for token generation
 const SUPABASE_URL = 'https://iktldcrkyphkvxjwmxyb.supabase.co';
@@ -95,22 +95,21 @@ function Call({ checkUser, meetId, onLeave }: { checkUser: any, meetId: string, 
                 setChannelName(meetId);
             }
             
-            // Fetch Agora token
-            const token = await fetchAgoraToken(channel);
-            setAgoraToken(token);
+            // Testing mode - no token needed
+            console.log('🎫 Testing mode - using null token');
             setTokenLoading(false);
             setActive(true);
         }
         fetchMeetingDataAndToken();
     }, [meetId]);
 
-    // Join hook - use meeting.id as channel name and fetched token
+    // Join hook - use meeting.id as channel name with null token (testing mode)
     const { isConnected } = useJoin(
-        { appid: APP_ID, channel: channelName || '', token: agoraToken },
-        active && channelName !== null && !tokenLoading
+        { appid: APP_ID, channel: channelName || '', token: null },
+        active && channelName !== null
     );
-    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active && !tokenLoading);
-    const { localCameraTrack } = useLocalCameraTrack(active && !tokenLoading);
+    const { localMicrophoneTrack } = useLocalMicrophoneTrack(active);
+    const { localCameraTrack } = useLocalCameraTrack(active);
     usePublish([localMicrophoneTrack, localCameraTrack]);
     const remoteUsers = useRemoteUsers();
 

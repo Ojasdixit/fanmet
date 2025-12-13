@@ -24,7 +24,7 @@ import {
     MeetingLifecycleState,
 } from '../../services/meetingLifecycleService';
 
-const APP_ID = (import.meta as any).env?.VITE_AGORA_APP_ID || "147414ee52fa4baaa112702a2e49f189";
+const APP_ID = (import.meta as any).env?.VITE_AGORA_APP_ID || "4cc829c3ab144792a3f65fea1f905671";
 console.log('🔑 Agora APP_ID:', APP_ID);
 
 type MeetingViewState = 'loading' | 'waiting_room' | 'live' | 'ended' | 'cancelled' | 'error';
@@ -449,29 +449,17 @@ function LiveCall({
     const channelName = meeting.id;
     console.log('🎯 Agora channel name:', channelName, '(meeting.id, not URL param)');
     
-    // Fetch token on mount - with fallback to null for testing mode
+    // Testing mode - no token needed, connect immediately
     useEffect(() => {
-        async function getToken() {
-            console.log('🎫 Starting token fetch for channel:', channelName);
-            setTokenLoading(true);
-            try {
-                const token = await fetchAgoraToken(channelName);
-                console.log('🎫 Token result:', token ? 'received' : 'null (using testing mode)');
-                setAgoraToken(token);
-            } catch (err) {
-                console.error('🎫 Token fetch error, using null:', err);
-                setAgoraToken(null);
-            }
-            setTokenLoading(false);
-            setActive(true);
-        }
-        getToken();
+        console.log('🎫 Testing mode - using null token for channel:', channelName);
+        setTokenLoading(false);
+        setActive(true);
     }, [channelName]);
     
-    // Join with token (or null for testing mode)
+    // Join with null token (testing mode - no certificate)
     const { isConnected } = useJoin(
-        { appid: APP_ID, channel: channelName, token: agoraToken },
-        active && !tokenLoading
+        { appid: APP_ID, channel: channelName, token: null },
+        active
     );
     const { localMicrophoneTrack } = useLocalMicrophoneTrack(active);
     const { localCameraTrack } = useLocalCameraTrack(active);

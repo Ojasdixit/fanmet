@@ -251,12 +251,12 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error fetching bids:', bidsError);
       }
 
-      // Fetch user's meets - only show scheduled meets to fans
+      // Fetch user's meets - show scheduled, live, and completed meets to fans
       const { data: meetsData, error: meetsError } = await supabase
         .from('meets')
         .select('*')
         .eq('fan_id', user.id)
-        .eq('status', 'scheduled'); // Only fetch scheduled meets for fans
+        .in('status', ['scheduled', 'live', 'completed']); // Include completed meets
 
       if (!meetsError && meetsData) {
         const creatorIds = meetsData.map((m) => m.creator_id);
@@ -516,7 +516,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       .from('meets')
       .select('*')
       .eq('fan_id', user.id)
-      .in('status', ['scheduled', 'live']); // Fetch scheduled and live meets for fans
+      .in('status', ['scheduled', 'live', 'completed']); // Include completed meets
 
     if (!meetsError && meetsData) {
       const creatorIds = meetsData.map((m) => m.creator_id);
@@ -551,6 +551,31 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Set up Realtime subscription for meets table (for fans) - must be after refreshMeets is defined
+  useEffect(() => {
+    if (!user || user.role !== 'fan') return;
+
+    const meetsChannel = supabase
+      .channel(`fan-meets-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meets',
+          filter: `fan_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('📡 Realtime meets update for fan:', payload);
+          refreshMeets();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(meetsChannel);
+    };
+  }, [user]);
 
   const finalizeEvent: EventContextValue['finalizeEvent'] = async (eventId) => {
     if (!user) return;
@@ -676,6 +701,44 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     return () => clearInterval(timer);
   }, [user]); // user is the main dependency
+
+  // Auto-complete expired live meetings (runs for all users)
+  useEffect(() => {
+    if (!user) return;
+
+    const autoCompleteExpiredMeetings = async () => {
+      // Find live meetings that have passed their scheduled time + duration
+      const { data: expiredMeetings, error } = await supabase
+        .from('meets')
+        .select('id, scheduled_at, duration_minutes')
+        .eq('status', 'live');
+
+      if (error || !expiredMeetings) return;
+
+      const now = new Date();
+      const meetingsToComplete = expiredMeetings.filter(m => {
+        const endTime = new Date(new Date(m.scheduled_at).getTime() + m.duration_minutes * 60 * 1000);
+        return now > endTime;
+      });
+
+      if (meetingsToComplete.length > 0) {
+        console.log('🔄 Auto-completing expired meetings:', meetingsToComplete.length);
+        for (const meeting of meetingsToComplete) {
+          await supabase
+            .from('meets')
+            .update({ status: 'completed' })
+            .eq('id', meeting.id);
+        }
+        // Refresh meets to update UI
+        refreshMeets();
+      }
+    };
+
+    const timer = setInterval(autoCompleteExpiredMeetings, 30000); // Check every 30 seconds
+    autoCompleteExpiredMeetings(); // Initial check
+
+    return () => clearInterval(timer);
+  }, [user]);
 
   return <EventContext.Provider value={value}>{children}</EventContext.Provider>;
 };

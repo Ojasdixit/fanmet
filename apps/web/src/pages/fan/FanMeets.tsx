@@ -29,17 +29,21 @@ function getStartsIn(scheduledAt: string) {
 export function FanMeets() {
   const { myMeets } = useEvents();
 
-  // Filter for scheduled and live meets
+  // Filter for scheduled, live, and completed meets
   const upcomingMeets = myMeets
-    .filter((meet) => meet.status === 'scheduled' || meet.status === 'live')
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime(),
-    );
+    .filter((meet) => meet.status === 'scheduled' || meet.status === 'live' || meet.status === 'completed')
+    .sort((a, b) => {
+      // Sort: live first, then scheduled, then completed
+      const statusOrder = { live: 0, scheduled: 1, completed: 2 };
+      const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 3) - (statusOrder[b.status as keyof typeof statusOrder] || 3);
+      if (statusDiff !== 0) return statusDiff;
+      return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+    });
 
-  // Live meets that creator has started
+  // Categorize meets by status
   const liveMeets = upcomingMeets.filter((meet) => meet.status === 'live');
   const scheduledMeets = upcomingMeets.filter((meet) => meet.status === 'scheduled');
+  const completedMeets = upcomingMeets.filter((meet) => meet.status === 'completed');
 
   const handleCopy = (link?: string) => {
     if (!link) return;
@@ -82,10 +86,10 @@ export function FanMeets() {
             {upcomingMeets.map((meet) => (
               <div key={meet.id} className="grid gap-4 md:grid-cols-[auto_1fr] md:gap-6">
                 <Badge 
-                  variant={meet.status === 'live' ? 'success' : 'primary'} 
+                  variant={meet.status === 'live' ? 'success' : meet.status === 'completed' ? 'default' : 'primary'} 
                   className={`w-fit px-4 py-2 text-sm ${meet.status === 'live' ? 'animate-pulse' : ''}`}
                 >
-                  {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' : meet.status}
+                  {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' : meet.status === 'completed' ? '✅ Completed' : 'Scheduled'}
                 </Badge>
                 <div className="flex flex-col gap-4">
                   <div>
@@ -117,20 +121,28 @@ export function FanMeets() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      <Button variant="secondary">Add to Calendar</Button>
+                      {meet.status !== 'completed' && (
+                        <Button variant="secondary">Add to Calendar</Button>
+                      )}
                       <Button
-                        disabled={!meet.meetingLink}
+                        disabled={!meet.meetingLink || meet.status === 'completed'}
                         onClick={() => handleJoin(meet.meetingLink)}
                       >
-                        Join Meeting →
+                        {meet.status === 'completed' ? 'Meeting Ended' : 'Join Meeting →'}
                       </Button>
                     </div>
-                    <span className="text-sm text-[#6C757D]">
-                      ⏰ Starts in:{' '}
-                      <strong className="text-[#C045FF]">
-                        {getStartsIn(meet.scheduledAt)}
-                      </strong>
-                    </span>
+                    {meet.status !== 'completed' ? (
+                      <span className="text-sm text-[#6C757D]">
+                        ⏰ Starts in:{' '}
+                        <strong className="text-[#C045FF]">
+                          {getStartsIn(meet.scheduledAt)}
+                        </strong>
+                      </span>
+                    ) : (
+                      <span className="text-sm text-[#6C757D]">
+                        ✅ This meeting has been completed
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
