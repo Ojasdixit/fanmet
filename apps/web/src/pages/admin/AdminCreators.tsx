@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, CardContent, CardHeader, Badge, TextInput } from '@fanmeet/ui';
+import { Pagination } from '../../components/Pagination';
 import { formatDateTime } from '@fanmeet/utils';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -44,6 +45,8 @@ export function AdminCreators() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | CreatorStatus>('all');
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchCreators = async () => {
     setIsLoading(true);
@@ -194,6 +197,12 @@ export function AdminCreators() {
     [filteredCreators],
   );
 
+  const paginatedApprovedCreators = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return approvedCreators.slice(startIndex, endIndex);
+  }, [approvedCreators, currentPage, itemsPerPage]);
+
   const selectedCreator = useMemo(
     () => filteredCreators.find((c) => c.id === selectedCreatorId) ?? null,
     [filteredCreators, selectedCreatorId],
@@ -287,11 +296,10 @@ export function AdminCreators() {
                     key={status.value}
                     type="button"
                     onClick={() => setStatusFilter(status.value)}
-                    className={`rounded-full border px-3 py-1 font-medium ${
-                      statusFilter === status.value
-                        ? 'border-[#C045FF] bg-[#3A1B4D] text-[#F7E9FF]'
-                        : 'border-[#3A3D42] bg-[#1F2124] text-[#ADB5BD] hover:border-[#C045FF]/60'
-                    }`}
+                    className={`rounded-full border px-3 py-1 font-medium ${statusFilter === status.value
+                      ? 'border-[#C045FF] bg-[#3A1B4D] text-[#F7E9FF]'
+                      : 'border-[#3A3D42] bg-[#1F2124] text-[#ADB5BD] hover:border-[#C045FF]/60'
+                      }`}
                   >
                     {status.label}
                   </button>
@@ -373,7 +381,7 @@ export function AdminCreators() {
               </tr>
             </thead>
             <tbody>
-              {approvedCreators.map((creator) => (
+              {paginatedApprovedCreators.map((creator) => (
                 <tr key={creator.id} className="border-b border-[#3A3D42]">
                   <td className="py-3 text-white">{creator.name}</td>
                   <td className="py-3 text-[#ADB5BD]">{creator.username}</td>
@@ -408,6 +416,13 @@ export function AdminCreators() {
               )}
             </tbody>
           </table>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={approvedCreators.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </CardContent>
       </Card>
 
@@ -484,6 +499,35 @@ export function AdminCreators() {
                       Reject Creator
                     </Button>
                   )}
+                  <Button
+                    variant="primary"
+                    className="mt-2 bg-purple-600 hover:bg-purple-700"
+                    onClick={async () => {
+                      if (!confirm(`Are you sure you want to log in as ${selectedCreator.name}? You will be logged out of your admin account.`)) return;
+
+                      try {
+                        setIsLoading(true);
+                        const { data, error } = await supabase.functions.invoke('admin-impersonate-user', {
+                          body: { targetUserId: selectedCreator.id }
+                        });
+
+                        if (error) throw error;
+                        if (data?.actionLink) {
+                          // Redirect to the magic link to login as the user
+                          window.location.href = data.actionLink;
+                        } else {
+                          throw new Error('No login link returned');
+                        }
+                      } catch (err: any) {
+                        console.error('Impersonation failed:', err);
+                        alert('Failed to login as user: ' + (err.message || 'Unknown error'));
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  >
+                    Login as Creator
+                  </Button>
                 </div>
               </div>
             </>

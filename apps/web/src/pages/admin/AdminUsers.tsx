@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Badge, Button, Card, CardContent, CardHeader, TextInput } from '@fanmeet/ui';
+import { Pagination } from '../../components/Pagination';
 import { formatCurrency, formatDateTime } from '@fanmeet/utils';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -38,6 +39,9 @@ export function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | AccountStatus>('all');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const userDetailRef = useRef<HTMLDivElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -133,6 +137,12 @@ export function AdminUsers() {
     });
   }, [users, search, roleFilter, statusFilter]);
 
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredUsers.slice(startIndex, endIndex);
+  }, [filteredUsers, currentPage, itemsPerPage]);
+
   const selectedUser = useMemo(
     () => users.find((u) => u.id === selectedUserId) ?? null,
     [users, selectedUserId],
@@ -209,11 +219,10 @@ export function AdminUsers() {
                 {roleFilters.map((role) => (
                   <button
                     key={role.value}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                      roleFilter === role.value
-                        ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
-                        : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${roleFilter === role.value
+                      ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
+                      : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
+                      }`}
                     type="button"
                     onClick={() => setRoleFilter(role.value)}
                   >
@@ -228,11 +237,10 @@ export function AdminUsers() {
                 {statusFilters.map((status) => (
                   <button
                     key={status.value}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                      statusFilter === status.value
-                        ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
-                        : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
-                    }`}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${statusFilter === status.value
+                      ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
+                      : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
+                      }`}
                     type="button"
                     onClick={() => setStatusFilter(status.value)}
                   >
@@ -263,7 +271,7 @@ export function AdminUsers() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr key={user.id} className="border-b border-[#E9ECEF]">
                   <td className="py-3">
                     <input type="checkbox" className="h-4 w-4 rounded border-[#CED4DA]" />
@@ -277,15 +285,15 @@ export function AdminUsers() {
                         user.accountStatus === 'active'
                           ? 'success'
                           : user.accountStatus === 'suspended'
-                          ? 'warning'
-                          : 'danger'
+                            ? 'warning'
+                            : 'danger'
                       }
                     >
                       {user.accountStatus === 'active'
                         ? 'Active'
                         : user.accountStatus === 'suspended'
-                        ? 'Suspended'
-                        : 'Banned'}
+                          ? 'Suspended'
+                          : 'Banned'}
                     </Badge>
                   </td>
                   <td className="py-3 text-[#6C757D]">{formatDateTime(user.joinedAt)}</td>
@@ -300,7 +308,12 @@ export function AdminUsers() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setSelectedUserId(user.id)}
+                        onClick={() => {
+                          setSelectedUserId(user.id);
+                          setTimeout(() => {
+                            userDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }, 100);
+                        }}
                       >
                         View
                       </Button>
@@ -351,10 +364,17 @@ export function AdminUsers() {
               )}
             </tbody>
           </table>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredUsers.length}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={setItemsPerPage}
+          />
         </CardContent>
       </Card>
 
-      <Card>
+      <Card ref={userDetailRef}>
         <CardHeader
           title={
             selectedUser
@@ -395,15 +415,15 @@ export function AdminUsers() {
                         selectedUser.accountStatus === 'active'
                           ? 'success'
                           : selectedUser.accountStatus === 'suspended'
-                          ? 'warning'
-                          : 'danger'
+                            ? 'warning'
+                            : 'danger'
                       }
                     >
                       {selectedUser.accountStatus === 'active'
                         ? 'Active'
                         : selectedUser.accountStatus === 'suspended'
-                        ? 'Suspended'
-                        : 'Banned'}
+                          ? 'Suspended'
+                          : 'Banned'}
                     </Badge>
                   </div>
                 </div>
@@ -413,8 +433,8 @@ export function AdminUsers() {
                       {selectedUser.role === 'fan'
                         ? 'Total Spent'
                         : selectedUser.role === 'creator'
-                        ? 'Total Earned'
-                        : 'Total Volume'}
+                          ? 'Total Earned'
+                          : 'Total Volume'}
                     </p>
                     <p className="text-xl font-semibold">
                       {selectedUser.totalAmount > 0
@@ -445,6 +465,35 @@ export function AdminUsers() {
                     onClick={() => handleStatusChange(selectedUser, 'banned')}
                   >
                     Ban Account
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="mt-2 bg-purple-600 hover:bg-purple-700"
+                    onClick={async () => {
+                      if (!confirm(`Are you sure you want to log in as ${selectedUser.displayName}? You will be logged out of your admin account.`)) return;
+
+                      try {
+                        setIsLoading(true);
+                        const { data, error } = await supabase.functions.invoke('admin-impersonate-user', {
+                          body: { targetUserId: selectedUser.id }
+                        });
+
+                        if (error) throw error;
+                        if (data?.actionLink) {
+                          // Redirect to the magic link to login as the user
+                          window.location.href = data.actionLink;
+                        } else {
+                          throw new Error('No login link returned');
+                        }
+                      } catch (err: any) {
+                        console.error('Impersonation failed:', err);
+                        alert('Failed to login as user: ' + (err.message || 'Unknown error'));
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  >
+                    Login as User
                   </Button>
                 </div>
               </div>
