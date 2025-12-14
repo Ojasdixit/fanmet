@@ -37,13 +37,13 @@ export const buildUsername = (email: string) => {
   return normalized || 'user';
 };
 
-const toAuthUser = (row: DbUser): AuthUser => ({
+const toAuthUser = (row: DbUser, profile?: any): AuthUser => ({
   id: row.id,
   email: row.email,
   role: row.role,
-  username: buildUsername(row.email),
+  username: profile?.username || buildUsername(row.email),
   user_metadata: undefined,
-  creatorProfileStatus: row.creator_profile_status,
+  creatorProfileStatus: profile?.creator_profile_status || row.creator_profile_status,
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -61,14 +61,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        const { data, error } = await supabase
+        const { data: userData, error: userError } = await supabase
           .from('users')
           .select('id,email,role,creator_profile_status')
           .eq('id', authUser.id)
           .maybeSingle();
 
-        if (!error && data) {
-          setUser(toAuthUser(data as DbUser));
+        if (!userError && userData) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('username, creator_profile_status')
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+
+          setUser(toAuthUser(userData as DbUser, profileData));
         }
       } finally {
         setIsLoading(false);
@@ -95,7 +101,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('No profile found for this account.');
     }
 
-    const nextUser = toAuthUser(profile as DbUser);
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('username, creator_profile_status')
+      .eq('user_id', data.user.id)
+      .maybeSingle();
+
+    const nextUser = toAuthUser(profile as DbUser, profileData);
     setUser(nextUser);
     return nextUser;
   };
@@ -129,6 +141,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       user_id: authUser.id,
       username,
       display_name: displayName,
+      creator_profile_status: role === 'creator' ? 'pending' : undefined
     });
 
     if (profileError) {
@@ -136,7 +149,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // We don't throw here to allow login to proceed, but it's not ideal
     }
 
-    const nextUser = toAuthUser({ id: authUser.id, email: authUser.email ?? email, role });
+    const nextUser = toAuthUser(
+      { id: authUser.id, email: authUser.email ?? email, role },
+      { username, creator_profile_status: role === 'creator' ? 'pending' : undefined }
+    );
     setUser(nextUser);
     return nextUser;
   };

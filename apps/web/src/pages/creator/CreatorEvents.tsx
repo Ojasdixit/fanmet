@@ -31,6 +31,28 @@ export function CreatorEvents() {
     }
   };
 
+  if (user?.creatorProfileStatus === 'pending') {
+    return (
+      <div className="flex flex-col gap-8">
+        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-yellow-800">
+          <h3 className="text-lg font-semibold">Pending Approval</h3>
+          <p>Your creator account is currently pending approval. Please wait for approval from an admin.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user?.creatorProfileStatus === 'rejected') {
+    return (
+      <div className="flex flex-col gap-8">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-800">
+          <h3 className="text-lg font-semibold">Application Rejected</h3>
+          <p>Your creator account application was rejected by an admin.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
