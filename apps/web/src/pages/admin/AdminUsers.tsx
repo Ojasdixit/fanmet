@@ -42,6 +42,11 @@ export function AdminUsers() {
   const userDetailRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [registrationDateFrom, setRegistrationDateFrom] = useState('');
+  const [registrationDateTo, setRegistrationDateTo] = useState('');
+  const [lastActiveDateFrom, setLastActiveDateFrom] = useState('');
+  const [lastActiveDateTo, setLastActiveDateTo] = useState('');
+  const [verificationFilter, setVerificationFilter] = useState<'all' | 'verified' | 'unverified'>('all');
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -127,6 +132,36 @@ export function AdminUsers() {
       if (roleFilter !== 'all' && user.role !== roleFilter) return false;
       if (statusFilter !== 'all' && user.accountStatus !== statusFilter) return false;
 
+      // Registration date filter
+      if (registrationDateFrom) {
+        const regDate = new Date(user.joinedAt);
+        const fromDate = new Date(registrationDateFrom);
+        if (regDate < fromDate) return false;
+      }
+      if (registrationDateTo) {
+        const regDate = new Date(user.joinedAt);
+        const toDate = new Date(registrationDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (regDate > toDate) return false;
+      }
+
+      // Last active filter
+      if (lastActiveDateFrom && user.lastActiveAt) {
+        const activeDate = new Date(user.lastActiveAt);
+        const fromDate = new Date(lastActiveDateFrom);
+        if (activeDate < fromDate) return false;
+      }
+      if (lastActiveDateTo && user.lastActiveAt) {
+        const activeDate = new Date(user.lastActiveAt);
+        const toDate = new Date(lastActiveDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (activeDate > toDate) return false;
+      }
+
+      // Verification filter (based on email verification - using a proxy: if lastActiveAt exists, likely verified)
+      if (verificationFilter === 'verified' && !user.lastActiveAt) return false;
+      if (verificationFilter === 'unverified' && user.lastActiveAt) return false;
+
       if (!query) return true;
 
       return (
@@ -135,7 +170,7 @@ export function AdminUsers() {
         user.id.toLowerCase().includes(query)
       );
     });
-  }, [users, search, roleFilter, statusFilter]);
+  }, [users, search, roleFilter, statusFilter, registrationDateFrom, registrationDateTo, lastActiveDateFrom, lastActiveDateTo, verificationFilter]);
 
   const paginatedUsers = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -208,9 +243,44 @@ export function AdminUsers() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-            <TextInput label="Registration Date" placeholder="(coming soon)" disabled />
-            <TextInput label="Last Active" placeholder="(coming soon)" disabled />
-            <TextInput label="Verification" placeholder="(coming soon)" disabled />
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-[#6C757D]">Registration Date Range</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={registrationDateFrom}
+                  onChange={(e) => setRegistrationDateFrom(e.target.value)}
+                  className="flex-1 rounded-[12px] border border-[#CED4DA] px-3 py-2 text-sm focus:border-[#C045FF] focus:outline-none focus:ring-2 focus:ring-[#C045FF]/20"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={registrationDateTo}
+                  onChange={(e) => setRegistrationDateTo(e.target.value)}
+                  className="flex-1 rounded-[12px] border border-[#CED4DA] px-3 py-2 text-sm focus:border-[#C045FF] focus:outline-none focus:ring-2 focus:ring-[#C045FF]/20"
+                  placeholder="To"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-[#6C757D]">Last Active Range</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={lastActiveDateFrom}
+                  onChange={(e) => setLastActiveDateFrom(e.target.value)}
+                  className="flex-1 rounded-[12px] border border-[#CED4DA] px-3 py-2 text-sm focus:border-[#C045FF] focus:outline-none focus:ring-2 focus:ring-[#C045FF]/20"
+                  placeholder="From"
+                />
+                <input
+                  type="date"
+                  value={lastActiveDateTo}
+                  onChange={(e) => setLastActiveDateTo(e.target.value)}
+                  className="flex-1 rounded-[12px] border border-[#CED4DA] px-3 py-2 text-sm focus:border-[#C045FF] focus:outline-none focus:ring-2 focus:ring-[#C045FF]/20"
+                  placeholder="To"
+                />
+              </div>
+            </div>
           </div>
           <div className="flex flex-col gap-3">
             <div>
@@ -245,6 +315,28 @@ export function AdminUsers() {
                     onClick={() => setStatusFilter(status.value)}
                   >
                     {status.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">Verification</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-sm">
+                {[
+                  { label: 'All', value: 'all' as const },
+                  { label: 'Verified', value: 'verified' as const },
+                  { label: 'Unverified', value: 'unverified' as const },
+                ].map((verification) => (
+                  <button
+                    key={verification.value}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium ${verificationFilter === verification.value
+                        ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
+                        : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
+                      }`}
+                    type="button"
+                    onClick={() => setVerificationFilter(verification.value)}
+                  >
+                    {verification.label}
                   </button>
                 ))}
               </div>
@@ -374,137 +466,139 @@ export function AdminUsers() {
         </CardContent>
       </Card>
 
-      <Card ref={userDetailRef}>
-        <CardHeader
-          title={
-            selectedUser
-              ? `User Detail — ${selectedUser.displayName}`
-              : 'User Detail'
-          }
-          subtitle="Full profile view for context and actions."
-        />
-        <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          {selectedUser ? (
-            <>
-              <div className="grid gap-4 rounded-[16px] border border-[#E9ECEF] bg-[#F8F9FA] p-6">
-                <div className="grid gap-2 text-sm text-[#212529] md:grid-cols-2">
-                  <div>
-                    <p className="text-[#6C757D]">Email</p>
-                    <p>{selectedUser.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-[#6C757D]">Role</p>
-                    <Badge variant="primary">{selectedUser.role}</Badge>
-                  </div>
-                  <div>
-                    <p className="text-[#6C757D]">Joined</p>
-                    <p>{formatDateTime(selectedUser.joinedAt)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[#6C757D]">Last Active</p>
-                    <p>
-                      {selectedUser.lastActiveAt
-                        ? formatDateTime(selectedUser.lastActiveAt)
-                        : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[#6C757D]">Status</p>
-                    <Badge
-                      variant={
-                        selectedUser.accountStatus === 'active'
-                          ? 'success'
+      <div ref={userDetailRef}>
+        <Card>
+          <CardHeader
+            title={
+              selectedUser
+                ? `User Detail — ${selectedUser.displayName}`
+                : 'User Detail'
+            }
+            subtitle="Full profile view for context and actions."
+          />
+          <CardContent className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            {selectedUser ? (
+              <>
+                <div className="grid gap-4 rounded-[16px] border border-[#E9ECEF] bg-[#F8F9FA] p-6">
+                  <div className="grid gap-2 text-sm text-[#212529] md:grid-cols-2">
+                    <div>
+                      <p className="text-[#6C757D]">Email</p>
+                      <p>{selectedUser.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-[#6C757D]">Role</p>
+                      <Badge variant="primary">{selectedUser.role}</Badge>
+                    </div>
+                    <div>
+                      <p className="text-[#6C757D]">Joined</p>
+                      <p>{formatDateTime(selectedUser.joinedAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[#6C757D]">Last Active</p>
+                      <p>
+                        {selectedUser.lastActiveAt
+                          ? formatDateTime(selectedUser.lastActiveAt)
+                          : '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[#6C757D]">Status</p>
+                      <Badge
+                        variant={
+                          selectedUser.accountStatus === 'active'
+                            ? 'success'
+                            : selectedUser.accountStatus === 'suspended'
+                              ? 'warning'
+                              : 'danger'
+                        }
+                      >
+                        {selectedUser.accountStatus === 'active'
+                          ? 'Active'
                           : selectedUser.accountStatus === 'suspended'
-                            ? 'warning'
-                            : 'danger'
+                            ? 'Suspended'
+                            : 'Banned'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-[12px] bg-white p-4 text-sm text-[#212529]">
+                      <p className="text-[#6C757D]">
+                        {selectedUser.role === 'fan'
+                          ? 'Total Spent'
+                          : selectedUser.role === 'creator'
+                            ? 'Total Earned'
+                            : 'Total Volume'}
+                      </p>
+                      <p className="text-xl font-semibold">
+                        {selectedUser.totalAmount > 0
+                          ? formatCurrency(selectedUser.totalAmount)
+                          : '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4 rounded-[16px] border border-[#E9ECEF] bg-white p-6 text-sm text-[#212529]">
+                  <p className="text-[#6C757D]">Admin Actions</p>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        handleStatusChange(
+                          selectedUser,
+                          selectedUser.accountStatus === 'active' ? 'suspended' : 'active',
+                        )
                       }
                     >
-                      {selectedUser.accountStatus === 'active'
-                        ? 'Active'
-                        : selectedUser.accountStatus === 'suspended'
-                          ? 'Suspended'
-                          : 'Banned'}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-[12px] bg-white p-4 text-sm text-[#212529]">
-                    <p className="text-[#6C757D]">
-                      {selectedUser.role === 'fan'
-                        ? 'Total Spent'
-                        : selectedUser.role === 'creator'
-                          ? 'Total Earned'
-                          : 'Total Volume'}
-                    </p>
-                    <p className="text-xl font-semibold">
-                      {selectedUser.totalAmount > 0
-                        ? formatCurrency(selectedUser.totalAmount)
-                        : '—'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-4 rounded-[16px] border border-[#E9ECEF] bg-white p-6 text-sm text-[#212529]">
-                <p className="text-[#6C757D]">Admin Actions</p>
-                <div className="flex flex-col gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      handleStatusChange(
-                        selectedUser,
-                        selectedUser.accountStatus === 'active' ? 'suspended' : 'active',
-                      )
-                    }
-                  >
-                    {selectedUser.accountStatus === 'suspended'
-                      ? 'Unsuspend Account'
-                      : 'Suspend Account'}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    onClick={() => handleStatusChange(selectedUser, 'banned')}
-                  >
-                    Ban Account
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="mt-2 bg-purple-600 hover:bg-purple-700"
-                    onClick={async () => {
-                      if (!confirm(`Are you sure you want to log in as ${selectedUser.displayName}? You will be logged out of your admin account.`)) return;
+                      {selectedUser.accountStatus === 'suspended'
+                        ? 'Unsuspend Account'
+                        : 'Suspend Account'}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={() => handleStatusChange(selectedUser, 'banned')}
+                    >
+                      Ban Account
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="mt-2 bg-purple-600 hover:bg-purple-700"
+                      onClick={async () => {
+                        if (!confirm(`Are you sure you want to log in as ${selectedUser.displayName}? You will be logged out of your admin account.`)) return;
 
-                      try {
-                        setIsLoading(true);
-                        const { data, error } = await supabase.functions.invoke('admin-impersonate-user', {
-                          body: { targetUserId: selectedUser.id }
-                        });
+                        try {
+                          setIsLoading(true);
+                          const { data, error } = await supabase.functions.invoke('admin-impersonate-user', {
+                            body: { targetUserId: selectedUser.id }
+                          });
 
-                        if (error) throw error;
-                        if (data?.actionLink) {
-                          // Redirect to the magic link to login as the user
-                          window.location.href = data.actionLink;
-                        } else {
-                          throw new Error('No login link returned');
+                          if (error) throw error;
+                          if (data?.actionLink) {
+                            // Redirect to the magic link to login as the user
+                            window.location.href = data.actionLink;
+                          } else {
+                            throw new Error('No login link returned');
+                          }
+                        } catch (err: any) {
+                          console.error('Impersonation failed:', err);
+                          alert('Failed to login as user: ' + (err.message || 'Unknown error'));
+                        } finally {
+                          setIsLoading(false);
                         }
-                      } catch (err: any) {
-                        console.error('Impersonation failed:', err);
-                        alert('Failed to login as user: ' + (err.message || 'Unknown error'));
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    }}
-                  >
-                    Login as User
-                  </Button>
+                      }}
+                    >
+                      Login as User
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </>
-          ) : (
-            <p className="text-sm text-[#6C757D]">
-              Select a user from the table above to view details.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+              </>
+            ) : (
+              <p className="text-sm text-[#6C757D]">
+                Select a user from the table above to view details.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
