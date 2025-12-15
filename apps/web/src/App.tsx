@@ -5,10 +5,26 @@ import { AppShell } from './layouts/AppShell';
 import { DashboardShell } from './layouts/DashboardShell';
 import { LandingPage } from './pages/LandingPage';
 import { AuthPage } from './pages/auth/AuthPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { UpdatePasswordPage } from './pages/auth/UpdatePasswordPage';
+import { AuthCallbackPage } from './pages/auth/AuthCallbackPage';
 import { AdminAuthPage } from './pages/auth/AdminAuthPage';
 import { BrowseEventsPage } from './pages/BrowseEventsPage';
 import { HowItWorksPage } from './pages/HowItWorksPage';
 import { ForCreatorsPage } from './pages/ForCreatorsPage';
+import { PricingPage } from './pages/PricingPage';
+import { FaqPage } from './pages/FaqPage';
+import { FreeEventsPage } from './pages/FreeEventsPage';
+import { ApplyPage } from './pages/ApplyPage';
+import { CreatorGuidePage } from './pages/CreatorGuidePage';
+import { EarningsCalculatorPage } from './pages/EarningsCalculatorPage';
+import { SuccessStoriesPage } from './pages/SuccessStoriesPage';
+import { AboutPage } from './pages/AboutPage';
+import { TeamPage } from './pages/TeamPage';
+import { PressPage } from './pages/PressPage';
+import { CareersPage } from './pages/CareersPage';
+import { BlogPage } from './pages/BlogPage';
+import { HelpCenterPage } from './pages/HelpCenterPage';
 import { FanDashboard } from './pages/fan/FanDashboard';
 import { FanBids } from './pages/fan/FanBids';
 import { FanMeets } from './pages/fan/FanMeets';
@@ -66,6 +82,11 @@ import { AdminMeetingLogs } from './pages/admin/AdminMeetingLogs';
 import { InfluencerPage } from './pages/influencer/InfluencerPage';
 import { EventDetailPage } from './pages/events/EventDetailPage';
 import { MeetingRoom } from './pages/meet/MeetingRoom';
+import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage';
+import { TermsOfServicePage } from './pages/legal/TermsOfServicePage';
+import { RefundPolicyPage } from './pages/legal/RefundPolicyPage';
+import { CancellationPolicyPage } from './pages/legal/CancellationPolicyPage';
+import { ContactPage } from './pages/legal/ContactPage';
 import { AuthProvider } from './contexts/AuthContext';
 import { EventProvider } from './contexts/EventContext';
 import { CreatorProfileProvider } from './contexts/CreatorProfileContext';
@@ -93,10 +114,31 @@ export default function App() {
                 <Route element={<AppShell />}>
                   <Route index element={<LandingPage />} />
                   <Route path="auth" element={<AuthPage />} />
+                  <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
+                  <Route path="auth/update-password" element={<UpdatePasswordPage />} />
+                  <Route path="auth/callback" element={<AuthCallbackPage />} />
                   <Route path="fanmeet/admin/superadmin" element={<AdminAuthPage />} />
                   <Route path="browse-events" element={<BrowseEventsPage />} />
                   <Route path="how-it-works" element={<HowItWorksPage />} />
                   <Route path="for-creators" element={<ForCreatorsPage />} />
+                  <Route path="pricing" element={<PricingPage />} />
+                  <Route path="faq" element={<FaqPage />} />
+                  <Route path="free-events" element={<FreeEventsPage />} />
+                  <Route path="apply" element={<ApplyPage />} />
+                  <Route path="creator-guide" element={<CreatorGuidePage />} />
+                  <Route path="earnings-calculator" element={<EarningsCalculatorPage />} />
+                  <Route path="success-stories" element={<SuccessStoriesPage />} />
+                  <Route path="about" element={<AboutPage />} />
+                  <Route path="team" element={<TeamPage />} />
+                  <Route path="press" element={<PressPage />} />
+                  <Route path="careers" element={<CareersPage />} />
+                  <Route path="blog" element={<BlogPage />} />
+                  <Route path="help-center" element={<HelpCenterPage />} />
+                  <Route path="privacy-policy" element={<PrivacyPolicyPage />} />
+                  <Route path="terms-of-service" element={<TermsOfServicePage />} />
+                  <Route path="refund-policy" element={<RefundPolicyPage />} />
+                  <Route path="cancellation-policy" element={<CancellationPolicyPage />} />
+                  <Route path="contact" element={<ContactPage />} />
                   <Route path="events/:eventId" element={<EventDetailPage />} />
                   <Route path=":username" element={<InfluencerPage />} />
                 </Route>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@fanmeet/ui';
 import { useAuth } from '../contexts/AuthContext';
+import { PublicFooter } from '../components/PublicFooter';
 
 const navLinkClasses = ({ isActive }: { isActive: boolean }) =>
   `text-base font-medium transition-colors ${isActive ? 'text-[#C045FF]' : 'text-[#6C757D] hover:text-[#C045FF]'
@@ -147,6 +148,7 @@ export const AppShell = () => {
       <main className="bg-gradient-to-b from-white to-[#FFE5D9]">
         <Outlet />
       </main>
+      <PublicFooter />
     </div>
   );
 };

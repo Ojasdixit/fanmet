@@ -18,6 +18,8 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (params: { email: string; password: string }) => Promise<AuthUser>;
   signup: (params: { email: string; password: string; role: UserRole }) => Promise<AuthUser>;
+  sendPasswordResetEmail: (params: { email: string; redirectTo?: string }) => Promise<void>;
+  resendVerificationEmail: (params: { email: string; redirectTo?: string }) => Promise<void>;
   logout: () => Promise<void>;
   onlineUsers: Set<string>;
 }
@@ -91,6 +93,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Invalid email or password.');
     }
 
+    if (!data.user.email_confirmed_at) {
+      await supabase.auth.signOut();
+      throw new Error('Please verify your email before logging in.');
+    }
+
     const { data: profile, error: profileError } = await supabase
       .from('users')
       .select('id,email,role,creator_profile_status')
@@ -113,9 +120,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signup: AuthContextValue['signup'] = async ({ email, password, role }) => {
+    const emailRedirectTo =
+      typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo,
+      },
     });
 
     if (error || !data.user) {
@@ -151,10 +164,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const nextUser = toAuthUser(
       { id: authUser.id, email: authUser.email ?? email, role },
-      { username, creator_profile_status: role === 'creator' ? 'pending' : undefined }
+      { username, creator_profile_status: role === 'creator' ? 'pending' : undefined },
     );
-    setUser(nextUser);
+
+    // If email confirmation is required, Supabase may not create a session until verified.
+    // We still return the user so the UI can show a "check your email" message.
+    if (authUser.email_confirmed_at) {
+      setUser(nextUser);
+    }
+
     return nextUser;
+  };
+
+  const sendPasswordResetEmail: AuthContextValue['sendPasswordResetEmail'] = async ({
+    email,
+    redirectTo,
+  }) => {
+    const nextRedirectTo =
+      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/auth/update-password` : undefined);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: nextRedirectTo,
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Could not send password reset email.');
+    }
+  };
+
+  const resendVerificationEmail: AuthContextValue['resendVerificationEmail'] = async ({
+    email,
+    redirectTo,
+  }) => {
+    // Supabase v2 supports resend for signup confirmations.
+    const nextRedirectTo =
+      redirectTo ?? (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined);
+
+    const authAny = supabase.auth as any;
+    const { error } = await authAny.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: nextRedirectTo },
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Could not resend verification email.');
+    }
   };
 
   const logout: AuthContextValue['logout'] = async () => {
@@ -203,6 +258,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       login,
       signup,
+      sendPasswordResetEmail,
+      resendVerificationEmail,
       logout,
       onlineUsers,
     }),

@@ -21,10 +21,11 @@ export function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
+  const [formSuccess, setFormSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, signup, isAuthenticated, user } = useAuth();
+  const { login, signup, resendVerificationEmail, isAuthenticated, user } = useAuth();
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -46,6 +47,7 @@ export function AuthPage() {
     }
 
     setFormError('');
+    setFormSuccess('');
     setIsSubmitting(true);
 
     try {
@@ -60,6 +62,11 @@ export function AuthPage() {
           ? await signup({ email, password, role: selectedRole })
           : await login({ email, password });
 
+      if (mode === 'signup') {
+        setFormSuccess('Account created. Please check your email to verify your account before logging in.');
+        return;
+      }
+
       const redirectParam = searchParams.get('redirect');
       const defaultTarget = redirectMap[authUser.role];
       const target = redirectParam && redirectParam.trim().length > 0 ? redirectParam : defaultTarget;
@@ -71,6 +78,25 @@ export function AuthPage() {
       } else {
         setFormError('Something went wrong. Please try again.');
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setFormError('');
+    setFormSuccess('');
+    if (!email.trim()) {
+      setFormError('Enter your email first, then click resend.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await resendVerificationEmail({ email: email.trim() });
+      setFormSuccess('Verification email sent. Please check your inbox.');
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : 'Could not resend verification email.');
     } finally {
       setIsSubmitting(false);
     }
@@ -236,17 +262,29 @@ export function AuthPage() {
                   <input type="checkbox" className="h-4 w-4 rounded border-[#CBD5F5] text-[#C045FF] focus:ring-[#C045FF]" />
                   Remember me
                 </label>
-                <Link to="#" className="font-medium text-[#C045FF] hover:text-[#8B3FFF]">
+                <Link to="/auth/forgot-password" className="font-medium text-[#C045FF] hover:text-[#8B3FFF]">
                   Forgot password?
                 </Link>
               </div>
             </div>
 
             {formError ? <p className="text-[11px] font-medium text-[#DC3545]">{formError}</p> : null}
+            {formSuccess ? <p className="text-[11px] font-medium text-[#198754]">{formSuccess}</p> : null}
 
             <Button type="submit" size="md" className="h-9 text-[13px]">
               Continue with email
             </Button>
+
+            {mode === 'login' ? (
+              <button
+                type="button"
+                className="text-left text-[12px] font-medium text-[#C045FF] hover:text-[#8B3FFF]"
+                onClick={handleResendVerification}
+                disabled={isSubmitting}
+              >
+                Resend verification email
+              </button>
+            ) : null}
 
             <div className="flex items-center gap-2.5">
               <span className="h-px flex-1 bg-[#E9ECEF]" />

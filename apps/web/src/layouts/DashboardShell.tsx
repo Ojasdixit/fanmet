@@ -117,6 +117,11 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const { logout, user } = useAuth();
   const { notifications, unreadNotificationsCount, unreadMessagesCount, markAllNotificationsAsRead } = useNotifications();
 
+  // Check if creator needs approval overlay
+  const showApprovalOverlay = role === 'creator' && user && user.creatorProfileStatus !== 'approved';
+  const isPendingApproval = user?.creatorProfileStatus === 'pending';
+  const isRejected = user?.creatorProfileStatus === 'rejected';
+
   // Get user initials from email/username
   const userInitials = user?.username ? user.username.substring(0, 2).toUpperCase() : user?.email?.substring(0, 2).toUpperCase() || 'U';
   const displayName = user?.username ? user.username.charAt(0).toUpperCase() + user.username.slice(1) : user?.email?.split('@')[0] || 'User';
@@ -338,6 +343,56 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
+      {/* Creator Approval Overlay */}
+      {showApprovalOverlay && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#F4E6FF] to-[#E9D5FF]">
+              <span className="text-4xl">{isPendingApproval ? '⏳' : '❌'}</span>
+            </div>
+            <h2 className="mb-2 text-2xl font-bold text-[#212529]">
+              {isPendingApproval ? 'Account Pending Verification' : 'Account Not Approved'}
+            </h2>
+            <p className="mb-6 text-[#6C757D]">
+              {isPendingApproval
+                ? 'Your creator account is currently under review. Our team will verify your profile within 24-48 hours. You will receive a notification once approved.'
+                : 'Unfortunately, your creator application was not approved. Please contact our support team for more information or to reapply.'}
+            </p>
+            <div className="flex flex-col gap-3">
+              {isPendingApproval && (
+                <div className="rounded-xl bg-[#F4E6FF]/60 p-4 text-left">
+                  <p className="text-sm font-medium text-[#7B2CBF]">While you wait:</p>
+                  <ul className="mt-2 space-y-1 text-sm text-[#6C757D]">
+                    <li>✓ Complete your profile setup</li>
+                    <li>✓ Add your bank details for payouts</li>
+                    <li>✓ Link your social media accounts</li>
+                  </ul>
+                </div>
+              )}
+              <Button
+                onClick={() => navigate('/creator/profile-setup')}
+                className="w-full"
+              >
+                {isPendingApproval ? 'Complete Profile Setup' : 'Update Profile'}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => navigate('/creator/support')}
+                className="w-full"
+              >
+                Contact Support
+              </Button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-2 text-sm text-[#6C757D] underline hover:text-[#212529]"
+              >
+                Logout and switch account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <aside
         className="sticky top-0 hidden h-screen max-h-screen flex-shrink-0 border-r border-[#1F2933] bg-gradient-to-b from-[#050014] via-[#050014] to-[#140423] text-white md:flex md:flex-col relative"
         style={{ width: isSidebarCollapsed ? 80 : sidebarWidth }}

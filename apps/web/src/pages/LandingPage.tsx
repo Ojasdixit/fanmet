@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useScroll, useTransform, motion, MotionValue } from 'framer-motion';
 import { Button, Card, CardContent, CardHeader, Avatar, Badge } from '@fanmeet/ui';
 import SphereImageGrid, { type ImageData } from '../components/SphereImageGrid';
@@ -59,12 +59,12 @@ const featuredCreators = [
 ];
 
 const creatorImageUrls = [
-  'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181670/pexels-photo-1181670.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181681/pexels-photo-1181681.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181672/pexels-photo-1181672.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181680/pexels-photo-1181680.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Priya%20Sharma&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Rohan%20Gupta&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Amit%20Singh&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Neha%20Kapoor&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Arjun%20Mehta&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Sana%20Rao&backgroundColor=f4e6ff',
 ];
 
 const featuredCreatorImages: ImageData[] = Array.from({ length: 32 }).map((_, index) => {
@@ -187,12 +187,12 @@ const photoReviews = [
 ];
 
 const realFanmeetImageUrls = [
-  'https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1183266/pexels-photo-1183266.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181670/pexels-photo-1181670.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'https://api.dicebear.com/7.x/initials/svg?seed=Priya%20%7C%20Mumbai&backgroundColor=050014&textColor=f4e6ff',
+  'https://api.dicebear.com/7.x/initials/svg?seed=Rahul%20%7C%20Delhi&backgroundColor=050014&textColor=f4e6ff',
+  'https://api.dicebear.com/7.x/initials/svg?seed=Sneha%20%7C%20Bangalore&backgroundColor=050014&textColor=f4e6ff',
+  'https://api.dicebear.com/7.x/initials/svg?seed=Pooja%20%7C%20Pune&backgroundColor=050014&textColor=f4e6ff',
+  'https://api.dicebear.com/7.x/initials/svg?seed=Harsh%20%7C%20Ahmedabad&backgroundColor=050014&textColor=f4e6ff',
+  'https://api.dicebear.com/7.x/initials/svg?seed=Neeraj%20%7C%20India&backgroundColor=050014&textColor=f4e6ff',
 ];
 
 const textReviews = [
@@ -379,12 +379,12 @@ const teamMembers = [
 ];
 
 const teamImageUrls = [
-  'https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1544723795-432537d12f6c?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1544723795-3fb0b90c07c1?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1525130413817-d45c1d127c42?auto=format&fit=crop&w=900&q=80',
-  'https://images.unsplash.com/photo-1525130413817-9e0b0a50b9d5?auto=format&fit=crop&w=900&q=80',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Arjun%20Singh&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Priya%20Mehta&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Rahul%20Verma&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Neha%20Kapoor%20Support&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Amit%20Gupta%20Marketing&backgroundColor=f4e6ff',
+  'https://api.dicebear.com/7.x/personas/svg?seed=Sneha%20Sharma%20Ops&backgroundColor=f4e6ff',
 ];
 
 const teamTestimonials: Testimonial[] = teamMembers.map((member, index) => ({
@@ -551,32 +551,33 @@ const footerLinks = {
     ],
   },
   fans: [
-    { label: 'Browse Events', url: '#' },
-    { label: 'How It Works', url: '#how-it-works' },
-    { label: 'Pricing', url: '#pricing' },
-    { label: 'FAQs', url: '#faq' },
-    { label: 'Free Events', url: '#' },
+    { label: 'Browse Events', url: '/browse-events' },
+    { label: 'How It Works', url: '/how-it-works' },
+    { label: 'Pricing', url: '/pricing' },
+    { label: 'FAQs', url: '/faq' },
+    { label: 'Free Events', url: '/free-events' },
   ],
   creators: [
-    { label: 'Apply Now', url: '#creators' },
-    { label: 'Creator Guide', url: '#' },
-    { label: 'Earnings Calculator', url: '#' },
-    { label: 'Success Stories', url: '#success-stories' },
-    { label: 'Creator FAQs', url: '#faq' },
+    { label: 'Apply Now', url: '/apply' },
+    { label: 'Creator Guide', url: '/creator-guide' },
+    { label: 'Earnings Calculator', url: '/earnings-calculator' },
+    { label: 'Success Stories', url: '/success-stories' },
+    { label: 'Creator FAQs', url: '/faq' },
   ],
   company: [
-    { label: 'About Us', url: '#team' },
-    { label: 'Our Team', url: '#team' },
-    { label: 'Press & Media', url: '#press' },
-    { label: "Careers (We're Hiring!)", url: '#' },
-    { label: 'Blog', url: '#' },
+    { label: 'About Us', url: '/about' },
+    { label: 'Our Team', url: '/team' },
+    { label: 'Press & Media', url: '/press' },
+    { label: "Careers (We're Hiring!)", url: '/careers' },
+    { label: 'Blog', url: '/blog' },
   ],
   support: [
-    { label: 'Help Center', url: '#' },
-    { label: 'Contact Us', url: '#' },
-    { label: 'Terms of Service', url: '#' },
-    { label: 'Privacy Policy', url: '#' },
-    { label: 'Refund Policy', url: '#' },
+    { label: 'Help Center', url: '/help-center' },
+    { label: 'Contact Us', url: '/contact' },
+    { label: 'Terms of Service', url: '/terms-of-service' },
+    { label: 'Privacy Policy', url: '/privacy-policy' },
+    { label: 'Refund Policy', url: '/refund-policy' },
+    { label: 'Cancellation Policy', url: '/cancellation-policy' },
   ],
 };
 
@@ -1531,73 +1532,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* SECTION 20: FOOTER */}
-      <footer className="bg-[#1B1C1F] px-6 py-16 text-white md:px-16">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,3fr)]">
-            <div className="space-y-6">
-              <div>
-                <div className="text-2xl font-bold text-[#C045FF]">FanMeet</div>
-                <p className="mt-2 text-sm text-[#ADB5BD]">{footerLinks.fanmeet.tagline}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-sm text-[#ADB5BD]">
-                {paymentLogos.map((logo) => (
-                  <span key={logo} className="rounded-full border border-[#343A40] px-3 py-1">
-                    {logo}
-                  </span>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-3 text-sm text-[#ADB5BD]">
-                {footerLinks.fanmeet.socials.map((social) => (
-                  <Button key={social.label} variant="ghost" className="px-0 text-sm text-[#ADB5BD]">
-                    {social.label} →
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">For Fans</h4>
-                <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
-                  {footerLinks.fans.map((item) => (
-                    <li key={item.label}>{item.label}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">For Creators</h4>
-                <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
-                  {footerLinks.creators.map((item) => (
-                    <li key={item.label}>{item.label}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Company</h4>
-                <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
-                  {footerLinks.company.map((item) => (
-                    <li key={item.label}>{item.label}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold uppercase tracking-wide text-[#C045FF]">Support</h4>
-                <ul className="mt-3 space-y-2 text-sm text-[#ADB5BD]">
-                  {footerLinks.support.map((item) => (
-                    <li key={item.label}>{item.label}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-10 border-t border-[#343A40] pt-6 text-center text-xs text-[#6C757D]">
-            © {new Date().getFullYear()} FanMeet. Made with ❤️ in India. All rights reserved.
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

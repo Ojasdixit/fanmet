@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, Button, TextInput, Badge } from '@fanmeet/ui';
 import { formatCurrency, formatDateTime } from '@fanmeet/utils';
 import { useEffect, useState } from 'react';
@@ -34,8 +34,10 @@ const calculateNetEarnings = (grossAmount: number) => Math.floor(grossAmount * (
 
 export function CreatorWithdrawals() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [hasBankAccount, setHasBankAccount] = useState<boolean | null>(null);
   const [pendingClearance, setPendingClearance] = useState(0);
   const [lastPayout, setLastPayout] = useState<{ amount: number; processedAt: Date } | null>(null);
   const [payoutHistory, setPayoutHistory] = useState<PayoutEntry[]>([]);
@@ -102,6 +104,9 @@ export function CreatorWithdrawals() {
           .single();
 
         if (profile) {
+          const hasLinkedAccount = !!(profile.razorpay_fund_account_id || profile.bank_account_number || profile.upi_id);
+          setHasBankAccount(hasLinkedAccount);
+
           const accountDisplay = profile.razorpay_fund_account_id
             ? 'Linked Payout Account'
             : profile.bank_account_number
@@ -111,6 +116,8 @@ export function CreatorWithdrawals() {
                 : '';
 
           if (accountDisplay) setDestination(accountDisplay);
+        } else {
+          setHasBankAccount(false);
         }
 
         // Fetch creator's events and won bids to calculate total earnings
@@ -297,6 +304,83 @@ export function CreatorWithdrawals() {
       setIsSubmitting(false);
     }
   };
+
+  // Show bank account setup prompt if no bank account is linked
+  if (hasBankAccount === false && !isLoading) {
+    return (
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold text-[#212529]">Withdrawals</h1>
+          <p className="text-sm text-[#6C757D]">Track your payout requests, bank destinations, and release timelines.</p>
+        </div>
+
+        <Card elevated className="max-w-2xl">
+          <CardContent className="gap-6 py-12">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#F4E6FF] to-[#E9D5FF]">
+                <span className="text-5xl">🏦</span>
+              </div>
+              <h2 className="mb-2 text-2xl font-bold text-[#212529]">Add Your Bank Account</h2>
+              <p className="mb-6 max-w-md text-[#6C757D]">
+                Before you can withdraw your earnings, you need to link a bank account or UPI ID. This ensures your payouts are processed securely and quickly.
+              </p>
+              
+              <div className="mb-6 w-full max-w-sm rounded-xl bg-[#F4E6FF]/60 p-4 text-left">
+                <p className="mb-2 text-sm font-semibold text-[#7B2CBF]">Why add bank details?</p>
+                <ul className="space-y-2 text-sm text-[#6C757D]">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500">✓</span>
+                    <span>Receive payouts directly to your account</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500">✓</span>
+                    <span>Earnings available 48 hours after event completion</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-500">✓</span>
+                    <span>Secure & verified payout processing</span>
+                  </li>
+                </ul>
+              </div>
+
+              <Button
+                size="lg"
+                onClick={() => navigate('/creator/settings')}
+                className="w-full max-w-sm"
+              >
+                🏦 Add Bank Account / UPI
+              </Button>
+              <p className="mt-3 text-xs text-[#6C757D]">
+                You'll be redirected to Settings to add your payout details.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Still show balance info */}
+        <Card className="max-w-2xl">
+          <CardHeader title="Your Earnings" subtitle="Here's what you've earned so far." />
+          <CardContent className="gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-[12px] border border-[#E9ECEF] bg-white p-4">
+                <span className="text-sm text-[#6C757D]">Available to withdraw</span>
+                <p className="text-xl font-semibold text-[#C045FF]">
+                  {formatCurrency(availableBalance)}
+                </p>
+              </div>
+              <div className="rounded-[12px] border border-[#E9ECEF] bg-white p-4">
+                <span className="text-sm text-[#6C757D]">Pending clearance</span>
+                <p className="text-xl font-semibold text-[#212529]">
+                  {formatCurrency(pendingClearance)}
+                </p>
+                <p className="text-xs text-[#6C757D]">Available after 48 hours</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
