@@ -181,7 +181,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
           date: `${dateStr} @ ${timeStr}`,
           duration: `${e.duration_minutes} minutes`,
           basePrice: e.base_price,
-          currentBid: Math.max(e.base_price, maxBid),
+          currentBid: maxBid,
           participants: uniqueParticipants,
           endsIn: endsIn,
         };
@@ -397,6 +397,45 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       throw new Error("Please log in to place a bid");
     }
 
+    const BID_STEP = 50;
+    if (amount % BID_STEP !== 0) {
+      throw new Error(`Bids must be in multiples of ${BID_STEP}.`);
+    }
+
+    const { data: eventRow, error: eventError } = await supabase
+      .from('events')
+      .select('id, base_price')
+      .eq('id', eventId)
+      .maybeSingle();
+
+    if (eventError || !eventRow) {
+      throw new Error('Could not load event for bidding.');
+    }
+
+    const { data: topBidRow, error: topBidError } = await supabase
+      .from('bids')
+      .select('amount')
+      .eq('event_id', eventId)
+      .order('amount', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (topBidError) {
+      throw new Error('Could not validate current bid.');
+    }
+
+    const currentMaxBid = topBidRow?.amount ?? 0;
+
+    if (currentMaxBid === 0) {
+      if (amount !== eventRow.base_price) {
+        throw new Error(`The first bid must be exactly ${eventRow.base_price}.`);
+      }
+    } else {
+      if (amount < currentMaxBid) {
+        throw new Error(`Your bid must be at least ${currentMaxBid}.`);
+      }
+    }
+
     // Place the bid (payment already completed via Razorpay)
     const { error } = await supabase.from('bids').insert({
       event_id: eventId,
@@ -414,11 +453,11 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     setEvents((prev) =>
       prev.map((event) => {
         if (event.id !== eventId) return event;
-        if (amount <= event.currentBid) return event;
 
+        const nextCurrentBid = amount > event.currentBid ? amount : event.currentBid;
         return {
           ...event,
-          currentBid: amount,
+          currentBid: nextCurrentBid,
           participants: event.participants + 1,
         };
       }),

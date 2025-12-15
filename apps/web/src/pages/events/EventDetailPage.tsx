@@ -79,6 +79,22 @@ export function EventDetailPage() {
   const bidIncrement = Number(bidAmount) || 0;
   const cumulativeTotal = userCurrentBid + bidIncrement;
 
+  const BID_STEP = 50;
+  const isFirstBid = Boolean(event && event.currentBid === 0);
+  const displayedHighestBid = event ? (event.currentBid > 0 ? event.currentBid : event.basePrice) : 0;
+  const nextSuggestedBid = event
+    ? isFirstBid
+      ? event.basePrice
+      : displayedHighestBid + BID_STEP
+    : 0;
+
+  useEffect(() => {
+    if (!event) return;
+    if (isFirstBid) {
+      setBidAmount(String(event.basePrice));
+    }
+  }, [event?.id, event?.currentBid, event?.basePrice]);
+
   // Fetch bid history when event loads
   useEffect(() => {
     if (event?.id && !event.id.startsWith('synthetic-')) {
@@ -140,17 +156,29 @@ export function EventDetailPage() {
   };
 
   const handlePlaceBid = async () => {
-    // Calculate the actual bid amount (cumulative total if user has existing bid)
-    const actualBidAmount = userCurrentBid > 0 ? cumulativeTotal : Number(bidAmount);
+    const rawAmount = Number(bidAmount);
+    const actualBidAmount = userCurrentBid > 0 ? cumulativeTotal : rawAmount;
 
     if (!actualBidAmount || Number.isNaN(actualBidAmount)) {
       window.alert('Enter a valid bid amount to continue.');
       return;
     }
 
-    if (actualBidAmount <= event.currentBid) {
-      window.alert(`Your bid must be higher than the current bid of ${formatCurrency(event.currentBid)}.`);
+    if (actualBidAmount % BID_STEP !== 0) {
+      window.alert(`Bids must be in multiples of ${BID_STEP}.`);
       return;
+    }
+
+    if (event.currentBid === 0) {
+      if (actualBidAmount !== event.basePrice) {
+        window.alert(`The first bid must be exactly ${formatCurrency(event.basePrice)}.`);
+        return;
+      }
+    } else {
+      if (actualBidAmount < event.currentBid) {
+        window.alert(`Your bid must be at least the current bid of ${formatCurrency(event.currentBid)}.`);
+        return;
+      }
     }
 
     if (!isAuthenticated || user?.role !== 'fan') {
@@ -378,10 +406,13 @@ export function EventDetailPage() {
                   Current highest bid
                 </span>
                 <span className="text-xl font-semibold text-[#C045FF]">
-                  {event.currentBid ? formatCurrency(event.currentBid) : formatCurrency(event.basePrice)}
+                  {displayedHighestBid ? formatCurrency(displayedHighestBid) : formatCurrency(event.basePrice)}
                 </span>
                 <span className="text-[11px] text-[#6C757D]">
                   Base price {formatCurrency(event.basePrice)} • {event.participants} participants
+                </span>
+                <span className="mt-1 text-[11px] text-[#6C757D]">
+                  Next bid: <strong className="text-[#212529]">{formatCurrency(nextSuggestedBid)}</strong> (step {formatCurrency(BID_STEP)})
                 </span>
               </div>
               <Button variant="secondary" size="sm" className="rounded-full text-xs" onClick={handleShare}>
@@ -397,7 +428,13 @@ export function EventDetailPage() {
                   placeholder={String(event.basePrice)}
                   value={bidAmount}
                   onChange={(inputEvent) => setBidAmount(inputEvent.target.value)}
+                  disabled={isFirstBid}
                 />
+                {isFirstBid && (
+                  <div className="mt-2 text-[11px] text-[#6C757D]">
+                    First bid is fixed to the creator&apos;s base price.
+                  </div>
+                )}
                 {bidIncrement > 0 && (
                   <div className="mt-2 text-sm">
                     {userCurrentBid > 0 ? (

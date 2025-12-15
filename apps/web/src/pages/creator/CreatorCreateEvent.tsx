@@ -45,6 +45,12 @@ export function CreatorCreateEvent() {
       return;
     }
 
+    const BID_STEP = 50;
+    if (basePrice % BID_STEP !== 0) {
+      setFormError(`Base price must be in multiples of ${BID_STEP}.`);
+      return;
+    }
+
     setFormError('');
 
     const creatorDisplayName = user.email.split('@')[0] || user.username;

@@ -1,10 +1,11 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Avatar, Badge } from '@fanmeet/ui';
+import { Button, Avatar, Badge, TextInput } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
 import { format } from 'date-fns';
+import { supabase } from '../lib/supabaseClient';
 
 type NavSectionItem = {
   type: 'section';
@@ -134,6 +135,121 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const [isResizing, setIsResizing] = useState(false);
   const [activeRightPanel, setActiveRightPanel] = useState<'none' | 'notifications' | 'profile'>('none');
     const [searchQuery, setSearchQuery] = useState('');
+
+  const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
+  const [isLoadingPayout, setIsLoadingPayout] = useState(false);
+  const [isSavingPayout, setIsSavingPayout] = useState(false);
+  const [hasPayoutMethod, setHasPayoutMethod] = useState(true);
+  const [payoutDetails, setPayoutDetails] = useState({
+    bank_account_name: '',
+    bank_account_number: '',
+    confirm_bank_account_number: '',
+    bank_ifsc: '',
+    upi_id: '',
+  });
+
+  useEffect(() => {
+    if (role !== 'creator' || !user) return;
+
+    const loadPayoutStatus = async () => {
+      setIsLoadingPayout(true);
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('bank_account_name, bank_account_number, bank_ifsc, upi_id, razorpay_fund_account_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const linked = Boolean(
+          profile?.razorpay_fund_account_id || profile?.bank_account_number || profile?.upi_id,
+        );
+        setHasPayoutMethod(linked);
+
+        if (profile) {
+          setPayoutDetails({
+            bank_account_name: profile.bank_account_name || '',
+            bank_account_number: profile.bank_account_number || '',
+            confirm_bank_account_number: profile.bank_account_number || '',
+            bank_ifsc: profile.bank_ifsc || '',
+            upi_id: profile.upi_id || '',
+          });
+        }
+      } finally {
+        setIsLoadingPayout(false);
+      }
+    };
+
+    void loadPayoutStatus();
+  }, [role, user]);
+
+  const handleSavePayoutDetails = async () => {
+    if (!user) return;
+
+    const isUpi = !!payoutDetails.upi_id;
+    const isBank = !!payoutDetails.bank_account_number;
+
+    if (!isUpi && !isBank) {
+      alert('Please provide either Bank Account details or a UPI ID.');
+      return;
+    }
+
+    if (isBank) {
+      if (!payoutDetails.bank_account_name) {
+        alert('Please enter the Account Holder Name.');
+        return;
+      }
+      if (!payoutDetails.bank_ifsc || payoutDetails.bank_ifsc.length !== 11) {
+        alert('Please enter a valid 11-character IFSC code.');
+        return;
+      }
+      if (payoutDetails.bank_account_number !== payoutDetails.confirm_bank_account_number) {
+        alert('Account numbers do not match. Please re-enter.');
+        return;
+      }
+    }
+
+    setIsSavingPayout(true);
+    try {
+      const payload: any = {
+        name: payoutDetails.bank_account_name,
+        ifsc: payoutDetails.bank_ifsc,
+        account_number: payoutDetails.bank_account_number,
+        upi_id: payoutDetails.upi_id,
+      };
+
+      const { data: payoutData, error: payoutError } = await supabase.functions.invoke('create-razorpay-fund-account', {
+        body: payload,
+      });
+
+      if (payoutError) {
+        console.error('Edge function error:', payoutError);
+        alert(`Verification failed: ${payoutError.message || 'Unknown error'}`);
+        setIsSavingPayout(false);
+        return;
+      }
+
+      const { confirm_bank_account_number, ...dbUpdates } = payoutDetails;
+      const updates: any = { ...dbUpdates };
+      if (payoutData?.fund_account_id) {
+        updates.razorpay_fund_account_id = payoutData.fund_account_id;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setHasPayoutMethod(true);
+      setIsPayoutModalOpen(false);
+      alert('Payout details saved successfully!');
+    } catch (error) {
+      console.error('Error updating payout details:', error);
+      alert('Failed to update payout details.');
+    } finally {
+      setIsSavingPayout(false);
+    }
+  };
 
 
   const handleLogout = () => {
@@ -343,6 +459,97 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
+      {isPayoutModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold text-[#212529]">Add payout method</div>
+                <div className="mt-1 text-sm text-[#6C757D]">
+                  Add bank account OR UPI to enable withdrawals. Your details will be verified.
+                </div>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-[#E9ECEF] px-3 py-1 text-sm text-[#343A40] hover:bg-[#F8F9FA]"
+                onClick={() => setIsPayoutModalOpen(false)}
+                disabled={isSavingPayout}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-4">
+              <div className="rounded-xl border border-[#E9ECEF] p-4">
+                <div className="mb-3 text-sm font-semibold text-[#212529]">Bank Transfer (NEFT/IMPS)</div>
+                <TextInput
+                  label="Beneficiary Name"
+                  placeholder="Name as per bank records"
+                  value={payoutDetails.bank_account_name}
+                  onChange={(e) => setPayoutDetails((prev) => ({ ...prev, bank_account_name: e.target.value }))}
+                />
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <TextInput
+                    label="Account Number"
+                    placeholder="e.g. 1234567890"
+                    type="password"
+                    value={payoutDetails.bank_account_number}
+                    onChange={(e) => setPayoutDetails((prev) => ({ ...prev, bank_account_number: e.target.value }))}
+                  />
+                  <TextInput
+                    label="Confirm Account Number"
+                    placeholder="Re-enter account number"
+                    value={payoutDetails.confirm_bank_account_number}
+                    onChange={(e) =>
+                      setPayoutDetails((prev) => ({ ...prev, confirm_bank_account_number: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="mt-3">
+                  <TextInput
+                    label="IFSC Code"
+                    placeholder="e.g. HDFC0001234"
+                    value={payoutDetails.bank_ifsc}
+                    maxLength={11}
+                    onChange={(e) => setPayoutDetails((prev) => ({ ...prev, bank_ifsc: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="h-px flex-1 bg-[#E9ECEF]" />
+                <span className="text-sm font-medium text-[#6C757D]">OR</span>
+                <div className="h-px flex-1 bg-[#E9ECEF]" />
+              </div>
+
+              <div className="rounded-xl border border-[#E9ECEF] p-4">
+                <div className="mb-3 text-sm font-semibold text-[#212529]">UPI ID (VPA)</div>
+                <TextInput
+                  label="UPI ID"
+                  placeholder="e.g. username@oksbi"
+                  value={payoutDetails.upi_id}
+                  onChange={(e) => setPayoutDetails((prev) => ({ ...prev, upi_id: e.target.value }))}
+                />
+              </div>
+
+              <div className="mt-2 grid gap-3 md:grid-cols-2">
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  className="w-full border-none bg-white text-[#050014] hover:bg-[#F8F9FA]"
+                  onClick={() => setIsPayoutModalOpen(false)}
+                  disabled={isSavingPayout}
+                >
+                  Cancel
+                </Button>
+                <Button size="lg" className="w-full" onClick={handleSavePayoutDetails} disabled={isSavingPayout}>
+                  {isSavingPayout ? 'Verifying & Saving...' : 'Save payout method'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Creator Approval Overlay */}
       {showApprovalOverlay && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -499,6 +706,15 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
             <div className="text-xl font-semibold text-[#212529]">{config.title}</div>
           </div>
           <div className="flex items-center gap-4">
+            {role === 'creator' && !isLoadingPayout && !hasPayoutMethod && (
+              <Button
+                size="lg"
+                className="bg-[#FF6B35] text-white hover:bg-[#ff5b1d]"
+                onClick={() => setIsPayoutModalOpen(true)}
+              >
+                Add payout method
+              </Button>
+            )}
             <div className="relative hidden md:block">
               <input
                 className="h-11 rounded-[12px] border-2 border-[#E9ECEF] px-4 pr-10 text-sm focus:border-[#FF6B35] focus:shadow-[0_0_0_3px_rgba(255,107,53,0.1)]"
