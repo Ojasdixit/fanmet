@@ -34,6 +34,12 @@ export interface MeetingLifecycleState {
   fanJoinedAt: string | null;
   recordingStartedAt: string | null;
   recordingStoppedAt: string | null;
+  recordingResourceId: string | null;
+  recordingSid: string | null;
+  recordingMode: string | null;
+  recordingStatus: string | null;
+  recordingFileList: any | null;
+  recordingUrl: string | null;
 }
 
 // Log a meeting event
@@ -80,7 +86,13 @@ export async function getMeeting(meetId: string): Promise<MeetingLifecycleState 
     creatorJoinedAt: data.creator_joined_at,
     fanJoinedAt: data.fan_joined_at,
     recordingStartedAt: data.recording_started_at,
-    recordingStoppedAt: data.recording_stopped_at
+    recordingStoppedAt: data.recording_stopped_at,
+    recordingResourceId: data.recording_resource_id,
+    recordingSid: data.recording_sid,
+    recordingMode: data.recording_mode,
+    recordingStatus: data.recording_status,
+    recordingFileList: data.recording_file_list,
+    recordingUrl: data.recording_url
   };
 }
 
@@ -108,8 +120,44 @@ export async function getMeetingByLink(meetingLinkId: string): Promise<MeetingLi
     creatorJoinedAt: data.creator_joined_at,
     fanJoinedAt: data.fan_joined_at,
     recordingStartedAt: data.recording_started_at,
-    recordingStoppedAt: data.recording_stopped_at
+    recordingStoppedAt: data.recording_stopped_at,
+    recordingResourceId: data.recording_resource_id,
+    recordingSid: data.recording_sid,
+    recordingMode: data.recording_mode,
+    recordingStatus: data.recording_status,
+    recordingFileList: data.recording_file_list,
+    recordingUrl: data.recording_url
   };
+}
+
+const RECORDING_FUNCTION_NAME = 'agora-cloud-recording';
+
+async function invokeRecordingAction(
+  meetId: string,
+  action: 'start' | 'stop' | 'query',
+  payload: Record<string, any> = {}
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const { data, error } = await supabase.functions.invoke(RECORDING_FUNCTION_NAME, {
+      body: { action, meetId, ...payload }
+    });
+
+    if (error) {
+      console.error(`Edge function error (${action}):`, error);
+      return { success: false, error: error.message };
+    }
+
+    if (!data?.success) {
+      console.error(`Edge function responded with failure for ${action}:`, data);
+      return { success: false, error: data?.error || 'Unknown recording error' };
+    }
+
+    return { success: true, data };
+  } catch (err) {
+    const error = err as Error;
+    console.error(`Failed to invoke recording action ${action}:`, error);
+    return { success: false, error: error.message };
+  }
 }
 
 // Creator starts their stream (publishes video/audio)
@@ -178,6 +226,8 @@ export async function onCreatorStreamStarted(meetId: string): Promise<{ success:
     started_early: startedEarly,
     seconds_from_scheduled: secondsDiff
   });
+
+  await checkAndStartRecording(meetId);
 
   console.log('✅ onCreatorStreamStarted completed successfully');
   return { success: true };
@@ -330,42 +380,23 @@ async function checkAndStartRecording(meetId: string): Promise<void> {
   if (meeting.status !== 'live') return;
   if (meeting.recordingStartedAt) return; // Already recording
 
-  // Both must be present
-  if (meeting.creatorStartedAt && meeting.fanJoinedAt) {
-    const now = new Date().toISOString();
+  const result = await invokeRecordingAction(meetId, 'start', meeting.recordingMode ? { mode: meeting.recordingMode } : {});
+  if (!result.success) return;
 
-    const { error } = await supabase
-      .from('meets')
-      .update({ recording_started_at: now })
-      .eq('id', meetId);
+  const now = new Date().toISOString();
+  await logMeetingEvent(meetId, 'RECORDING_STARTED', {
+    started_at: now
+  });
 
-    if (error) {
-      console.error('Error updating recording start time:', error);
-      return;
-    }
-
-    await logMeetingEvent(meetId, 'RECORDING_STARTED', {
-      started_at: now
-    });
-
-    console.log(`Recording started for meeting ${meetId}`);
-  }
+  console.log(`Recording start requested for meeting ${meetId}`);
 }
 
 // Stop recording
 export async function stopRecording(meetId: string): Promise<void> {
+  const result = await invokeRecordingAction(meetId, 'stop');
+  if (!result.success) return;
+
   const now = new Date().toISOString();
-
-  const { error } = await supabase
-    .from('meets')
-    .update({ recording_stopped_at: now })
-    .eq('id', meetId);
-
-  if (error) {
-    console.error('Error updating recording stop time:', error);
-    return;
-  }
-
   await logMeetingEvent(meetId, 'RECORDING_STOPPED', {
     stopped_at: now
   });

@@ -87,11 +87,20 @@ export function CreatorMeets() {
   // Meeting completion is handled automatically by the cron job
   // No manual status changes allowed
 
+  const calculateWinningBid = (session: any) => {
+    if (session?.bids?.length) {
+      return Math.max(...session.bids.map((b: any) => b.amount || 0));
+    }
+    return session?.events?.base_price || 0;
+  };
+
   // Separate active (scheduled/live) from completed meets
   // Show all scheduled and live meets regardless of date so creators can manage them
   const upcomingMeets = meets.filter((m) => m.status === 'scheduled' || m.status === 'live');
   const completedMeets = meets.filter((m) => m.status === 'completed');
   const cancelledMeets = meets.filter((m) => m.status === 'cancelled' || m.status === 'cancelled_no_show_creator');
+  const noShowMeets = meets.filter((m) => m.status === 'cancelled_no_show_creator');
+  const totalNoShowLoss = noShowMeets.reduce((sum, meet) => sum + calculateWinningBid(meet), 0);
 
   console.log('📅 Upcoming meets (scheduled):', upcomingMeets.length, upcomingMeets);
   console.log('✅ Completed meets:', completedMeets.length, completedMeets);
@@ -145,10 +154,7 @@ export function CreatorMeets() {
         />
         <CardContent className="gap-4">
           {upcomingMeets.map((session) => {
-            // Get the winning bid amount
-            const winningBid = session.bids && session.bids.length > 0
-              ? Math.max(...session.bids.map((b: any) => b.amount))
-              : session.events?.base_price || 0;
+            const winningBid = calculateWinningBid(session);
 
             return (
               <div key={session.id} className="flex flex-col gap-4 rounded-[14px] border border-[#E9ECEF] bg-white p-4">
@@ -245,10 +251,7 @@ export function CreatorMeets() {
         />
         <CardContent className="gap-4">
           {completedMeets.map((session) => {
-            // Get the winning bid amount
-            const winningBid = session.bids && session.bids.length > 0
-              ? Math.max(...session.bids.map((b: any) => b.amount))
-              : session.events?.base_price || 0;
+            const winningBid = calculateWinningBid(session);
 
             return (
               <div
@@ -317,6 +320,59 @@ export function CreatorMeets() {
           </CardContent>
         </Card>
       )}
+
+      {/* Creator No-Show Impact */}
+      <Card>
+        <CardHeader
+          title="Cancelled / No-Show Impact"
+          subtitle="These meetings were auto-cancelled because you didn’t go live in time."
+          className="border-b border-[#E9ECEF] pb-4"
+        />
+        <CardContent className="gap-4">
+          <div className="flex flex-wrap items-center gap-4 rounded-[14px] border border-red-200 bg-red-50 p-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-red-600 font-semibold">Total amount refunded</p>
+              <p className="text-2xl font-bold text-red-700">{formatCurrency(totalNoShowLoss)}</p>
+              <p className="text-xs text-red-500">100% of the winning bid is refunded to the fan when you miss the call.</p>
+            </div>
+            <div className="ml-auto text-center">
+              <p className="text-xs text-[#6C757D]">No-show instances</p>
+              <p className="text-3xl font-bold text-red-600">{noShowMeets.length}</p>
+            </div>
+          </div>
+
+          {noShowMeets.length === 0 ? (
+            <p className="text-sm text-[#28A745]">Great job! You haven’t missed any meets.</p>
+          ) : (
+            noShowMeets.map((session) => {
+              const winningBid = calculateWinningBid(session);
+              return (
+                <div
+                  key={session.id}
+                  className="flex flex-col gap-3 rounded-[14px] border border-red-200 bg-gradient-to-r from-red-50 to-white p-4"
+                >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant="danger">🚫 Creator No-Show</Badge>
+                    <span className="text-xs text-[#6C757D]">
+                      {formatDateTime(session.scheduled_at)} • {session.duration_minutes} mins
+                    </span>
+                    <span className="text-xs font-semibold text-red-600">
+                      Lost: {formatCurrency(winningBid)}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#212529]">{session.events?.title || 'Untitled Event'}</h3>
+                    <p className="text-sm text-[#6C757D]">Fan: {session.fan_profile?.display_name || session.fan_profile?.username || 'Unknown Fan'}</p>
+                  </div>
+                  <p className="text-xs text-red-600">
+                    ⚠️ Call never started. Fan was auto-refunded and the slot was marked as missed.
+                  </p>
+                </div>
+              );
+            })
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

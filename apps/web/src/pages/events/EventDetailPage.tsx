@@ -81,6 +81,7 @@ export function EventDetailPage() {
 
   const BID_STEP = 50;
   const isFirstBid = Boolean(event && event.currentBid === 0);
+  const isEventCompleted = Boolean(event && String(event.status).toLowerCase() === 'completed');
   const displayedHighestBid = event ? (event.currentBid > 0 ? event.currentBid : event.basePrice) : 0;
   const nextSuggestedBid = event
     ? isFirstBid
@@ -156,29 +157,37 @@ export function EventDetailPage() {
   };
 
   const handlePlaceBid = async () => {
+    if (isEventCompleted) {
+      window.alert('This event has been completed. Bidding is closed.');
+      return;
+    }
+
     const rawAmount = Number(bidAmount);
     const actualBidAmount = userCurrentBid > 0 ? cumulativeTotal : rawAmount;
+
+    // Validate bid amounts
+    if (userCurrentBid > 0) {
+      // For additional bids, increment must be multiple of 50
+      if (rawAmount % BID_STEP !== 0) {
+        window.alert(`Bid increments must be in multiples of ${BID_STEP}.`);
+        return;
+      }
+    } else {
+      // For first bid, must be exactly the base price
+      if (rawAmount !== event.basePrice) {
+        window.alert(`The first bid must be exactly ₹${event.basePrice}.`);
+        return;
+      }
+    }
 
     if (!actualBidAmount || Number.isNaN(actualBidAmount)) {
       window.alert('Enter a valid bid amount to continue.');
       return;
     }
 
-    if (actualBidAmount % BID_STEP !== 0) {
-      window.alert(`Bids must be in multiples of ${BID_STEP}.`);
+    if (actualBidAmount < event.currentBid) {
+      window.alert(`Your bid must be at least the current bid of ${formatCurrency(event.currentBid)}.`);
       return;
-    }
-
-    if (event.currentBid === 0) {
-      if (actualBidAmount !== event.basePrice) {
-        window.alert(`The first bid must be exactly ${formatCurrency(event.basePrice)}.`);
-        return;
-      }
-    } else {
-      if (actualBidAmount < event.currentBid) {
-        window.alert(`Your bid must be at least the current bid of ${formatCurrency(event.currentBid)}.`);
-        return;
-      }
     }
 
     if (!isAuthenticated || user?.role !== 'fan') {
@@ -428,11 +437,16 @@ export function EventDetailPage() {
                   placeholder={String(event.basePrice)}
                   value={bidAmount}
                   onChange={(inputEvent) => setBidAmount(inputEvent.target.value)}
-                  disabled={isFirstBid}
+                  disabled={isFirstBid || isEventCompleted}
                 />
                 {isFirstBid && (
                   <div className="mt-2 text-[11px] text-[#6C757D]">
                     First bid is fixed to the creator&apos;s base price.
+                  </div>
+                )}
+                {isEventCompleted && (
+                  <div className="mt-2 text-[11px] text-[#DC3545]">
+                    This event is completed. Bidding is no longer available.
                   </div>
                 )}
                 {bidIncrement > 0 && (
@@ -457,9 +471,9 @@ export function EventDetailPage() {
               <Button 
                 className="md:w-40" 
                 onClick={handlePlaceBid}
-                disabled={isProcessingPayment}
+                disabled={isProcessingPayment || isEventCompleted}
               >
-                {isProcessingPayment ? 'Processing...' : 'Place Bid →'}
+                {isEventCompleted ? 'Event Completed' : isProcessingPayment ? 'Processing...' : 'Place Bid →'}
               </Button>
             </div>
           </CardContent>

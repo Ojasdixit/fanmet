@@ -438,9 +438,11 @@ function LiveCall({
     isCreator: boolean;
     timeLeft: number | null;
     onLeave: () => void;
-}) {
+}): JSX.Element {
     const [active, setActive] = useState(false);
     const [hasMarkedLive, setHasMarkedLive] = useState(false);
+    const [recordingStatus, setRecordingStatus] = useState<'preparing' | 'recording' | 'stopped' | 'error'>('preparing');
+    const [recordingError, setRecordingError] = useState<string | null>(null);
     const [agoraToken, setAgoraToken] = useState<string | null>(null);
     const [tokenLoading, setTokenLoading] = useState(true);
     
@@ -496,8 +498,69 @@ function LiveCall({
             onCreatorJoined(meeting.id, user.id).catch(err => {
                 console.error('Error in onCreatorJoined:', err);
             });
+
+            // Creator triggers recording as soon as meeting goes live
+            checkRecordingStatus();
         }
     }, [isCreator, hasMarkedLive, meeting.id, user.id]);
+
+    // Query recording metadata to show status
+    useEffect(() => {
+        if (!meeting) return;
+        if (meeting.recordingStartedAt && !meeting.recordingStoppedAt) {
+            setRecordingStatus('recording');
+        } else if (meeting.recordingStoppedAt) {
+            setRecordingStatus('stopped');
+        } else {
+            setRecordingStatus('preparing');
+        }
+    }, [meeting.recordingStartedAt, meeting.recordingStoppedAt]);
+
+    async function checkRecordingStatus() {
+        try {
+            setRecordingStatus('preparing');
+            const { data, error } = await supabase.functions.invoke('agora-cloud-recording', {
+                body: { action: 'query', meetId: meeting.id }
+            });
+
+            if (error || !data?.success) {
+                setRecordingError(error?.message || data?.error || 'Unable to verify recording');
+                setRecordingStatus('error');
+                return;
+            }
+
+            setRecordingStatus('recording');
+            setRecordingError(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown recording error';
+            console.error('Recording status check failed:', err);
+            setRecordingError(message);
+            setRecordingStatus('error');
+        }
+    }
+
+    async function handleStopRecording() {
+        try {
+            setRecordingStatus('preparing');
+            const { data, error } = await supabase.functions.invoke('agora-cloud-recording', {
+                body: { action: 'stop', meetId: meeting.id }
+            });
+
+            if (error || !data?.success) {
+                setRecordingError(error?.message || data?.error || 'Failed to stop recording');
+                setRecordingStatus('error');
+                return;
+            }
+
+            setRecordingStatus('stopped');
+            setRecordingError(null);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Unknown recording error';
+            console.error('Recording stop failed:', err);
+            setRecordingError(message);
+            setRecordingStatus('error');
+        }
+    }
 
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
@@ -559,9 +622,30 @@ function LiveCall({
 
             <div className="flex items-center justify-center gap-4 bg-gray-800 py-4">
                 <div className="flex items-center gap-2 text-sm text-gray-400">
-                    <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></div>
-                    <span>Recording</span>
+                    <div
+                        className={`h-2 w-2 rounded-full ${
+                            recordingStatus === 'recording'
+                                ? 'bg-red-500 animate-pulse'
+                                : recordingStatus === 'error'
+                                ? 'bg-orange-500'
+                                : 'bg-gray-500'
+                        }`}
+                    ></div>
+                    <span>
+                        {recordingStatus === 'recording' && 'Recording'}
+                        {recordingStatus === 'preparing' && 'Preparing recording...'}
+                        {recordingStatus === 'stopped' && 'Recording stopped'}
+                        {recordingStatus === 'error' && (recordingError || 'Recording error')}
+                    </span>
+                    {!isCreator && recordingStatus === 'error' && (
+                        <span className="text-xs text-gray-500">(creator will be notified)</span>
+                    )}
                 </div>
+                {recordingStatus === 'recording' && isCreator && (
+                    <Button variant="ghost" size="sm" onClick={handleStopRecording}>
+                        Stop Recording
+                    </Button>
+                )}
                 <span className="text-gray-600">|</span>
                 <span className="text-sm text-gray-400">
                     Call ends automatically at scheduled time. No extensions.

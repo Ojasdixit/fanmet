@@ -37,7 +37,8 @@ export function FanMeets() {
       const statusOrder = { live: 0, scheduled: 1, completed: 2 };
       const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 3) - (statusOrder[b.status as keyof typeof statusOrder] || 3);
       if (statusDiff !== 0) return statusDiff;
-      return new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
+      // For same status, sort by scheduledAt descending (recent on top)
+      return new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime();
     });
 
   // Categorize meets by status
