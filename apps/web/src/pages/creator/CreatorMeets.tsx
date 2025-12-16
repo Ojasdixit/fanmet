@@ -25,6 +25,7 @@ export function CreatorMeets() {
   const { user, onlineUsers } = useAuth();
   const navigate = useNavigate();
   const [meets, setMeets] = useState<any[]>([]);
+  const [eventsWithoutMeet, setEventsWithoutMeet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchMeets = async () => {
@@ -77,6 +78,23 @@ export function CreatorMeets() {
     } else {
       setMeets(data || []);
     }
+
+    // Fetch creator events to highlight ones without scheduled meets (no winning bid / no-show)
+    const { data: eventsData, error: eventsError } = await supabase
+      .from('events')
+      .select('id, title, starts_at, base_price, status')
+      .eq('creator_id', user.id)
+      .order('starts_at', { ascending: false });
+
+    if (!eventsError && eventsData) {
+      const meetEventIds = new Set((data ?? []).map((meet) => meet.event_id));
+      const orphanEvents = eventsData.filter((event) => !meetEventIds.has(event.id));
+      setEventsWithoutMeet(orphanEvents);
+    } else if (eventsError) {
+      console.error('Error fetching creator events:', eventsError);
+      setEventsWithoutMeet([]);
+    }
+
     setLoading(false);
   };
 
@@ -237,8 +255,49 @@ export function CreatorMeets() {
               </div>
             );
           })}
-          {upcomingMeets.length === 0 && (
+          {upcomingMeets.length === 0 && eventsWithoutMeet.length === 0 && (
             <p className="text-sm text-[#6C757D]">No upcoming meets scheduled.</p>
+          )}
+
+          {eventsWithoutMeet.length > 0 && (
+            <div className="mt-6 flex flex-col gap-4 rounded-[14px] border border-dashed border-[#E9ECEF] bg-[#F8F9FA] p-4">
+              <div>
+                <h3 className="text-base font-semibold text-[#212529]">Events without a scheduled meet</h3>
+                <p className="text-sm text-[#6C757D]">
+                  These events didn&apos;t generate a meeting yet. If no bid was placed, you can relaunch or share the event again.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                {eventsWithoutMeet.slice(0, 5).map((event) => (
+                  <div key={event.id} className="rounded-[12px] border border-[#E9ECEF] bg-white p-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-[#6C757D]">
+                      <span className="rounded-full bg-[#E9ECEF] px-2 py-0.5 uppercase tracking-wide">
+                        {event.status.replace(/_/g, ' ')}
+                      </span>
+                      <span>{formatDateTime(event.starts_at)}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-[#212529]">{event.title}</p>
+                        <p className="text-xs text-[#6C757D]">Base price: {formatCurrency(event.base_price ?? 0)}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/events/${event.id}`)}
+                      >
+                        Copy Event Link
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-[#C045FF]">
+                      {event.status === 'completed'
+                        ? 'No winning bid was placed before bidding closed.'
+                        : 'Waiting for bids – share the link to secure a fan.'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

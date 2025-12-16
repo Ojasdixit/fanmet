@@ -1,6 +1,9 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button, Card, CardContent, CardHeader, Badge } from '@fanmeet/ui';
-import { formatDateTime } from '@fanmeet/utils';
+import { formatDateTime, formatCurrency } from '@fanmeet/utils';
 import { useEvents } from '../../contexts/EventContext';
+import { supabase } from '../../lib/supabaseClient';
 
 function getStartsIn(scheduledAt: string) {
   const start = new Date(scheduledAt);
@@ -28,14 +31,17 @@ function getStartsIn(scheduledAt: string) {
 
 export function FanMeets() {
   const { myMeets } = useEvents();
+  const navigate = useNavigate();
+  const [eventsWithNoBids, setEventsWithNoBids] = useState<any[]>([]);
+  const [loadingNoBids, setLoadingNoBids] = useState(true);
 
-  // Filter for scheduled, live, and completed meets
+  // Filter for scheduled, live, completed, and cancelled meets
   const upcomingMeets = myMeets
-    .filter((meet) => meet.status === 'scheduled' || meet.status === 'live' || meet.status === 'completed')
+    .filter((meet) => meet.status === 'scheduled' || meet.status === 'live' || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator')
     .sort((a, b) => {
-      // Sort: live first, then scheduled, then completed
-      const statusOrder = { live: 0, scheduled: 1, completed: 2 };
-      const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 3) - (statusOrder[b.status as keyof typeof statusOrder] || 3);
+      // Sort: live first, then scheduled, then completed, then cancelled
+      const statusOrder = { live: 0, scheduled: 1, completed: 2, cancelled: 3, cancelled_no_show_creator: 3 };
+      const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 4) - (statusOrder[b.status as keyof typeof statusOrder] || 4);
       if (statusDiff !== 0) return statusDiff;
       // For same status, sort by scheduledAt descending (recent on top)
       return new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime();
@@ -45,6 +51,45 @@ export function FanMeets() {
   const liveMeets = upcomingMeets.filter((meet) => meet.status === 'live');
   const scheduledMeets = upcomingMeets.filter((meet) => meet.status === 'scheduled');
   const completedMeets = upcomingMeets.filter((meet) => meet.status === 'completed');
+
+  useEffect(() => {
+    const fetchEventsWithNoBids = async () => {
+      try {
+        const { data: eventsData, error } = await supabase
+          .from('events')
+          .select('id, title, status, starts_at, base_price, description')
+          .in('status', ['upcoming', 'live', 'completed'])
+          .order('starts_at', { ascending: true });
+
+        if (error) {
+          console.error('Error fetching events:', error);
+          setLoadingNoBids(false);
+          return;
+        }
+
+        if (eventsData) {
+          // Filter events that have no bids
+          const eventIds = eventsData.map(e => e.id);
+          const { data: bidsData } = await supabase
+            .from('bids')
+            .select('event_id')
+            .in('event_id', eventIds);
+
+          const bidsMap = new Map<string, boolean>();
+          bidsData?.forEach(b => bidsMap.set(b.event_id, true));
+
+          const noBidsEvents = eventsData.filter(e => !bidsMap.has(e.id));
+          setEventsWithNoBids(noBidsEvents);
+        }
+      } catch (err) {
+        console.error('Error fetching events with no bids:', err);
+      } finally {
+        setLoadingNoBids(false);
+      }
+    };
+
+    fetchEventsWithNoBids();
+  }, []);
 
   const handleCopy = (link?: string) => {
     if (!link) return;
@@ -87,10 +132,13 @@ export function FanMeets() {
             {upcomingMeets.map((meet) => (
               <div key={meet.id} className="grid gap-4 md:grid-cols-[auto_1fr] md:gap-6">
                 <Badge 
-                  variant={meet.status === 'live' ? 'success' : meet.status === 'completed' ? 'default' : 'primary'} 
+                  variant={meet.status === 'live' ? 'success' : meet.status === 'completed' ? 'default' : (meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator') ? 'danger' : 'primary'} 
                   className={`w-fit px-4 py-2 text-sm ${meet.status === 'live' ? 'animate-pulse' : ''}`}
                 >
-                  {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' : meet.status === 'completed' ? '✅ Completed' : 'Scheduled'}
+                  {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' : 
+                   meet.status === 'completed' ? '✅ Completed' : 
+                   meet.status === 'cancelled_no_show_creator' ? '🚫 Creator No-Show' : 
+                   meet.status === 'cancelled' ? '❌ Cancelled' : 'Scheduled'}
                 </Badge>
                 <div className="flex flex-col gap-4">
                   <div>
@@ -122,26 +170,32 @@ export function FanMeets() {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-3">
-                      {meet.status !== 'completed' && (
+                      {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' && (
                         <Button variant="secondary">Add to Calendar</Button>
                       )}
                       <Button
-                        disabled={!meet.meetingLink || meet.status === 'completed'}
+                        disabled={!meet.meetingLink || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator'}
                         onClick={() => handleJoin(meet.meetingLink)}
                       >
-                        {meet.status === 'completed' ? 'Meeting Ended' : 'Join Meeting →'}
+                        {meet.status === 'completed' ? 'Meeting Ended' : 
+                         meet.status === 'cancelled_no_show_creator' ? 'Creator No-Show' : 
+                         meet.status === 'cancelled' ? 'Meeting Cancelled' : 'Join Meeting →'}
                       </Button>
                     </div>
-                    {meet.status !== 'completed' ? (
+                    {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' ? (
                       <span className="text-sm text-[#6C757D]">
                         ⏰ Starts in:{' '}
                         <strong className="text-[#C045FF]">
                           {getStartsIn(meet.scheduledAt)}
                         </strong>
                       </span>
-                    ) : (
+                    ) : meet.status === 'completed' ? (
                       <span className="text-sm text-[#6C757D]">
                         ✅ This meeting has been completed
+                      </span>
+                    ) : (
+                      <span className="text-sm text-[#6C757D]">
+                        {meet.status === 'cancelled_no_show_creator' ? '🚫 Creator didn\'t show up - Full refund issued to your wallet' : '❌ This meeting was cancelled'}
                       </span>
                     )}
                   </div>
@@ -151,6 +205,64 @@ export function FanMeets() {
           </CardContent>
         </Card>
       )}
+
+      {/* Events with No Bids Yet */}
+      {loadingNoBids ? (
+        <Card>
+          <CardContent className="py-8 text-center">
+            <div className="text-sm text-[#6C757D]">Loading events...</div>
+          </CardContent>
+        </Card>
+      ) : eventsWithNoBids.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Events with No Bids"
+            subtitle="Events that ended without any bids placed."
+            className="border-b border-[#E9ECEF] pb-4"
+          />
+          <CardContent className="gap-4">
+            {eventsWithNoBids.slice(0, 10).map((event) => (
+              <div
+                key={event.id}
+                className="flex flex-col gap-4 rounded-[14px] border border-[#E9ECEF] bg-white p-4 cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => event.status !== 'completed' && navigate(`/events/${event.id}`)}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge variant={event.status === 'completed' ? 'default' : 'primary'}>
+                    {event.status === 'completed' ? '✅ Completed - No Bids' : '🎯 No Bids Yet'}
+                  </Badge>
+                  <span className="text-xs text-[#6C757D]">
+                    {event.status === 'completed' ? 'Ended' : 'Starts'} {formatDateTime(event.starts_at)}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[#212529]">{event.title}</h3>
+                  {event.description && (
+                    <p className="text-sm text-[#6C757D] mt-1 line-clamp-2">{event.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-[#6C757D]">Base Price</div>
+                    <div className="font-semibold text-[#C045FF]">{formatCurrency(event.base_price)}</div>
+                  </div>
+                  <Button size="sm" disabled={event.status === 'completed'}>
+                    {event.status === 'completed' ? 'Event Ended' : 'View & Bid →'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {eventsWithNoBids.length > 10 && (
+              <div className="text-center">
+                <Button variant="secondary" onClick={() => navigate('/fan')}>
+                  View More Events →
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
     </div>
   );
 }

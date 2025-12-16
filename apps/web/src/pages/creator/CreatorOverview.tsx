@@ -423,6 +423,7 @@ export function CreatorOverview() {
       title: 'Pending Balance',
       value: pendingBalance,
       action: 'Withdraw →',
+      actionLink: '/creator/withdrawals'
     },
     {
       id: 'meets',
@@ -595,6 +596,7 @@ export function CreatorOverview() {
                   variant="primary"
                   size="sm"
                   className="mt-2 w-fit bg-[#050014] text-white hover:bg-[#140423]"
+                  onClick={() => item.actionLink ? navigate(item.actionLink) : undefined}
                 >
                   {item.action}
                 </Button>

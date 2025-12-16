@@ -709,10 +709,16 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
             {role === 'creator' && !isLoadingPayout && !hasPayoutMethod && (
               <Button
                 size="lg"
-                className="bg-[#FF6B35] text-white hover:bg-[#ff5b1d]"
-                onClick={() => setIsPayoutModalOpen(true)}
+                className="bg-[#050014] text-white hover:bg-[#140423]"
+                onClick={() => {
+                  navigate('/creator/settings#payouts');
+                  setTimeout(() => {
+                    const el = document.querySelector('#payouts');
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 50);
+                }}
               >
-                Add payout method
+                Add bank account
               </Button>
             )}
             <div className="relative hidden md:block">

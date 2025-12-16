@@ -345,7 +345,7 @@ export function CreatorWithdrawals() {
 
               <Button
                 size="lg"
-                onClick={() => navigate('/creator/settings')}
+                onClick={() => navigate('/creator/settings#payouts')}
                 className="w-full max-w-sm"
               >
                 🏦 Add Bank Account / UPI

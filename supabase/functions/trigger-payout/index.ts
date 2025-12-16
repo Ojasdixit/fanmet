@@ -11,14 +11,25 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const jsonResponse = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+        status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
 const RAZORPAY_KEY_ID = Deno.env.get('RAZORPAYX_TEST_API_KEY');
 const RAZORPAY_KEY_SECRET = Deno.env.get('RAZORPAYX_TEST_SECRET_KEY');
 const RAZORPAY_ACCOUNT_NUMBER = Deno.env.get('RAZORPAY_X_ACCOUNT_NUMBER');
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 Deno.serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
+
+    let parsedRequestId: string | null = null;
 
     try {
         const { withdrawal_request_id } = await req.json();
@@ -27,9 +38,7 @@ Deno.serve(async (req: Request) => {
             throw new Error("Missing withdrawal_request_id");
         }
 
-        const supabaseUrl = Deno.env.get('SUPABASE_URL') || '';
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-        const supabaseClient = createClient(supabaseUrl, supabaseKey);
+        parsedRequestId = withdrawal_request_id;
 
         // 1. Fetch Request Details
         const { data: request, error: reqError } = await supabaseClient
@@ -55,9 +64,25 @@ Deno.serve(async (req: Request) => {
             throw new Error('Creator has no linked fund account (razorpay_fund_account_id missing)');
         }
 
+        const markFailed = async (note: string) => {
+            await supabaseClient
+                .from('withdrawal_requests')
+                .update({
+                    status: 'failed',
+                    admin_notes: note,
+                    processed_at: null
+                })
+                .eq('id', request.id);
+        };
+
         if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET || !RAZORPAY_ACCOUNT_NUMBER) {
             console.error("Missing Razorpay Keys in Environment");
-            throw new Error("Server misconfiguration: Missing Payment Keys");
+            await markFailed('Razorpay X credentials missing – payout skipped');
+            return jsonResponse({
+                success: false,
+                error: "Payout keys not configured. Please add Razorpay X credentials in Supabase.",
+                retryable: true
+            });
         }
 
         // 2. Create Payout via Razorpay X
@@ -91,16 +116,13 @@ Deno.serve(async (req: Request) => {
         if (!payoutResp.ok) {
             console.error("Razorpay Error:", payoutData);
 
-            // Mark as failed in DB
-            await supabaseClient
-                .from('withdrawal_requests')
-                .update({
-                    status: 'failed',
-                    notes: `Razorpay Error: ${payoutData.error?.description || 'Unknown'}`
-                })
-                .eq('id', request.id);
+            await markFailed(`Razorpay Error: ${payoutData.error?.description || 'Unknown'}`);
 
-            throw new Error(payoutData.error?.description || 'Payout failed at Razorpay');
+            return jsonResponse({
+                success: false,
+                error: payoutData.error?.description || 'Payout failed at Razorpay',
+                retryable: true
+            });
         }
 
         // 3. Update Status to Completed
@@ -109,7 +131,7 @@ Deno.serve(async (req: Request) => {
             .update({
                 status: 'completed',
                 processed_at: new Date().toISOString(),
-                notes: `Payout ID: ${payoutData.id}`
+                admin_notes: `Payout ID: ${payoutData.id}`
             })
             .eq('id', request.id);
 
@@ -117,16 +139,28 @@ Deno.serve(async (req: Request) => {
             console.error("Failed to update status after payout:", updateError);
         }
 
-        return new Response(
-            JSON.stringify({ success: true, payout_id: payoutData.id }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return jsonResponse({ success: true, payout_id: payoutData.id });
 
     } catch (error: any) {
         console.error("Edge Function Error:", error);
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (parsedRequestId) {
+            try {
+                await supabaseClient
+                    .from('withdrawal_requests')
+                    .update({
+                        status: 'failed',
+                        admin_notes: `Edge function error: ${error.message}`,
+                        processed_at: null
+                    })
+                    .eq('id', parsedRequestId);
+            } catch {
+                // ignore secondary failure
+            }
+        }
+        return jsonResponse({
+            success: false,
+            error: error?.message || 'Unexpected payout error',
+            retryable: true
+        });
     }
 });
