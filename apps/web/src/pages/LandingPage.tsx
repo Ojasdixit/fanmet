@@ -749,8 +749,8 @@ export function LandingPage() {
     activeCreatorCategory === 'All'
       ? featuredCreators
       : featuredCreators.filter((creator) =>
-          creator.category.toLowerCase().includes(activeCreatorCategory.toLowerCase()),
-        );
+        creator.category.toLowerCase().includes(activeCreatorCategory.toLowerCase()),
+      );
 
   return (
     <div className="flex flex-col">
@@ -798,7 +798,7 @@ export function LandingPage() {
               </button>
               <button
                 type="button"
-                className="hidden rounded-full border border-transparent bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-4 py-1.5 text-xs font-semibold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-[0_0_35px_rgba(192,69,255,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#E6FF00] md:inline-flex"
+                className="hidden rounded-full border-2 border-transparent bg-gradient-to-r from-[#A78BFA] via-[#C084FC] to-[#E0E7FF] bg-clip-border px-4 py-1.5 text-xs font-semibold text-[#050014] shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-[0_0_35px_rgba(167,139,250,0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#E6FF00] md:inline-flex" style={{ background: 'linear-gradient(white, white) padding-box, linear-gradient(to right, #A78BFA, #C084FC, #E0E7FF) border-box' }}
                 onClick={() => navigate('/auth')}
               >
                 Sign up
@@ -862,7 +862,7 @@ export function LandingPage() {
                 </button>
                 <button
                   type="button"
-                  className="w-full rounded-full bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-4 py-2 text-center text-xs font-semibold text-white shadow-md hover:shadow-[0_0_25px_rgba(192,69,255,0.8)]"
+                  className="w-full rounded-full border-2 border-transparent px-4 py-2 text-center text-xs font-semibold text-[#050014] shadow-md hover:shadow-[0_0_25px_rgba(167,139,250,0.5)]" style={{ background: 'linear-gradient(white, white) padding-box, linear-gradient(to right, #A78BFA, #C084FC, #E0E7FF) border-box' }}
                   onClick={() => {
                     setIsMobileMenuOpen(false);
                     navigate('/auth');
@@ -900,7 +900,7 @@ export function LandingPage() {
                   <button
                     type="button"
                     onClick={() => navigate('/fan')}
-                    className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] px-7 py-3 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(0,0,0,0.7)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(192,69,255,0.9)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E6FF00] focus-visible:ring-offset-2"
+                    className="inline-flex items-center justify-center rounded-full border-2 border-transparent px-7 py-3 text-sm font-semibold text-[#050014] shadow-[0_18px_50px_rgba(0,0,0,0.7)] transition-transform duration-200 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(167,139,250,0.6)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E6FF00] focus-visible:ring-offset-2" style={{ background: 'linear-gradient(white, white) padding-box, linear-gradient(to right, #A78BFA, #C084FC, #E0E7FF) border-box' }}
                   >
                     Explore live meets
                   </button>

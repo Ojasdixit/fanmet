@@ -157,8 +157,8 @@ export function FanMessages() {
                     type="button"
                     onClick={() => setActiveConversationId(conversation.id)}
                     className={`mb-2 flex w-full items-center gap-3 rounded-[12px] border px-3 py-2 text-left text-sm transition-colors ${isActive
-                        ? 'border-[#C045FF] bg-[#F4E6FF] text-[#140423]'
-                        : 'border-[#E9ECEF] bg-white text-[#212529] hover:border-[#C045FF]/50 hover:bg-[#F8F5FF]'
+                      ? 'border-[#C045FF] bg-[#F4E6FF] text-[#140423]'
+                      : 'border-[#E9ECEF] bg-white text-[#212529] hover:border-[#C045FF]/50 hover:bg-[#F8F5FF]'
                       }`}
                   >
                     <Avatar
@@ -281,9 +281,10 @@ export function FanMessages() {
                         <div>
                           <div
                             className={`rounded-2xl px-3 py-2 text-sm ${isMe
-                                ? 'bg-gradient-to-r from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-white shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
-                                : 'border border-[#E9ECEF] bg-white text-[#212529]'
+                              ? 'border-2 border-transparent text-[#050014] shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+                              : 'border border-[#E9ECEF] bg-white text-[#212529]'
                               }`}
+                            style={isMe ? { background: 'linear-gradient(white, white) padding-box, linear-gradient(to right, #A78BFA, #C084FC, #E0E7FF) border-box' } : undefined}
                           >
                             {msg.message}
                           </div>

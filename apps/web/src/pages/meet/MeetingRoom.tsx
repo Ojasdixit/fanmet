@@ -11,6 +11,7 @@ import AgoraRTC, {
     LocalUser,
 } from 'agora-rtc-react';
 import { Button, Card } from '@fanmeet/ui';
+import { PhoneOff, Mic, MicOff, Video, VideoOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -445,6 +446,8 @@ function LiveCall({
     const [recordingError, setRecordingError] = useState<string | null>(null);
     const [agoraToken, setAgoraToken] = useState<string | null>(null);
     const [tokenLoading, setTokenLoading] = useState(true);
+    const [micOn, setMicOn] = useState(true);
+    const [cameraOn, setCameraOn] = useState(true);
     
     // CRITICAL: Use meeting.id (database UUID) as channel name, NOT meetId from URL
     // This ensures both creator and fan join the SAME Agora channel regardless of URL case
@@ -467,6 +470,18 @@ function LiveCall({
     const { localCameraTrack } = useLocalCameraTrack(active);
     usePublish([localMicrophoneTrack, localCameraTrack]);
     const remoteUsers = useRemoteUsers();
+
+    useEffect(() => {
+        if (localMicrophoneTrack) {
+            localMicrophoneTrack.setEnabled(micOn);
+        }
+    }, [localMicrophoneTrack, micOn]);
+
+    useEffect(() => {
+        if (localCameraTrack) {
+            localCameraTrack.setEnabled(cameraOn);
+        }
+    }, [localCameraTrack, cameraOn]);
 
     // Log connection status for debugging
     useEffect(() => {
@@ -568,88 +583,165 @@ function LiveCall({
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const primaryRemoteUser = remoteUsers[0];
+    const secondaryRemoteUsers = remoteUsers.slice(1);
+    const recordingDotColor =
+        recordingStatus === 'recording'
+            ? 'bg-red-500 animate-pulse'
+            : recordingStatus === 'error'
+            ? 'bg-amber-400'
+            : recordingStatus === 'stopped'
+            ? 'bg-gray-400'
+            : 'bg-emerald-400 animate-pulse';
+
     return (
-        <div className="flex h-screen w-full flex-col bg-gray-900 text-white">
-            <div className="flex items-center justify-between bg-gray-800 px-6 py-4 shadow-md">
-                <div className="flex items-center gap-3">
-                    <h1 className="text-lg font-semibold">FanMeet Call</h1>
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${isCreator ? 'bg-purple-600' : 'bg-blue-600'}`}>
-                        {isCreator ? 'Creator' : 'Fan'}
-                    </span>
-                </div>
-                <div className={`rounded-full px-4 py-1 text-sm font-bold ${timeLeft !== null && timeLeft < 60 ? 'bg-red-500' : 'bg-gray-700'}`}>
-                    {timeLeft !== null ? formatTime(timeLeft) : 'Loading...'}
-                </div>
-                <Button variant="secondary" size="sm" onClick={onLeave}>
-                    Leave Call
-                </Button>
-            </div>
+        <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#040308] text-white">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(88,111,255,0.25),_rgba(4,3,8,0.95))]" />
 
-            <div className="flex flex-1 items-center justify-center gap-4 p-4">
-                <div className="relative aspect-video h-full max-h-[400px] w-full max-w-[600px] overflow-hidden rounded-xl bg-gray-800 shadow-lg">
-                    <LocalUser
-                        audioTrack={localMicrophoneTrack}
-                        videoTrack={localCameraTrack}
-                        cameraOn={true}
-                        micOn={true}
-                        playAudio={false}
-                        playVideo={true}
-                        className="h-full w-full object-cover"
-                    />
-                    <div className="absolute bottom-4 left-4 rounded-md bg-black/50 px-2 py-1 text-sm">
-                        You ({user?.username || 'Me'})
+            <div className="relative z-10 flex h-full flex-col">
+                <header className="flex items-center justify-between px-5 pb-2 pt-6 sm:px-8">
+                    <div>
+                        <p className="text-xs uppercase tracking-[0.35em] text-white/50">FanMeet Live</p>
+                        <h1 className="text-xl font-semibold text-white sm:text-2xl">
+                            {isCreator ? 'Chat with your fan' : 'Live with the creator'}
+                        </h1>
+                        <p className="text-[11px] text-white/60">End-to-end encrypted • Agora powered</p>
                     </div>
-                </div>
+                    <div className="flex flex-col items-end gap-1 text-right">
+                        <span className="text-[11px] uppercase tracking-[0.3em] text-emerald-300">Live</span>
+                        <span
+                            className={`text-2xl font-bold ${
+                                timeLeft !== null && timeLeft < 60 ? 'text-rose-300' : 'text-white'
+                            }`}
+                        >
+                            {timeLeft !== null ? formatTime(timeLeft) : '--:--'}
+                        </span>
+                        <span className="text-xs text-white/60">
+                            {remoteUsers.length + 1} participant{remoteUsers.length !== 0 ? 's' : ''}
+                        </span>
+                    </div>
+                </header>
 
-                {remoteUsers.map((remoteUser) => (
-                    <div key={remoteUser.uid} className="relative aspect-video h-full max-h-[400px] w-full max-w-[600px] overflow-hidden rounded-xl bg-gray-800 shadow-lg">
-                        <RemoteUser user={remoteUser} className="h-full w-full object-cover" />
-                        <div className="absolute bottom-4 left-4 rounded-md bg-black/50 px-2 py-1 text-sm">
-                            {isCreator ? 'Fan' : 'Creator'}
+                <main className="relative flex-1 px-4 pb-36 pt-2 sm:px-8">
+                    <div className="relative h-full w-full overflow-hidden rounded-[32px] border border-white/10 bg-black/40 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
+                        {primaryRemoteUser ? (
+                            <RemoteUser user={primaryRemoteUser} className="h-full w-full object-cover" />
+                        ) : (
+                            <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center">
+                                <div className="mb-4 text-5xl">📡</div>
+                                <p className="text-base font-semibold">Waiting for {isCreator ? 'fan' : 'creator'} to connect</p>
+                                <p className="mt-2 max-w-xs text-sm text-white/70">
+                                    We’ll pull them in the moment their camera is active.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/40" />
+
+                        <div className="absolute left-5 top-5 flex flex-col gap-1 rounded-2xl bg-black/30 px-4 py-3 backdrop-blur">
+                            <span className="text-[11px] uppercase tracking-[0.3em] text-white/70">
+                                {primaryRemoteUser ? 'Connected' : 'Calling'}
+                            </span>
+                            <p className="text-lg font-semibold">
+                                {isCreator ? 'Fan' : 'Creator'} view
+                            </p>
+                            <p className="text-xs text-white/70">
+                                {new Date(meeting.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                        </div>
+
+                        {secondaryRemoteUsers.length > 0 && (
+                            <div className="absolute right-5 top-5 flex gap-2">
+                                {secondaryRemoteUsers.slice(0, 2).map((user) => (
+                                    <div
+                                        key={user.uid}
+                                        className="h-12 w-12 rounded-2xl border border-white/20 bg-white/15 backdrop-blur"
+                                    >
+                                        <RemoteUser user={user} className="h-full w-full rounded-2xl object-cover" />
+                                    </div>
+                                ))}
+                                {secondaryRemoteUsers.length > 2 && (
+                                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/20 bg-black/30 text-xs font-semibold text-white/70">
+                                        +{secondaryRemoteUsers.length - 2}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="absolute bottom-5 left-5 flex max-w-[70%] items-center gap-3 rounded-2xl bg-black/35 px-4 py-2 text-xs text-white/80 backdrop-blur">
+                            <div className={`h-2 w-2 rounded-full ${remoteUsers.length ? 'bg-emerald-400' : 'bg-yellow-400'}`} />
+                            <p className="truncate">
+                                {remoteUsers.length ? 'All good — video stabilized' : 'Linking you both together…'}
+                            </p>
                         </div>
                     </div>
-                ))}
 
-                {remoteUsers.length === 0 && (
-                    <div className="flex aspect-video h-full max-h-[400px] w-full max-w-[600px] items-center justify-center rounded-xl bg-gray-800 text-gray-400">
-                        <div className="text-center">
-                            <div className="mb-2 text-4xl">👤</div>
-                            <p>Waiting for {isCreator ? 'fan' : 'creator'} to join...</p>
+                    <div className="absolute bottom-24 right-6 w-32 rounded-[22px] border border-white/20 bg-black/50 p-2 shadow-2xl backdrop-blur sm:right-12 sm:w-40">
+                        <LocalUser
+                            audioTrack={localMicrophoneTrack}
+                            videoTrack={localCameraTrack}
+                            cameraOn={cameraOn}
+                            micOn={micOn}
+                            playAudio={false}
+                            playVideo={cameraOn}
+                            className="h-40 w-full rounded-2xl object-cover"
+                        />
+                        <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/60 px-2 py-1 text-[11px] font-medium">
+                            You
+                            <span className={`h-2 w-2 rounded-full ${micOn ? 'bg-emerald-400' : 'bg-rose-400'}`} />
                         </div>
                     </div>
-                )}
-            </div>
+                </main>
 
-            <div className="flex items-center justify-center gap-4 bg-gray-800 py-4">
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                    <div
-                        className={`h-2 w-2 rounded-full ${
-                            recordingStatus === 'recording'
-                                ? 'bg-red-500 animate-pulse'
-                                : recordingStatus === 'error'
-                                ? 'bg-orange-500'
-                                : 'bg-gray-500'
-                        }`}
-                    ></div>
-                    <span>
-                        {recordingStatus === 'recording' && 'Recording'}
-                        {recordingStatus === 'preparing' && 'Preparing recording...'}
-                        {recordingStatus === 'stopped' && 'Recording stopped'}
-                        {recordingStatus === 'error' && (recordingError || 'Recording error')}
-                    </span>
-                    {!isCreator && recordingStatus === 'error' && (
-                        <span className="text-xs text-gray-500">(creator will be notified)</span>
-                    )}
-                </div>
-                {recordingStatus === 'recording' && isCreator && (
-                    <Button variant="ghost" size="sm" onClick={handleStopRecording}>
-                        Stop Recording
-                    </Button>
-                )}
-                <span className="text-gray-600">|</span>
-                <span className="text-sm text-gray-400">
-                    Call ends automatically at scheduled time. No extensions.
-                </span>
+                <footer className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col gap-4 rounded-t-[32px] bg-black/60 px-6 pb-8 pt-6 backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between sm:px-10">
+                    <div className="flex items-center gap-2 text-xs text-white/70 sm:text-sm">
+                        <div className={`h-2 w-2 rounded-full ${recordingDotColor}`} />
+                        <span>
+                            {recordingStatus === 'recording' && 'Recording • Cloud backup active'}
+                            {recordingStatus === 'preparing' && 'Arming recording...'}
+                            {recordingStatus === 'stopped' && 'Recording stopped'}
+                            {recordingStatus === 'error' && (recordingError || 'Recording unavailable')}
+                        </span>
+                        {recordingStatus === 'recording' && isCreator && (
+                            <button
+                                onClick={handleStopRecording}
+                                className="ml-3 text-xs font-semibold text-white/90 underline-offset-2 hover:text-white"
+                            >
+                                Stop
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex flex-1 flex-wrap items-center justify-center gap-4 sm:justify-end">
+                        <button
+                            onClick={() => setMicOn((prev) => !prev)}
+                            className={`flex h-16 w-16 flex-col items-center justify-center rounded-full text-xs font-semibold transition ${
+                                micOn ? 'bg-white/15 text-white' : 'bg-rose-600 text-white shadow-lg shadow-rose-900/40'
+                            }`}
+                        >
+                            {micOn ? <Mic className="mb-1 h-5 w-5" /> : <MicOff className="mb-1 h-5 w-5" />}
+                            {micOn ? 'Mute' : 'Unmute'}
+                        </button>
+
+                        <button
+                            onClick={() => setCameraOn((prev) => !prev)}
+                            className={`flex h-16 w-16 flex-col items-center justify-center rounded-full text-xs font-semibold transition ${
+                                cameraOn ? 'bg-white/15 text-white' : 'bg-rose-600 text-white shadow-lg shadow-rose-900/40'
+                            }`}
+                        >
+                            {cameraOn ? <Video className="mb-1 h-5 w-5" /> : <VideoOff className="mb-1 h-5 w-5" />}
+                            {cameraOn ? 'Video' : 'Off'}
+                        </button>
+
+                        <button
+                            onClick={onLeave}
+                            className="flex h-16 flex-1 items-center justify-center rounded-2xl bg-rose-600 text-sm font-semibold uppercase tracking-wide text-white shadow-2xl shadow-rose-900/40 sm:h-14 sm:flex-none sm:px-10"
+                        >
+                            <PhoneOff className="mr-2 h-5 w-5" />
+                            Leave
+                        </button>
+                    </div>
+                </footer>
             </div>
         </div>
     );

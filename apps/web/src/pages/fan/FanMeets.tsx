@@ -39,12 +39,27 @@ export function FanMeets() {
   const upcomingMeets = myMeets
     .filter((meet) => meet.status === 'scheduled' || meet.status === 'live' || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator')
     .sort((a, b) => {
-      // Sort: live first, then scheduled, then completed, then cancelled
+      // Priority 1: Live meetings first
+      if (a.status === 'live' && b.status !== 'live') return -1;
+      if (b.status === 'live' && a.status !== 'live') return 1;
+
+      // Priority 2: Recent meetings (within 24 hours) for scheduled status
+      const now = new Date();
+      const aTime = new Date(a.scheduledAt);
+      const bTime = new Date(b.scheduledAt);
+      const aIsRecent = a.status === 'scheduled' && (aTime.getTime() - now.getTime()) <= 24 * 60 * 60 * 1000 && aTime > now;
+      const bIsRecent = b.status === 'scheduled' && (bTime.getTime() - now.getTime()) <= 24 * 60 * 60 * 1000 && bTime > now;
+
+      if (aIsRecent && !bIsRecent) return -1;
+      if (bIsRecent && !aIsRecent) return 1;
+
+      // Priority 3: Sort by status (scheduled, completed, cancelled)
       const statusOrder = { live: 0, scheduled: 1, completed: 2, cancelled: 3, cancelled_no_show_creator: 3 };
       const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 4) - (statusOrder[b.status as keyof typeof statusOrder] || 4);
       if (statusDiff !== 0) return statusDiff;
-      // For same status, sort by scheduledAt descending (recent on top)
-      return new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime();
+
+      // Priority 4: For same status, sort by scheduledAt ascending (nearest first)
+      return aTime.getTime() - bTime.getTime();
     });
 
   // Categorize meets by status
@@ -129,79 +144,105 @@ export function FanMeets() {
             className="border-b border-[#E9ECEF] pb-4"
           />
           <CardContent className="gap-6">
-            {upcomingMeets.map((meet) => (
-              <div key={meet.id} className="grid gap-4 md:grid-cols-[auto_1fr] md:gap-6">
-                <Badge 
-                  variant={meet.status === 'live' ? 'success' : meet.status === 'completed' ? 'default' : (meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator') ? 'danger' : 'primary'} 
-                  className={`w-fit px-4 py-2 text-sm ${meet.status === 'live' ? 'animate-pulse' : ''}`}
-                >
-                  {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' : 
-                   meet.status === 'completed' ? '✅ Completed' : 
-                   meet.status === 'cancelled_no_show_creator' ? '🚫 Creator No-Show' : 
-                   meet.status === 'cancelled' ? '❌ Cancelled' : 'Scheduled'}
-                </Badge>
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <h3 className="text-xl font-semibold text-[#212529]">
-                      Meeting with {meet.creatorDisplayName || meet.creatorUsername}
-                    </h3>
-                    <p className="text-sm text-[#6C757D]">
-                      {formatDateTime(meet.scheduledAt)} • Duration {meet.durationMinutes} minutes
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-2 rounded-[12px] border border-[#E9ECEF] bg-[#F8F9FA] p-4">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">
-                        Meeting Link
-                      </span>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="break-all text-sm text-[#212529]">
-                          {meet.meetingLink || 'Link not available yet'}
-                        </span>
-                        {meet.meetingLink && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleCopy(meet.meetingLink)}
-                          >
-                            Copy
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-3">
-                      {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' && (
-                        <Button variant="secondary">Add to Calendar</Button>
-                      )}
-                      <Button
-                        disabled={!meet.meetingLink || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator'}
-                        onClick={() => handleJoin(meet.meetingLink)}
-                      >
-                        {meet.status === 'completed' ? 'Meeting Ended' : 
-                         meet.status === 'cancelled_no_show_creator' ? 'Creator No-Show' : 
-                         meet.status === 'cancelled' ? 'Meeting Cancelled' : 'Join Meeting →'}
-                      </Button>
-                    </div>
-                    {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' ? (
-                      <span className="text-sm text-[#6C757D]">
-                        ⏰ Starts in:{' '}
-                        <strong className="text-[#C045FF]">
-                          {getStartsIn(meet.scheduledAt)}
-                        </strong>
-                      </span>
-                    ) : meet.status === 'completed' ? (
-                      <span className="text-sm text-[#6C757D]">
-                        ✅ This meeting has been completed
-                      </span>
-                    ) : (
-                      <span className="text-sm text-[#6C757D]">
-                        {meet.status === 'cancelled_no_show_creator' ? '🚫 Creator didn\'t show up - Full refund issued to your wallet' : '❌ This meeting was cancelled'}
-                      </span>
+            {upcomingMeets.map((meet) => {
+              const now = new Date();
+              const meetTime = new Date(meet.scheduledAt);
+              const isRecent = meet.status === 'scheduled' && (meetTime.getTime() - now.getTime()) <= 24 * 60 * 60 * 1000 && meetTime > now;
+
+              return (
+                <div key={meet.id} className={`grid gap-4 md:grid-cols-[auto_1fr] md:gap-6 ${isRecent ? 'rounded-lg border-2 border-[#FF6B35] bg-[#FFF5F0] p-4 -mx-4' : ''}`}>
+                  <div className="flex flex-col gap-2">
+                    <Badge
+                      variant={meet.status === 'live' ? 'success' : meet.status === 'completed' ? 'default' : (meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator') ? 'danger' : 'primary'}
+                      className={`w-fit px-4 py-2 text-sm ${meet.status === 'live' ? 'animate-pulse' : ''}`}
+                    >
+                      {meet.status === 'live' ? '🔴 LIVE - Creator is waiting!' :
+                        meet.status === 'completed' ? '✅ Completed' :
+                          meet.status === 'cancelled_no_show_creator' ? '🚫 Creator No-Show' :
+                            meet.status === 'cancelled' ? '❌ Cancelled' : 'Scheduled'}
+                    </Badge>
+                    {isRecent && (
+                      <Badge variant="danger" className="w-fit px-3 py-1 text-xs animate-pulse">
+                        🔥 Starting Soon!
+                      </Badge>
                     )}
                   </div>
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <h3 className="text-xl font-semibold text-[#212529]">
+                        Meeting with {meet.creatorDisplayName || meet.creatorUsername}
+                      </h3>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${isRecent ? 'bg-[#FF6B35] text-white' : 'bg-[#F4E6FF] text-[#C045FF]'}`}>
+                          <span className="text-lg">📅</span>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium opacity-90">Date & Time</span>
+                            <span className="text-sm font-bold">{formatDateTime(meet.scheduledAt)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 rounded-lg bg-[#E5DEFF] px-3 py-2 text-[#7B2CBF]">
+                          <span className="text-lg">⏱️</span>
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium opacity-90">Duration</span>
+                            <span className="text-sm font-bold">{meet.durationMinutes} minutes</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2 rounded-[12px] border border-[#E9ECEF] bg-[#F8F9FA] p-4">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">
+                          Meeting Link
+                        </span>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="break-all text-sm text-[#212529]">
+                            {meet.meetingLink || 'Link not available yet'}
+                          </span>
+                          {meet.meetingLink && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleCopy(meet.meetingLink)}
+                            >
+                              Copy
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' && (
+                          <Button variant="secondary">Add to Calendar</Button>
+                        )}
+                        <Button
+                          disabled={!meet.meetingLink || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator'}
+                          onClick={() => handleJoin(meet.meetingLink)}
+                        >
+                          {meet.status === 'completed' ? 'Meeting Ended' :
+                            meet.status === 'cancelled_no_show_creator' ? 'Creator No-Show' :
+                              meet.status === 'cancelled' ? 'Meeting Cancelled' : 'Join Meeting →'}
+                        </Button>
+                      </div>
+                      {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' ? (
+                        <span className={`text-sm font-medium ${isRecent ? 'text-[#FF6B35]' : 'text-[#6C757D]'}`}>
+                          ⏰ Starts in:{' '}
+                          <strong className={isRecent ? 'text-[#FF6B35]' : 'text-[#C045FF]'}>
+                            {getStartsIn(meet.scheduledAt)}
+                          </strong>
+                        </span>
+                      ) : meet.status === 'completed' ? (
+                        <span className="text-sm text-[#6C757D]">
+                          ✅ This meeting has been completed
+                        </span>
+                      ) : (
+                        <span className="text-sm text-[#6C757D]">
+                          {meet.status === 'cancelled_no_show_creator' ? '🚫 Creator didn\'t show up - Full refund issued to your wallet' : '❌ This meeting was cancelled'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       )}

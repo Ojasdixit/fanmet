@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, TextInput, Card } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
 import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
 
 const highlightStats = [
   {
@@ -23,6 +24,12 @@ export function AuthPage() {
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showExistingAccountModal, setShowExistingAccountModal] = useState(false);
+  const [socialLinks, setSocialLinks] = useState({
+    instagram: '',
+    youtube: '',
+    twitter: '',
+  });
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login, signup, resendVerificationEmail, isAuthenticated, user } = useAuth();
@@ -38,11 +45,32 @@ export function AuthPage() {
     }
   }, [isAuthenticated, user, navigate]);
 
+  const hasSocialPresence = Object.values(socialLinks).some((value) => value.trim().length > 0);
+
+  const resetSocialLinks = () => {
+    setSocialLinks({
+      instagram: '',
+      youtube: '',
+      twitter: '',
+    });
+  };
+
+  useEffect(() => {
+    if (mode === 'login') {
+      resetSocialLinks();
+    }
+  }, [mode]);
+
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
       setFormError('Please enter both email and password.');
+      return;
+    }
+
+    if (mode === 'signup' && !hasSocialPresence) {
+      setFormError('Share at least one social media link so fans can verify you.');
       return;
     }
 
@@ -63,6 +91,17 @@ export function AuthPage() {
           : await login({ email, password });
 
       if (mode === 'signup') {
+        await supabase
+          .from('profiles')
+          .update({
+            instagram_url: socialLinks.instagram.trim() || null,
+            youtube_url: socialLinks.youtube.trim() || null,
+            twitter_url: socialLinks.twitter.trim() || null,
+          })
+          .eq('user_id', authUser.id);
+      }
+
+      if (mode === 'signup') {
         setFormSuccess('Account created. Please check your email to verify your account before logging in.');
         return;
       }
@@ -73,11 +112,14 @@ export function AuthPage() {
 
       navigate(target, { replace: true });
     } catch (error) {
+      let message = 'Something went wrong. Please try again.';
       if (error instanceof Error) {
-        setFormError(error.message);
-      } else {
-        setFormError('Something went wrong. Please try again.');
+        message = error.message;
+        if (/already\s+(registered|exists)/i.test(message) || /user\s+already/i.test(message)) {
+          setShowExistingAccountModal(true);
+        }
       }
+      setFormError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -103,7 +145,35 @@ export function AuthPage() {
   };
 
   return (
-    <div className="grid min-h-[calc(100vh-70px)] grid-cols-1 bg-gradient-to-b from-white to-[#F8F0FF] md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+    <>
+      {showExistingAccountModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-10">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F4E6FF] text-3xl">
+              ⚠️
+            </div>
+            <h3 className="text-xl font-semibold text-[#050014]">Account already exists</h3>
+            <p className="mt-2 text-sm text-[#6C757D]">
+              Looks like {email || 'this email'} is already registered. Try logging in, or use another email to create a
+              new account.
+            </p>
+            <div className="mt-5 flex flex-col gap-2">
+              <Button
+                onClick={() => {
+                  setMode('login');
+                  setShowExistingAccountModal(false);
+                }}
+              >
+                Go to login
+              </Button>
+              <Button variant="secondary" onClick={() => setShowExistingAccountModal(false)}>
+                Use a different email
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className="grid min-h-[calc(100vh-70px)] grid-cols-1 bg-gradient-to-b from-white to-[#F8F0FF] md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
       <section className="relative hidden h-full w-full items-start justify-start bg-gradient-to-br from-[#FCE7FF] via-[#F4E6FF] to-[#E5DEFF] px-10 py-9 text-[#050014] md:flex">
         <div className="relative z-10 mx-auto flex max-w-xl flex-col gap-6">
           <div className="flex flex-col gap-2">
@@ -268,10 +338,52 @@ export function AuthPage() {
               </div>
             </div>
 
+            {mode === 'signup' && (
+              <div className="rounded-2xl border border-[#E9ECEF] bg-white/80 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-semibold text-[#212529]">Social proof (required)</p>
+                    <p className="text-xs text-[#6C757D]">Add at least one link so fans can verify you.</p>
+                  </div>
+                  <Badge variant={hasSocialPresence ? 'primary' : 'secondary'}>
+                    {hasSocialPresence ? 'Ready' : 'Pending'}
+                  </Badge>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <TextInput
+                    label="Instagram"
+                    placeholder="https://instagram.com/yourhandle"
+                    value={socialLinks.instagram}
+                    onChange={(event) => setSocialLinks((prev) => ({ ...prev, instagram: event.target.value }))}
+                  />
+                  <TextInput
+                    label="YouTube"
+                    placeholder="https://youtube.com/@yourchannel"
+                    value={socialLinks.youtube}
+                    onChange={(event) => setSocialLinks((prev) => ({ ...prev, youtube: event.target.value }))}
+                  />
+                  <TextInput
+                    label="Twitter / X"
+                    placeholder="https://twitter.com/yourhandle"
+                    value={socialLinks.twitter}
+                    onChange={(event) => setSocialLinks((prev) => ({ ...prev, twitter: event.target.value }))}
+                  />
+                  {!hasSocialPresence && (
+                    <p className="text-[11px] font-medium text-[#DC3545]">Share at least one link to continue.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             {formError ? <p className="text-[11px] font-medium text-[#DC3545]">{formError}</p> : null}
             {formSuccess ? <p className="text-[11px] font-medium text-[#198754]">{formSuccess}</p> : null}
 
-            <Button type="submit" size="md" className="h-9 text-[13px]">
+            <Button
+              type="submit"
+              size="md"
+              className="h-9 text-[13px]"
+              disabled={isSubmitting || (mode === 'signup' && !hasSocialPresence)}
+            >
               Continue with email
             </Button>
 
@@ -315,6 +427,7 @@ export function AuthPage() {
           </p>
         </div>
       </section>
-    </div>
+      </div>
+    </>
   );
 }

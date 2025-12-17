@@ -22,7 +22,6 @@ export function CreatorCreateEvent() {
   const [biddingDeadlineTime, setBiddingDeadlineTime] = useState('');
 
   const [formError, setFormError] = useState('');
-  const [eventType, setEventType] = useState<'paid' | 'free'>('paid');
 
   const handleCreateEvent = async () => {
     if (!user || user.role !== 'creator') {
@@ -135,34 +134,6 @@ export function CreatorCreateEvent() {
             className="border-b border-[#E9ECEF] px-8 py-6"
           />
           <CardContent className="gap-6 px-8 py-6">
-            <div className="flex flex-col gap-4">
-              <span className="text-sm font-semibold text-[#212529]">Event Type *</span>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant={eventType === 'paid' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="rounded-[8px]"
-                  onClick={() => {
-                    setEventType('paid');
-                    setBasePrice(null);
-                  }}
-                >
-                  Paid Event
-                </Button>
-                <Button
-                  variant={eventType === 'free' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="rounded-[8px]"
-                  onClick={() => {
-                    setEventType('free');
-                    setBasePrice(0);
-                  }}
-                >
-                  Free Event
-                </Button>
-              </div>
-            </div>
-
             <TextInput
               label="Event Title *"
               placeholder="Give your event an exciting headline"
@@ -182,29 +153,24 @@ export function CreatorCreateEvent() {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-3">
                 <span className="text-sm font-semibold text-[#212529]">Base Price *</span>
+                <p className="text-xs text-[#6C757D]">All creator events must be paid. Select a starting bid.</p>
                 <div className="flex flex-wrap gap-3">
-                  {eventType === 'free' ? (
-                    <Button variant="primary" size="sm" className="rounded-[8px]" disabled>
-                      Free (₹0)
-                    </Button>
-                  ) : (
-                    priceOptions.map((price) => {
-                      const numeric = parseInt(price.replace(/[^0-9]/g, ''), 10) || 0;
-                      const isActive = basePrice === numeric;
+                  {priceOptions.map((price) => {
+                    const numeric = parseInt(price.replace(/[^0-9]/g, ''), 10) || 0;
+                    const isActive = basePrice === numeric;
 
-                      return (
-                        <Button
-                          key={price}
-                          variant={isActive ? 'primary' : 'secondary'}
-                          size="sm"
-                          className="rounded-[8px]"
-                          onClick={() => setBasePrice(numeric)}
-                        >
-                          {price}
-                        </Button>
-                      );
-                    })
-                  )}
+                    return (
+                      <Button
+                        key={price}
+                        variant={isActive ? 'primary' : 'secondary'}
+                        size="sm"
+                        className="rounded-[8px]"
+                        onClick={() => setBasePrice(numeric)}
+                      >
+                        {price}
+                      </Button>
+                    );
+                  })}
                 </div>
               </div>
 

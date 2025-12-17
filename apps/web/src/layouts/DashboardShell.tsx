@@ -134,7 +134,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [isResizing, setIsResizing] = useState(false);
   const [activeRightPanel, setActiveRightPanel] = useState<'none' | 'notifications' | 'profile'>('none');
-    const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
   const [isLoadingPayout, setIsLoadingPayout] = useState(false);
@@ -777,7 +777,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
             </div>
           </div>
         </header>
-        <main className="flex-1 px-4 py-6 md:px-12 md:py-10">
+        <main className="flex-1 overflow-x-hidden px-4 py-6 md:px-12 md:py-10">
           <Outlet />
         </main>
       </div>

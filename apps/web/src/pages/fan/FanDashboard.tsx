@@ -122,24 +122,24 @@ export function FanDashboard() {
   }, [myBids]);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 overflow-x-hidden">
       <Card
         elevated
         className="overflow-hidden border-none bg-gradient-to-r from-[#FCE7FF] via-[#F4E6FF] to-[#E5DEFF] shadow-[0_24px_60px_rgba(160,64,255,0.18)]"
       >
-        <div className="relative flex flex-col gap-6 px-6 py-6 md:flex-row md:items-center md:px-8 md:py-8">
+        <div className="relative flex flex-col gap-6 px-4 py-6 md:flex-row md:items-center md:px-8 md:py-8">
           <div className="max-w-xl space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#C045FF]">
               Browse Events
             </p>
-            <h1 className="text-2xl font-semibold text-[#050014] md:text-3xl">
+            <h1 className="text-xl font-semibold text-[#050014] md:text-3xl">
               Find a live FanMeet that matches your vibe.
             </h1>
             <p className="text-sm text-[#4B445F]">
               Browse, bid, and secure your spot with your favorite creators in small, exclusive meetups.
             </p>
           </div>
-          <div className="flex-shrink-0 text-6xl md:text-7xl">🎯</div>
+          <div className="flex-shrink-0 text-5xl md:text-7xl">🎯</div>
         </div>
       </Card>
 
@@ -159,14 +159,14 @@ export function FanDashboard() {
           </div>
 
           {/* Category Filters */}
-          <div>
+          <div className="overflow-x-hidden">
             <h3 className="mb-3 text-sm font-semibold text-[#212529]">Categories</h3>
             <div className="flex flex-wrap gap-2">
               {categories.map((cat) => (
                 <button
                   key={cat.value}
                   onClick={() => setSelectedCategory(cat.value)}
-                  className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-all ${selectedCategory === cat.value
+                  className={`flex-shrink-0 rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-all md:px-4 md:py-2 md:text-sm ${selectedCategory === cat.value
                     ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
                     : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
                     }`}
@@ -179,14 +179,14 @@ export function FanDashboard() {
           </div>
 
           {/* Sort Options */}
-          <div>
+          <div className="overflow-x-hidden">
             <h3 className="mb-3 text-sm font-semibold text-[#212529]">Sort By</h3>
             <div className="flex flex-wrap gap-2">
               {sortOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setSortBy(option.value)}
-                  className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-all ${sortBy === option.value
+                  className={`flex-shrink-0 whitespace-nowrap rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-all md:px-4 md:py-2 md:text-sm ${sortBy === option.value
                     ? 'border-[#C045FF] bg-[#C045FF] text-white'
                     : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
                     }`}

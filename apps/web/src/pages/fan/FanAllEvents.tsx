@@ -32,7 +32,7 @@ export function FanAllEvents() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { events } = useEvents();
-  
+
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilter>(
     (searchParams.get('category') as CategoryFilter) || 'all'
   );
@@ -127,7 +127,7 @@ export function FanAllEvents() {
   };
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-8 overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -157,14 +157,14 @@ export function FanAllEvents() {
           </div>
 
           {/* Category Filters */}
-          <div>
+          <div className="overflow-x-hidden">
             <h3 className="mb-3 text-sm font-semibold text-[#212529]">Categories</h3>
             <div className="flex flex-wrap gap-2">
               {categories.map((cat) => (
                 <button
                   key={cat.value}
                   onClick={() => setSelectedCategory(cat.value)}
-                  className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-all ${selectedCategory === cat.value
+                  className={`flex-shrink-0 rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-all md:px-4 md:py-2 md:text-sm ${selectedCategory === cat.value
                     ? 'border-[#C045FF] bg-[#F4E6FF] text-[#C045FF]'
                     : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
                     }`}
@@ -177,14 +177,14 @@ export function FanAllEvents() {
           </div>
 
           {/* Sort Options */}
-          <div>
+          <div className="overflow-x-hidden">
             <h3 className="mb-3 text-sm font-semibold text-[#212529]">Sort By</h3>
             <div className="flex flex-wrap gap-2">
               {sortOptions.map((option) => (
                 <button
                   key={option.value}
                   onClick={() => setSortBy(option.value)}
-                  className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-all ${sortBy === option.value
+                  className={`flex-shrink-0 whitespace-nowrap rounded-full border-2 px-3 py-1.5 text-xs font-medium transition-all md:px-4 md:py-2 md:text-sm ${sortBy === option.value
                     ? 'border-[#C045FF] bg-[#C045FF] text-white'
                     : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40'
                     }`}
@@ -302,21 +302,21 @@ export function FanAllEvents() {
               >
                 ← Previous
               </Button>
-              
+
               <div className="flex items-center gap-1">
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
                   // Show first, last, current, and adjacent pages
-                  const showPage = 
-                    page === 1 || 
-                    page === totalPages || 
+                  const showPage =
+                    page === 1 ||
+                    page === totalPages ||
                     Math.abs(page - currentPage) <= 1;
-                  
-                  const showEllipsis = 
+
+                  const showEllipsis =
                     (page === 2 && currentPage > 3) ||
                     (page === totalPages - 1 && currentPage < totalPages - 2);
 
                   if (!showPage && !showEllipsis) return null;
-                  
+
                   if (showEllipsis && !showPage) {
                     return (
                       <span key={page} className="px-2 text-[#6C757D]">...</span>
@@ -327,11 +327,10 @@ export function FanAllEvents() {
                     <button
                       key={page}
                       onClick={() => handlePageChange(page)}
-                      className={`min-w-[36px] rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                        currentPage === page
+                      className={`min-w-[36px] rounded-lg px-3 py-2 text-sm font-medium transition-all ${currentPage === page
                           ? 'bg-[#C045FF] text-white'
                           : 'bg-[#F8F9FA] text-[#6C757D] hover:bg-[#E9ECEF]'
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>

@@ -68,7 +68,7 @@ export function CreatorOverview() {
   const [earningsChange, setEarningsChange] = useState<string | undefined>(undefined);
   const [activityItems, setActivityItems] = useState<ActivityItem[]>([]);
   const [isLoadingOverview, setIsLoadingOverview] = useState(false);
-  
+
   // Profile photo state
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('');
@@ -116,13 +116,36 @@ export function CreatorOverview() {
       formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
       formData.append('folder', 'fanmeet/profiles');
 
+      console.log('🔵 Uploading to Cloudinary...');
+      console.log('Cloud Name:', CLOUDINARY_CLOUD_NAME);
+      console.log('Upload Preset:', CLOUDINARY_UPLOAD_PRESET);
+      console.log('File:', file.name, file.type, file.size);
+
       const response = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
         { method: 'POST', body: formData }
       );
 
-      if (!response.ok) throw new Error('Upload failed');
-      const data = await response.json();
+      console.log('Response status:', response.status);
+
+      // Get the response body for debugging
+      const responseText = await response.text();
+      console.log('Response body:', responseText);
+
+      if (!response.ok) {
+        let errorMessage = 'Upload failed';
+        try {
+          const errorData = JSON.parse(responseText);
+          errorMessage = errorData.error?.message || JSON.stringify(errorData);
+          console.error('❌ Cloudinary error:', errorData);
+        } catch {
+          console.error('❌ Response text:', responseText);
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = JSON.parse(responseText);
+      console.log('✅ Upload successful:', data.secure_url);
 
       await supabase
         .from('profiles')
@@ -133,7 +156,7 @@ export function CreatorOverview() {
       alert('Profile photo updated!');
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload photo.');
+      alert(`Failed to upload photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setUploadingPhoto(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
