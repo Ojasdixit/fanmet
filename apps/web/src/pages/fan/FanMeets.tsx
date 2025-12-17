@@ -213,14 +213,29 @@ export function FanMeets() {
                         {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' && (
                           <Button variant="secondary">Add to Calendar</Button>
                         )}
-                        <Button
+                        <button
                           disabled={!meet.meetingLink || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator'}
                           onClick={() => handleJoin(meet.meetingLink)}
+                          className={`
+                          relative rounded-full px-8 py-3 text-base font-semibold transition-all
+                          ${!meet.meetingLink || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator'
+                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                              : 'bg-white text-[#050014] shadow-lg hover:shadow-xl transform hover:scale-105'
+                            }
+                        `}
+                          style={
+                            meet.meetingLink && meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator'
+                              ? {
+                                background: 'linear-gradient(white, white) padding-box, linear-gradient(135deg, #A78BFA, #C084FC, #E0E7FF) border-box',
+                                border: '2px solid transparent',
+                              }
+                              : undefined
+                          }
                         >
                           {meet.status === 'completed' ? 'Meeting Ended' :
                             meet.status === 'cancelled_no_show_creator' ? 'Creator No-Show' :
                               meet.status === 'cancelled' ? 'Meeting Cancelled' : 'Join Meeting →'}
-                        </Button>
+                        </button>
                       </div>
                       {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' ? (
                         <span className={`text-sm font-medium ${isRecent ? 'text-[#FF6B35]' : 'text-[#6C757D]'}`}>
