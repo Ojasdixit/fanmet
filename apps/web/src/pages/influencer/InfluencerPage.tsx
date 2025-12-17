@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, CardContent } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
+import { supabase } from '../../lib/supabaseClient';
 
 import { useEvents } from '../../contexts/EventContext';
 import { useCreatorProfiles } from '../../contexts/CreatorProfileContext';
@@ -14,8 +15,11 @@ export function InfluencerPage() {
   const { getProfile, followCreator, unfollowCreator, following } = useCreatorProfiles();
   const { isAuthenticated, user } = useAuth();
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [meetsCount, setMeetsCount] = useState(0);
 
   const usernameSlug = (rawUsername ?? '').replace(/^@/, '').toLowerCase();
+  const profile = usernameSlug ? getProfile(usernameSlug) : undefined;
 
   // Check if user is following this creator
   useEffect(() => {
@@ -23,6 +27,45 @@ export function InfluencerPage() {
       setIsFollowing(following.includes(usernameSlug));
     }
   }, [usernameSlug, following]);
+
+  // Fetch real stats from database
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!usernameSlug) return;
+
+      try {
+        // Get creator's user_id from username
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('username', usernameSlug)
+          .single();
+
+        if (!profileData) return;
+
+        // Get follower count
+        const { count: followers } = await supabase
+          .from('creator_follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('creator_id', profileData.user_id);
+
+        setFollowerCount(followers || 0);
+
+        // Get completed meets count
+        const { count: meets } = await supabase
+          .from('meets')
+          .select('*', { count: 'exact', head: true })
+          .eq('creator_id', profileData.user_id)
+          .eq('status', 'completed');
+
+        setMeetsCount(meets || 0);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, [usernameSlug]);
   const storedEvents = usernameSlug ? getEventsForCreator(usernameSlug) : [];
   const syntheticEvents = !storedEvents.length && usernameSlug
     ? Array.from({ length: 5 }).map((_, index) => {
@@ -64,9 +107,11 @@ export function InfluencerPage() {
     : undefined;
 
   const effectiveEvents = storedEvents.length > 0 ? storedEvents : syntheticEvents ?? [];
-  const primaryEvent = effectiveEvents[0];
 
-  const profile = usernameSlug ? getProfile(usernameSlug) : undefined;
+  // Sort events: newest first (by id which contains timestamp, or reverse order)
+  const sortedEvents = [...effectiveEvents].reverse();
+
+  const primaryEvent = sortedEvents[0];
 
   const displayName = profile?.displayName || primaryEvent?.creatorDisplayName || 'Creator';
   const handle = `@${usernameSlug || 'creator'}`;
@@ -156,7 +201,17 @@ export function InfluencerPage() {
     <div className="flex min-h-[calc(100vh-70px)] flex-col bg-white md:bg-gradient-to-b md:from-[#FDEBFF] md:via-[#FFF] md:to-[#F0F2F5]">
       {/* Cover and top overlay */}
       <div className="relative md:mx-auto md:w-full md:max-w-5xl">
-        <div className="h-40 w-full bg-gradient-to-br from-[#FFE5D9] via-white to-[#F4E6FF] md:h-48 md:rounded-b-lg" />
+        <div className="h-40 w-full md:h-48 md:rounded-b-lg overflow-hidden">
+          {profile?.cover_photo_url ? (
+            <img
+              src={profile.cover_photo_url}
+              alt="Cover"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-[#FFE5D9] via-white to-[#F4E6FF]" />
+          )}
+        </div>
         <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/40 to-transparent px-4 py-3 text-xs font-medium text-white md:rounded-t-lg">
           <button
             type="button"
@@ -167,10 +222,10 @@ export function InfluencerPage() {
           </button>
           <div className="flex items-center gap-3 text-[11px]">
             <span className="flex items-center gap-1">
-              👥 <span>48K</span>
+              👥 <span>{followerCount.toLocaleString()}</span>
             </span>
             <span className="flex items-center gap-1">
-              🎥 <span>120</span>
+              🎥 <span>{meetsCount}</span>
             </span>
           </div>
         </div>
@@ -178,11 +233,17 @@ export function InfluencerPage() {
         {/* Avatar */}
         <div className="absolute -bottom-9 left-4 flex items-end gap-3">
           <div className="h-20 w-20 overflow-hidden rounded-full border-4 border-white bg-[#050014]">
-            <img
-              src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=400&q=80"
-              alt={displayName}
-              className="h-full w-full object-cover"
-            />
+            {profile?.profilePhotoUrl ? (
+              <img
+                src={profile.profilePhotoUrl}
+                alt={displayName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-[#C045FF] to-[#7B2CBF] flex items-center justify-center text-white font-bold text-2xl">
+                {displayName?.charAt(0)?.toUpperCase() || '?'}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -196,7 +257,7 @@ export function InfluencerPage() {
             <p className="text-xs text-[#6C757D]">{bio}</p>
             {hasEvent ? (
               <span className="mt-1 text-[11px] font-medium uppercase tracking-wide text-[#C045FF]">
-                {effectiveEvents.length} active events
+                {sortedEvents.length} active events
               </span>
             ) : null}
           </div>
@@ -227,7 +288,7 @@ export function InfluencerPage() {
         <div className="space-y-4">
           <div className="space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-[#6C757D]">Upcoming events</p>
-            {effectiveEvents.map((event) => (
+            {sortedEvents.map((event) => (
               <Card key={event.id} elevated className="border-none">
                 <CardContent className="gap-3">
                   <div className="flex items-center justify-between text-[11px] text-[#6C757D]">
@@ -274,15 +335,21 @@ export function InfluencerPage() {
                       size="sm"
                       className="flex-1 rounded-full"
                       onClick={() => navigate(`/events/${event.id}`)}
+                      disabled={
+                        String(event.status).toLowerCase() === 'completed' ||
+                        String(event.status).toLowerCase() === 'cancelled'
+                      }
                     >
-                      View & bid
+                      {String(event.status).toLowerCase() === 'completed' ? 'Event Ended' :
+                        String(event.status).toLowerCase() === 'cancelled' ? 'Event Cancelled' :
+                          'View & bid'}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             ))}
 
-            {effectiveEvents.length === 0 && (
+            {sortedEvents.length === 0 && (
               <Card>
                 <CardContent>
                   <p className="text-sm text-[#6C757D]">

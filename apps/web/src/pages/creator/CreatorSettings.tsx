@@ -21,7 +21,10 @@ export function CreatorSettings() {
   const [savingSocials, setSavingSocials] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null);
+  const [coverPhotoUrl, setCoverPhotoUrl] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({
     display_name: '',
@@ -77,6 +80,7 @@ export function CreatorSettings() {
             primary_language: profileData.primary_language || ''
           });
           setProfilePhotoUrl(profileData.profile_photo_url || null);
+          setCoverPhotoUrl(profileData.cover_photo_url || null);
           setSocialLinks({
             instagram: profileData.instagram_url || '',
             youtube: profileData.youtube_url || '',
@@ -234,6 +238,73 @@ export function CreatorSettings() {
       alert('Failed to remove photo.');
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be less than 5MB.');
+      return;
+    }
+
+    if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_UPLOAD_PRESET) {
+      alert('Cloudinary is not configured.');
+      return;
+    }
+
+    setUploadingCover(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+      formData.append('folder', 'fanmeet/covers');
+
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: 'POST', body: formData }
+      );
+
+      if (!response.ok) throw new Error('Upload failed');
+      const data = await response.json();
+
+      await supabase
+        .from('profiles')
+        .update({ cover_photo_url: data.secure_url })
+        .eq('user_id', user.id);
+
+      setCoverPhotoUrl(data.secure_url);
+      alert('Cover photo updated!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Failed to upload cover photo.');
+    } finally {
+      setUploadingCover(false);
+      if (coverInputRef.current) coverInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    if (!user || !confirm('Remove your cover photo?')) return;
+    setUploadingCover(true);
+    try {
+      await supabase
+        .from('profiles')
+        .update({ cover_photo_url: null })
+        .eq('user_id', user.id);
+      setCoverPhotoUrl(null);
+      alert('Cover photo removed.');
+    } catch (error) {
+      alert('Failed to remove cover photo.');
+    } finally {
+      setUploadingCover(false);
     }
   };
 
@@ -427,6 +498,58 @@ export function CreatorSettings() {
                     </Button>
                   )}
                   <p className="text-xs text-[#6C757D]">JPG, PNG, GIF. Max 5MB.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Cover Photo Upload */}
+            <div className="flex flex-col gap-3">
+              <label className="text-sm font-medium text-[#212529]">Cover Photo</label>
+              <div className="flex flex-col gap-4">
+                {/* Cover Preview */}
+                <div className="relative h-32 w-full overflow-hidden rounded-lg border-2 border-dashed border-[#E9ECEF]">
+                  {coverPhotoUrl ? (
+                    <img
+                      src={coverPhotoUrl}
+                      alt="Cover"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="h-full w-full bg-gradient-to-br from-[#FFE5D9] via-white to-[#F4E6FF] flex items-center justify-center">
+                      <span className="text-sm text-[#6C757D]">No cover photo</span>
+                    </div>
+                  )}
+                </div>
+                {/* Upload Controls */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={coverInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCoverUpload}
+                    className="hidden"
+                    id="cover-photo-upload"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => coverInputRef.current?.click()}
+                    disabled={uploadingCover}
+                  >
+                    {uploadingCover ? 'Uploading...' : coverPhotoUrl ? 'Change Cover' : 'Upload Cover'}
+                  </Button>
+                  {coverPhotoUrl && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveCover}
+                      disabled={uploadingCover}
+                      className="text-red-500 hover:text-red-600"
+                    >
+                      Remove Cover
+                    </Button>
+                  )}
+                  <p className="w-full text-xs text-[#6C757D]">Recommended: 1200x300px. JPG, PNG, GIF. Max 5MB.</p>
                 </div>
               </div>
             </div>
