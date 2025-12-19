@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, CardContent, CardHeader, Badge, TextInput } from '@fanmeet/ui';
 import { Pagination } from '../../components/Pagination';
-import { formatDateTime } from '@fanmeet/utils';
 import { supabase } from '../../lib/supabaseClient';
 
 type CreatorStatus = 'pending' | 'approved' | 'rejected';
@@ -17,6 +16,14 @@ interface CreatorRow {
   bio?: string | null;
   instagram?: string | null;
   youtube?: string | null;
+  twitter?: string | null;
+  linkedin?: string | null;
+  website?: string | null;
+  profilePhotoUrl?: string | null;
+  coverPhotoUrl?: string | null;
+  category?: string | null;
+  primaryLanguage?: string | null;
+  channels?: { platform: string; handle: string }[];
   totalEvents: number;
 }
 
@@ -71,7 +78,9 @@ export function AdminCreators() {
       if (creatorIds.length > 0) {
         const { data } = await supabase
           .from('profiles')
-          .select('user_id, username, display_name, bio')
+          .select(
+            'user_id, username, display_name, bio, category, primary_language, profile_photo_url, cover_photo_url, instagram_url, youtube_url, twitter_url, linkedin_url, website_url',
+          )
           .in('user_id', creatorIds);
         profilesData = data ?? [];
       }
@@ -107,6 +116,9 @@ export function AdminCreators() {
         {
           instagram?: string | null;
           youtube?: string | null;
+          twitter?: string | null;
+          linkedin?: string | null;
+          website?: string | null;
         }
       >();
       for (const link of linksData as any[]) {
@@ -115,8 +127,21 @@ export function AdminCreators() {
           existing.instagram = link.handle;
         } else if (link.platform === 'youtube') {
           existing.youtube = link.handle;
+        } else if (link.platform === 'twitter' || link.platform === 'x') {
+          existing.twitter = link.handle;
+        } else if (link.platform === 'linkedin') {
+          existing.linkedin = link.handle;
+        } else if (link.platform === 'website') {
+          existing.website = link.handle;
         }
         linksMap.set(link.user_id, existing);
+      }
+
+      const channelsPerCreator = new Map<string, { platform: string; handle: string }[]>();
+      for (const link of linksData as any[]) {
+        const prev = channelsPerCreator.get(link.user_id) ?? [];
+        prev.push({ platform: link.platform, handle: link.handle });
+        channelsPerCreator.set(link.user_id, prev);
       }
 
       // Events per creator
@@ -154,8 +179,16 @@ export function AdminCreators() {
           status,
           phone: settings?.phone_number ?? null,
           bio: profile?.bio ?? null,
-          instagram: links.instagram ?? null,
-          youtube: links.youtube ?? null,
+          instagram: profile?.instagram_url ?? links.instagram ?? null,
+          youtube: profile?.youtube_url ?? links.youtube ?? null,
+          twitter: profile?.twitter_url ?? links.twitter ?? null,
+          linkedin: profile?.linkedin_url ?? links.linkedin ?? null,
+          website: profile?.website_url ?? links.website ?? null,
+          profilePhotoUrl: profile?.profile_photo_url ?? null,
+          coverPhotoUrl: profile?.cover_photo_url ?? null,
+          category: profile?.category ?? null,
+          primaryLanguage: profile?.primary_language ?? null,
+          channels: channelsPerCreator.get(u.id as string) ?? [],
           totalEvents: eventsCount.get(u.id as string) ?? 0,
         };
       });
@@ -436,6 +469,34 @@ export function AdminCreators() {
           {selectedCreator ? (
             <>
               <div className="grid gap-4 rounded-[16px] border border-[#3A3D42] bg-[#1F2124] p-6">
+                {(selectedCreator.profilePhotoUrl || selectedCreator.coverPhotoUrl) ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">Profile photo</p>
+                      {selectedCreator.profilePhotoUrl ? (
+                        <img
+                          src={selectedCreator.profilePhotoUrl}
+                          alt="Profile"
+                          className="mt-2 h-28 w-28 rounded-full object-cover ring-2 ring-white/10"
+                        />
+                      ) : (
+                        <p className="mt-2 text-sm text-[#ADB5BD]">Not provided</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#6C757D]">Cover photo</p>
+                      {selectedCreator.coverPhotoUrl ? (
+                        <img
+                          src={selectedCreator.coverPhotoUrl}
+                          alt="Cover"
+                          className="mt-2 h-28 w-full rounded-[14px] object-cover ring-2 ring-white/10"
+                        />
+                      ) : (
+                        <p className="mt-2 text-sm text-[#ADB5BD]">Not provided</p>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
                 <div className="grid gap-3 text-sm text-[#ADB5BD] md:grid-cols-2">
                   <div>
                     <p className="text-[#6C757D]">Email</p>
@@ -459,6 +520,14 @@ export function AdminCreators() {
                     <p className="text-[#6C757D]">Total Events</p>
                     <p className="text-white">{selectedCreator.totalEvents}</p>
                   </div>
+                  <div>
+                    <p className="text-[#6C757D]">Category</p>
+                    <p className="text-white">{selectedCreator.category ?? 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#6C757D]">Primary language</p>
+                    <p className="text-white">{selectedCreator.primaryLanguage ?? 'Not provided'}</p>
+                  </div>
                 </div>
                 <div className="grid gap-3 text-sm text-[#ADB5BD]">
                   <div>
@@ -474,8 +543,34 @@ export function AdminCreators() {
                     <p className="text-white">{selectedCreator.youtube ?? 'Not linked'}</p>
                   </div>
                   <div>
+                    <p className="text-[#6C757D]">Twitter / X</p>
+                    <p className="text-white">{selectedCreator.twitter ?? 'Not linked'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#6C757D]">LinkedIn</p>
+                    <p className="text-white">{selectedCreator.linkedin ?? 'Not linked'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#6C757D]">Website</p>
+                    <p className="text-white">{selectedCreator.website ?? 'Not linked'}</p>
+                  </div>
+                  <div>
                     <p className="text-[#6C757D]">Bio</p>
                     <p className="text-white">{selectedCreator.bio ?? 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#6C757D]">Linked channels</p>
+                    {selectedCreator.channels && selectedCreator.channels.length > 0 ? (
+                      <div className="mt-1 flex flex-col gap-1">
+                        {selectedCreator.channels.map((channel, idx) => (
+                          <div key={`${channel.platform}-${idx}`} className="text-white">
+                            {channel.platform}: {channel.handle}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-white">No channels linked</p>
+                    )}
                   </div>
                 </div>
               </div>

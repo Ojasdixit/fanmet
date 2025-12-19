@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Button, TextInput, Card, Badge } from '@fanmeet/ui';
+import { Button, TextInput, Card } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabaseClient';
 
 const highlightStats = [
   {
@@ -17,19 +16,21 @@ const highlightStats = [
 ];
 
 export function AuthPage() {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [selectedRole, setSelectedRole] = useState<'fan' | 'creator'>('fan');
+  const [mode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showExistingAccountModal, setShowExistingAccountModal] = useState(false);
-  const [socialLinks, setSocialLinks] = useState({
-    instagram: '',
-    youtube: '',
-    twitter: '',
-  });
+  const [isFanSignupOpen, setIsFanSignupOpen] = useState(false);
+  const [isCreatorSignupOpen, setIsCreatorSignupOpen] = useState(false);
+  const [fanSignup, setFanSignup] = useState({ email: '', password: '', confirmPassword: '' });
+  const [creatorSignup, setCreatorSignup] = useState({ email: '', password: '', confirmPassword: '', bio: '' });
+  const [fanSignupStatus, setFanSignupStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [creatorSignupStatus, setCreatorSignupStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isFanSubmitting, setIsFanSubmitting] = useState(false);
+  const [isCreatorSubmitting, setIsCreatorSubmitting] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login, signup, resendVerificationEmail, isAuthenticated, user } = useAuth();
@@ -45,32 +46,11 @@ export function AuthPage() {
     }
   }, [isAuthenticated, user, navigate]);
 
-  const hasSocialPresence = Object.values(socialLinks).some((value) => value.trim().length > 0);
-
-  const resetSocialLinks = () => {
-    setSocialLinks({
-      instagram: '',
-      youtube: '',
-      twitter: '',
-    });
-  };
-
-  useEffect(() => {
-    if (mode === 'login') {
-      resetSocialLinks();
-    }
-  }, [mode]);
-
   const handleSubmit: React.FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
 
     if (!email.trim() || !password.trim()) {
       setFormError('Please enter both email and password.');
-      return;
-    }
-
-    if (mode === 'signup' && !hasSocialPresence) {
-      setFormError('Share at least one social media link so fans can verify you.');
       return;
     }
 
@@ -85,26 +65,7 @@ export function AuthPage() {
         admin: '/admin',
       };
 
-      const authUser =
-        mode === 'signup'
-          ? await signup({ email, password, role: selectedRole })
-          : await login({ email, password });
-
-      if (mode === 'signup') {
-        await supabase
-          .from('profiles')
-          .update({
-            instagram_url: socialLinks.instagram.trim() || null,
-            youtube_url: socialLinks.youtube.trim() || null,
-            twitter_url: socialLinks.twitter.trim() || null,
-          })
-          .eq('user_id', authUser.id);
-      }
-
-      if (mode === 'signup') {
-        setFormSuccess('Account created. Please check your email to verify your account before logging in.');
-        return;
-      }
+      const authUser = await login({ email, password });
 
       const redirectParam = searchParams.get('redirect');
       const defaultTarget = redirectMap[authUser.role];
@@ -141,6 +102,49 @@ export function AuthPage() {
       setFormError(e instanceof Error ? e.message : 'Could not resend verification email.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSignupSubmit = async <T extends { email: string; password: string; confirmPassword: string }>(
+    role: 'fan' | 'creator',
+    form: T,
+    setForm: React.Dispatch<React.SetStateAction<T>>,
+    setStatus: (value: { type: 'success' | 'error'; message: string } | null) => void,
+    setOpen: (value: boolean) => void,
+    setLoading: (value: boolean) => void,
+  ) => {
+    if (!form.email.trim() || !form.password.trim() || !form.confirmPassword.trim()) {
+      setStatus({ type: 'error', message: 'All fields are required.' });
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setStatus({ type: 'error', message: 'Passwords do not match.' });
+      return;
+    }
+
+    setStatus(null);
+    setLoading(true);
+
+    try {
+      await signup({ email: form.email.trim(), password: form.password, role });
+      setStatus({
+        type: 'success',
+        message: 'Account created! Please verify your email to continue.',
+      });
+      setForm({ ...form, password: '', confirmPassword: '' });
+    } catch (error) {
+      let message = 'Could not complete signup.';
+      if (error instanceof Error) {
+        message = error.message;
+        if (/already\s+(registered|exists)/i.test(message) || /user\s+already/i.test(message)) {
+          setShowExistingAccountModal(true);
+          setOpen(false);
+        }
+      }
+      setStatus({ type: 'error', message });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -232,84 +236,13 @@ export function AuthPage() {
               <Link to="/" className="text-sm font-semibold text-[#C045FF]">
                 ← Back to home
               </Link>
-              <h2 className="text-2xl font-bold text-[#212529] md:text-3xl">
-                {mode === 'login' ? 'Welcome back' : 'Create your FanMeet account'}
-              </h2>
+              <h2 className="text-2xl font-bold text-[#212529] md:text-3xl">Welcome back</h2>
               <p className="hidden text-sm text-[#6C757D] lg:block">
-                {mode === 'login'
-                  ? 'Sign in to manage your events, track bids, and stay close to your community.'
-                  : 'Sign up once to access your fan or creator dashboard and manage all your sessions.'}
+                Sign in to manage your events, track bids, and stay close to your community.
               </p>
             </div>
 
             <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-              <div className="flex items-center justify-between rounded-full bg-[#F1F3F5] p-1 text-xs font-medium text-[#495057]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setFormError('');
-                  }}
-                  className={classNames(
-                    'flex-1 rounded-full px-3 py-1.5 transition-all',
-                    mode === 'login' ? 'bg-white text-[#212529] shadow-sm' : 'bg-transparent',
-                  )}
-                >
-                  Log in
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setFormError('');
-                  }}
-                  className={classNames(
-                    'flex-1 rounded-full px-3 py-1.5 transition-all',
-                    mode === 'signup' ? 'bg-white text-[#212529] shadow-sm' : 'bg-transparent',
-                  )}
-                >
-                  Sign up
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                {mode === 'signup' && (
-                  <>
-                    <span className="text-sm font-medium text-[#212529]">Sign up as</span>
-                    <div className="grid grid-cols-2 gap-3">
-                      {(
-                        [
-                          { label: 'Fan', value: 'fan' as const, emoji: '🎟️' },
-                          { label: 'Creator', value: 'creator' as const, emoji: '🎨' },
-                        ] satisfies Array<{ label: string; value: 'fan' | 'creator'; emoji: string }>
-                      ).map((option) => (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setSelectedRole(option.value)}
-                          className={classNames(
-                            'flex items-center gap-2.5 rounded-[14px] border-2 px-3.5 py-2.5 text-left transition-all',
-                            'shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-md)]',
-                            selectedRole === option.value
-                              ? 'border-[#C045FF] bg-[#F4E6FF] text-[#212529]'
-                              : 'border-[#E9ECEF] bg-white text-[#6C757D] hover:border-[#C045FF]/40',
-                          )}
-                        >
-                          <span className="text-lg">{option.emoji}</span>
-                          <div>
-                            <p className="text-[13px] font-semibold">{option.label}</p>
-                            <p className="text-[11px] text-[#6C757D]">
-                              {option.value === 'fan' && 'Bid, join meets, and manage your sessions.'}
-                              {option.value === 'creator' && 'Host immersive experiences and track earnings.'}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
               <div className="flex flex-col gap-3">
                 <TextInput
                   label="Email"
@@ -338,43 +271,6 @@ export function AuthPage() {
                 </div>
               </div>
 
-              {mode === 'signup' && (
-                <div className="rounded-2xl border border-[#E9ECEF] bg-white/80 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-[#212529]">Social proof (required)</p>
-                      <p className="text-xs text-[#6C757D]">Add at least one link so fans can verify you.</p>
-                    </div>
-                    <Badge variant={hasSocialPresence ? 'primary' : 'default'}>
-                      {hasSocialPresence ? 'Ready' : 'Pending'}
-                    </Badge>
-                  </div>
-                  <div className="mt-4 grid gap-3">
-                    <TextInput
-                      label="Instagram"
-                      placeholder="https://instagram.com/yourhandle"
-                      value={socialLinks.instagram}
-                      onChange={(event) => setSocialLinks((prev) => ({ ...prev, instagram: event.target.value }))}
-                    />
-                    <TextInput
-                      label="YouTube"
-                      placeholder="https://youtube.com/@yourchannel"
-                      value={socialLinks.youtube}
-                      onChange={(event) => setSocialLinks((prev) => ({ ...prev, youtube: event.target.value }))}
-                    />
-                    <TextInput
-                      label="Twitter / X"
-                      placeholder="https://twitter.com/yourhandle"
-                      value={socialLinks.twitter}
-                      onChange={(event) => setSocialLinks((prev) => ({ ...prev, twitter: event.target.value }))}
-                    />
-                    {!hasSocialPresence && (
-                      <p className="text-[11px] font-medium text-[#DC3545]">Share at least one link to continue.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {formError ? <p className="text-[11px] font-medium text-[#DC3545]">{formError}</p> : null}
               {formSuccess ? <p className="text-[11px] font-medium text-[#198754]">{formSuccess}</p> : null}
 
@@ -382,7 +278,7 @@ export function AuthPage() {
                 type="submit"
                 size="md"
                 className="h-9 text-[13px]"
-                disabled={isSubmitting || (mode === 'signup' && !hasSocialPresence)}
+                disabled={isSubmitting}
               >
                 Continue with email
               </Button>
@@ -414,6 +310,17 @@ export function AuthPage() {
               </div>
             </form>
 
+            <div className="rounded-2xl border border-dashed border-[#E9ECEF] bg-white/60 p-4">
+              <p className="text-sm font-semibold text-[#212529]">New here?</p>
+              <p className="text-xs text-[#6C757D]">Choose your path to create a FanMeet account.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <Button variant="secondary" onClick={() => setIsFanSignupOpen(true)}>
+                  Sign up as Fan
+                </Button>
+                <Button onClick={() => setIsCreatorSignupOpen(true)}>Sign up as Creator</Button>
+              </div>
+            </div>
+
             <p className="hidden text-xs text-[#ADB5BD] lg:block">
               By continuing, you agree to our{' '}
               <Link to="#" className="font-medium text-[#C045FF]">
@@ -428,6 +335,169 @@ export function AuthPage() {
           </div>
         </section>
       </div>
+
+      {isFanSignupOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-[#050014]">Join as a Fan</h3>
+                <p className="text-xs text-[#6C757D]">Bid on events, join virtual meets, and build connections.</p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-[#E9ECEF] px-3 py-1 text-sm text-[#343A40] hover:bg-[#F8F9FA]"
+                onClick={() => {
+                  setIsFanSignupOpen(false);
+                  setFanSignupStatus(null);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleSignupSubmit(
+                  'fan',
+                  fanSignup,
+                  setFanSignup,
+                  setFanSignupStatus,
+                  setIsFanSignupOpen,
+                  setIsFanSubmitting,
+                );
+              }}
+            >
+              <TextInput
+                label="Email"
+                placeholder="you@example.com"
+                type="email"
+                required
+                value={fanSignup.email}
+                onChange={(event) => setFanSignup((prev) => ({ ...prev, email: event.target.value }))}
+              />
+              <TextInput
+                label="Password"
+                type="password"
+                required
+                value={fanSignup.password}
+                onChange={(event) => setFanSignup((prev) => ({ ...prev, password: event.target.value }))}
+              />
+              <TextInput
+                label="Confirm Password"
+                type="password"
+                required
+                value={fanSignup.confirmPassword}
+                onChange={(event) => setFanSignup((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+              />
+
+              {fanSignupStatus ? (
+                <p
+                  className={classNames(
+                    'text-[11px] font-medium',
+                    fanSignupStatus.type === 'success' ? 'text-[#198754]' : 'text-[#DC3545]',
+                  )}
+                >
+                  {fanSignupStatus.message}
+                </p>
+              ) : null}
+
+              <Button type="submit" disabled={isFanSubmitting}>
+                {isFanSubmitting ? 'Creating account…' : 'Create fan account'}
+              </Button>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {isCreatorSignupOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-[#050014]">Join as a Creator</h3>
+                <p className="text-xs text-[#6C757D]">
+                  Host intimate sessions, monetize meets, and access creator tooling.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="rounded-md border border-[#E9ECEF] px-3 py-1 text-sm text-[#343A40] hover:bg-[#F8F9FA]"
+                onClick={() => {
+                  setIsCreatorSignupOpen(false);
+                  setCreatorSignupStatus(null);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void handleSignupSubmit(
+                  'creator',
+                  creatorSignup,
+                  setCreatorSignup,
+                  setCreatorSignupStatus,
+                  setIsCreatorSignupOpen,
+                  setIsCreatorSubmitting,
+                );
+              }}
+            >
+              <TextInput
+                label="Creator email"
+                placeholder="studio@you.com"
+                type="email"
+                required
+                value={creatorSignup.email}
+                onChange={(event) => setCreatorSignup((prev) => ({ ...prev, email: event.target.value }))}
+              />
+              <TextInput
+                label="Password"
+                type="password"
+                required
+                value={creatorSignup.password}
+                onChange={(event) => setCreatorSignup((prev) => ({ ...prev, password: event.target.value }))}
+              />
+              <TextInput
+                label="Confirm Password"
+                type="password"
+                required
+                value={creatorSignup.confirmPassword}
+                onChange={(event) => setCreatorSignup((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+              />
+              <TextInput
+                label="Tell us about your audience"
+                placeholder="Optional - e.g. 250k IG, podcast host, etc."
+                value={creatorSignup.bio}
+                onChange={(event) => setCreatorSignup((prev) => ({ ...prev, bio: event.target.value }))}
+              />
+
+              {creatorSignupStatus ? (
+                <p
+                  className={classNames(
+                    'text-[11px] font-medium',
+                    creatorSignupStatus.type === 'success' ? 'text-[#198754]' : 'text-[#DC3545]',
+                  )}
+                >
+                  {creatorSignupStatus.message}
+                </p>
+              ) : null}
+
+              <Button type="submit" disabled={isCreatorSubmitting}>
+                {isCreatorSubmitting ? 'Creating creator profile…' : 'Apply as creator'}
+              </Button>
+              <p className="text-[11px] text-[#6C757D]">
+                Creators undergo a quick review before gaining full access. We’ll email you within 24 hours.
+              </p>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

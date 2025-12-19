@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Button } from '@fanmeet/ui';
 import { supabase } from '../../lib/supabaseClient';
+import type { UserRole } from '../../contexts/AuthContext';
 
 export function AuthCallbackPage() {
   const navigate = useNavigate();
@@ -30,9 +31,43 @@ export function AuthCallbackPage() {
           return;
         }
 
+        const roleRedirectMap: Record<UserRole, string> = {
+          fan: '/fan',
+          creator: '/creator',
+          admin: '/admin',
+        };
+
+        let targetPath: string | null = null;
+
+        const redirectParam = params.get('redirect');
+        if (redirectParam && redirectParam.startsWith('/')) {
+          targetPath = redirectParam;
+        }
+
+        if (!targetPath) {
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (!user) {
+            setStatus('error');
+            setMessage('Unable to load your account. Please sign in again.');
+            return;
+          }
+
+          const { data: userRow } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          const inferredRole = (userRow?.role || user.user_metadata?.role || 'fan') as UserRole;
+          targetPath = roleRedirectMap[inferredRole] ?? '/fan';
+        }
+
         setStatus('success');
         setMessage('Success! Redirecting…');
-        setTimeout(() => navigate('/auth', { replace: true }), 800);
+        setTimeout(() => navigate(targetPath ?? '/auth', { replace: true }), 600);
       } catch {
         setStatus('error');
         setMessage('Could not complete authentication.');

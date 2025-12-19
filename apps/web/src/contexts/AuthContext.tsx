@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { AuthError, User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabaseClient';
 
 export type UserRole = 'fan' | 'creator' | 'admin';
@@ -33,13 +34,18 @@ interface DbUser {
   creator_profile_status?: 'pending' | 'approved' | 'rejected';
 }
 
+interface ProfileRow {
+  username: string;
+  creator_profile_status?: 'pending' | 'approved' | 'rejected';
+}
+
 export const buildUsername = (email: string) => {
   const localPart = email.split('@')[0] || '';
   const normalized = localPart.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   return normalized || 'user';
 };
 
-const toAuthUser = (row: DbUser, profile?: any): AuthUser => ({
+const toAuthUser = (row: DbUser, profile?: ProfileRow | null): AuthUser => ({
   id: row.id,
   email: row.email,
   role: row.role,
@@ -47,6 +53,86 @@ const toAuthUser = (row: DbUser, profile?: any): AuthUser => ({
   user_metadata: undefined,
   creatorProfileStatus: profile?.creator_profile_status || row.creator_profile_status,
 });
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const SIGNUP_RETRYABLE_STATUS = new Set([429, 503]);
+const MAX_SIGNUP_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 4000;
+
+const ensureUserRow = async (authUser: User, fallbackRole?: UserRole): Promise<DbUser> => {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id,email,role,creator_profile_status')
+    .eq('id', authUser.id)
+    .maybeSingle();
+
+  if (error && error.code !== 'PGRST116') {
+    throw error;
+  }
+
+  if (data) {
+    return data as DbUser;
+  }
+
+  const inferredRole = (authUser.user_metadata?.role as UserRole) ?? fallbackRole ?? 'fan';
+  const email = authUser.email ?? (authUser.user_metadata?.email as string) ?? 'unknown@fanmeet.app';
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('users')
+    .insert({
+      id: authUser.id,
+      email,
+      role: inferredRole,
+    })
+    .select('id,email,role,creator_profile_status')
+    .single();
+
+  if (insertError || !inserted) {
+    throw insertError ?? new Error('Could not create user record.');
+  }
+
+  return inserted as DbUser;
+};
+
+const ensureProfileRow = async (authUser: User, dbUser: DbUser): Promise<ProfileRow | null> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('username, creator_profile_status')
+    .eq('user_id', dbUser.id)
+    .maybeSingle();
+
+  if (!error && data) {
+    return data as ProfileRow;
+  }
+
+  const username = buildUsername(authUser.email ?? dbUser.email);
+  const displayName = username.charAt(0).toUpperCase() + username.slice(1);
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('profiles')
+    .insert({
+      user_id: dbUser.id,
+      username,
+      display_name: displayName,
+      creator_profile_status: dbUser.role === 'creator' ? 'pending' : undefined,
+    })
+    .select('username, creator_profile_status')
+    .single();
+
+  if (insertError) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to create profile row:', insertError);
+    return null;
+  }
+
+  return inserted as ProfileRow;
+};
+
+const resolveAuthUser = async (authUser: User, fallbackRole?: UserRole) => {
+  const dbUser = await ensureUserRow(authUser, fallbackRole);
+  const profileRow = await ensureProfileRow(authUser, dbUser);
+  return toAuthUser(dbUser, profileRow);
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -63,21 +149,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id,email,role,creator_profile_status')
-          .eq('id', authUser.id)
-          .maybeSingle();
-
-        if (!userError && userData) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('username, creator_profile_status')
-            .eq('user_id', authUser.id)
-            .maybeSingle();
-
-          setUser(toAuthUser(userData as DbUser, profileData));
-        }
+        const resolvedUser = await resolveAuthUser(authUser);
+        setUser(resolvedUser);
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load user:', error);
       } finally {
         setIsLoading(false);
       }
@@ -98,23 +174,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Please verify your email before logging in.');
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('id,email,role,creator_profile_status')
-      .eq('id', data.user.id)
-      .maybeSingle();
-
-    if (profileError || !profile) {
-      throw new Error('No profile found for this account.');
-    }
-
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('username, creator_profile_status')
-      .eq('user_id', data.user.id)
-      .maybeSingle();
-
-    const nextUser = toAuthUser(profile as DbUser, profileData);
+    const nextUser = await resolveAuthUser(data.user);
     setUser(nextUser);
     return nextUser;
   };
@@ -123,57 +183,68 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const emailRedirectTo =
       typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo,
-      },
-    });
+    let authUser: User | null = null;
+    let lastError: AuthError | null = null;
 
-    if (error || !data.user) {
-      throw new Error(error?.message ?? 'Could not create account.');
+    for (let attempt = 1; attempt <= MAX_SIGNUP_ATTEMPTS; attempt += 1) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo,
+          data: { role },
+        },
+      });
+
+      if (!error && data.user) {
+        authUser = data.user;
+        break;
+      }
+
+      lastError = error;
+      const status = error?.status ?? 0;
+
+      if (!SIGNUP_RETRYABLE_STATUS.has(status) || attempt === MAX_SIGNUP_ATTEMPTS) {
+        break;
+      }
+
+      const waitTime = RETRY_DELAY_MS * attempt;
+      // eslint-disable-next-line no-console
+      console.warn(`Signup rate limited (attempt ${attempt}). Retrying in ${waitTime}ms.`);
+      await delay(waitTime);
     }
 
-    const authUser = data.user;
-
-    const { error: insertError } = await supabase.from('users').insert({
-      id: authUser.id,
-      email: authUser.email,
-      role,
-    });
-
-    if (insertError) {
-      throw new Error(insertError.message ?? 'Could not create profile.');
+    if (!authUser) {
+      if (lastError?.status === 429) {
+        throw new Error('Too many signup attempts in a short time. Please wait ~30 seconds and try again.');
+      }
+      throw new Error(lastError?.message ?? 'Could not create account.');
     }
 
-    // Create entry in profiles table as well
     const username = buildUsername(email);
-    const displayName = username.charAt(0).toUpperCase() + username.slice(1); // Capitalize first letter
-    const { error: profileError } = await supabase.from('profiles').insert({
-      user_id: authUser.id,
+    const pendingProfile: ProfileRow = {
       username,
-      display_name: displayName,
-      creator_profile_status: role === 'creator' ? 'pending' : undefined
-    });
+      creator_profile_status: role === 'creator' ? 'pending' : undefined,
+    };
 
-    if (profileError) {
-      console.error('Error creating public profile:', profileError);
-      // We don't throw here to allow login to proceed, but it's not ideal
-    }
-
-    const nextUser = toAuthUser(
+    const pendingUser = toAuthUser(
       { id: authUser.id, email: authUser.email ?? email, role },
-      { username, creator_profile_status: role === 'creator' ? 'pending' : undefined },
+      pendingProfile,
     );
 
-    // If email confirmation is required, Supabase may not create a session until verified.
-    // We still return the user so the UI can show a "check your email" message.
-    if (authUser.email_confirmed_at) {
-      setUser(nextUser);
+    if (!authUser.email_confirmed_at) {
+      return pendingUser;
     }
 
-    return nextUser;
+    try {
+      const resolvedUser = await resolveAuthUser(authUser, role);
+      setUser(resolvedUser);
+      return resolvedUser;
+    } catch (error) {
+      console.error('Failed to finalize signup profile:', error);
+      setUser(pendingUser);
+      return pendingUser;
+    }
   };
 
   const sendPasswordResetEmail: AuthContextValue['sendPasswordResetEmail'] = async ({

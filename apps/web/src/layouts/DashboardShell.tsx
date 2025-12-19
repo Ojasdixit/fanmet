@@ -1,11 +1,12 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Avatar, Badge, TextInput } from '@fanmeet/ui';
+import { Button, Avatar, Badge, TextInput, TextArea } from '@fanmeet/ui';
 import { classNames } from '@fanmeet/utils';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabaseClient';
+
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
 type NavSectionItem = {
   type: 'section';
@@ -148,6 +149,108 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
     upi_id: '',
   });
 
+  const [isSupportFormOpen, setIsSupportFormOpen] = useState(false);
+  const [supportSubject, setSupportSubject] = useState('');
+  const [supportDescription, setSupportDescription] = useState('');
+  const [supportTickets, setSupportTickets] = useState<
+    { id: string; subject: string; status: string; createdAt: string }[]
+  >([]);
+  const [isLoadingSupportTickets, setIsLoadingSupportTickets] = useState(false);
+  const [isSubmittingSupport, setIsSubmittingSupport] = useState(false);
+
+  const [isProfileFormOpen, setIsProfileFormOpen] = useState(false);
+  const [isSavingInlineProfile, setIsSavingInlineProfile] = useState(false);
+  const [inlineProfile, setInlineProfile] = useState({
+    display_name: '',
+    bio: '',
+    category: '',
+    primary_language: '',
+    instagram_url: '',
+    youtube_url: '',
+    twitter_url: '',
+    linkedin_url: '',
+    website_url: '',
+    profile_photo_url: '',
+    cover_photo_url: '',
+  });
+
+  useEffect(() => {
+    if (!showApprovalOverlay || role !== 'creator' || !user) return;
+
+    const loadProfile = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select(
+          'display_name, bio, category, primary_language, instagram_url, youtube_url, twitter_url, linkedin_url, website_url, profile_photo_url, cover_photo_url',
+        )
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      setInlineProfile({
+        display_name:
+          data?.display_name || (user.username ? user.username : user.email?.split('@')?.[0] || ''),
+        bio:
+          data?.bio ||
+          'Tell fans who you are, what you create, and what kind of micro-meets or AMAs they can expect.',
+        category: data?.category || '',
+        primary_language: data?.primary_language || '',
+        instagram_url: data?.instagram_url || '',
+        youtube_url: data?.youtube_url || '',
+        twitter_url: data?.twitter_url || '',
+        linkedin_url: data?.linkedin_url || '',
+        website_url: data?.website_url || '',
+        profile_photo_url: data?.profile_photo_url || '',
+        cover_photo_url: data?.cover_photo_url || '',
+      });
+    };
+
+    void loadProfile();
+  }, [role, showApprovalOverlay, user]);
+
+  useEffect(() => {
+    if (!isSupportFormOpen || !user) {
+      if (!isSupportFormOpen) {
+        setSupportSubject('');
+        setSupportDescription('');
+      }
+      return;
+    }
+
+    const fetchTickets = async () => {
+      setIsLoadingSupportTickets(true);
+      try {
+        const { data, error } = await supabase
+          .from('support_tickets')
+          .select('id, subject, status, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        if (!error && data) {
+          setSupportTickets(
+            (data as any[]).map((item) => ({
+              id: item.id,
+              subject: item.subject,
+              status: item.status,
+              createdAt: item.created_at,
+            })),
+          );
+        }
+      } finally {
+        setIsLoadingSupportTickets(false);
+      }
+    };
+
+    void fetchTickets();
+  }, [isSupportFormOpen, user]);
+
+  useEffect(() => {
+    if (!showApprovalOverlay) {
+      setIsSupportFormOpen(false);
+      setIsProfileFormOpen(false);
+    }
+  }, [showApprovalOverlay]);
+
   useEffect(() => {
     if (role !== 'creator' || !user) return;
 
@@ -181,6 +284,95 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
 
     void loadPayoutStatus();
   }, [role, user]);
+
+  const handleSubmitSupport = async () => {
+    if (!user) {
+      alert('Please log in to contact support.');
+      return;
+    }
+
+    if (!supportSubject.trim() || !supportDescription.trim()) {
+      alert('Please provide a subject and description.');
+      return;
+    }
+
+    setIsSubmittingSupport(true);
+    try {
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .insert({
+          user_id: user.id,
+          subject: supportSubject.trim(),
+          description: supportDescription.trim(),
+          status: 'open',
+        })
+        .select('id, subject, status, created_at')
+        .single();
+
+      if (error || !data) {
+        alert('Could not submit support request. Please try again.');
+        return;
+      }
+
+      setSupportTickets((prev) => [
+        {
+          id: data.id,
+          subject: data.subject,
+          status: data.status,
+          createdAt: data.created_at,
+        },
+        ...prev,
+      ]);
+      setSupportSubject('');
+      setSupportDescription('');
+      alert('Support request sent! Our team will reply shortly.');
+    } finally {
+      setIsSubmittingSupport(false);
+    }
+  };
+
+  const handleSaveInlineProfile = async () => {
+    if (!user) return;
+
+    if (!inlineProfile.display_name.trim() || !inlineProfile.bio.trim()) {
+      alert('Please fill in at least Display name and Bio.');
+      return;
+    }
+
+    setIsSavingInlineProfile(true);
+    try {
+      const { error } = await supabase.from('profiles').upsert({
+        user_id: user.id,
+        display_name: inlineProfile.display_name.trim(),
+        bio: inlineProfile.bio.trim(),
+        category: inlineProfile.category.trim(),
+        primary_language: inlineProfile.primary_language.trim(),
+        instagram_url: inlineProfile.instagram_url.trim(),
+        youtube_url: inlineProfile.youtube_url.trim(),
+        twitter_url: inlineProfile.twitter_url.trim(),
+        linkedin_url: inlineProfile.linkedin_url.trim(),
+        website_url: inlineProfile.website_url.trim(),
+        profile_photo_url: inlineProfile.profile_photo_url.trim(),
+        cover_photo_url: inlineProfile.cover_photo_url.trim(),
+        updated_at: new Date().toISOString(),
+      });
+
+      if (error) {
+        console.error('Error updating profile:', error);
+        alert('Failed to update profile.');
+        return;
+      }
+
+      await supabase
+        .from('users')
+        .update({ display_name: inlineProfile.display_name.trim() })
+        .eq('id', user.id);
+
+      alert('Profile saved! Our team can now review your details.');
+    } finally {
+      setIsSavingInlineProfile(false);
+    }
+  };
 
   const handleSavePayoutDetails = async () => {
     if (!user) return;
@@ -460,8 +652,8 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   return (
     <div className="flex min-h-screen bg-[#F8F9FA]">
       {isPayoutModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-xl rounded-2xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-6 backdrop-blur-sm md:items-center">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-2xl sm:p-6 md:max-h-[92vh] md:overflow-y-auto">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-lg font-semibold text-[#212529]">Add payout method</div>
@@ -479,7 +671,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
               </button>
             </div>
 
-            <div className="mt-5 flex flex-col gap-4">
+            <div className="mt-4 flex flex-col gap-4">
               <div className="rounded-xl border border-[#E9ECEF] p-4">
                 <div className="mb-3 text-sm font-semibold text-[#212529]">Bank Transfer (NEFT/IMPS)</div>
                 <TextInput
@@ -553,7 +745,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       {/* Creator Approval Overlay */}
       {showApprovalOverlay && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="mx-4 max-w-md rounded-2xl bg-white p-8 text-center shadow-2xl">
+          <div className="mx-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-8 text-center shadow-2xl">
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-[#F4E6FF] to-[#E9D5FF]">
               <span className="text-4xl">{isPendingApproval ? '⏳' : '❌'}</span>
             </div>
@@ -577,18 +769,194 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
                 </div>
               )}
               <Button
-                onClick={() => navigate('/creator/profile-setup')}
+                onClick={() => setIsProfileFormOpen((prev) => !prev)}
                 className="w-full"
               >
-                {isPendingApproval ? 'Complete Profile Setup' : 'Update Profile'}
+                {isProfileFormOpen ? 'Hide Profile Form' : 'Complete Profile (in this popup)'}
               </Button>
+              {isProfileFormOpen ? (
+                <div className="rounded-xl border border-[#E9ECEF] bg-[#F8F9FA] p-4 text-left">
+                  <div className="text-sm font-semibold text-[#212529]">Profile details</div>
+                  <div className="mt-3 space-y-3">
+                    <TextInput
+                      label="Display name"
+                      placeholder="Your public display name"
+                      value={inlineProfile.display_name}
+                      onChange={(e) =>
+                        setInlineProfile((prev) => ({ ...prev, display_name: e.target.value }))
+                      }
+                    />
+                    <TextArea
+                      label="Bio"
+                      rows={4}
+                      placeholder="Short description that appears on your public profile."
+                      value={inlineProfile.bio}
+                      onChange={(e) => setInlineProfile((prev) => ({ ...prev, bio: e.target.value }))}
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <TextInput
+                        label="Category"
+                        placeholder="e.g. Fitness, Music, Comedy"
+                        value={inlineProfile.category}
+                        onChange={(e) =>
+                          setInlineProfile((prev) => ({ ...prev, category: e.target.value }))
+                        }
+                      />
+                      <TextInput
+                        label="Primary language"
+                        placeholder="e.g. English, Hindi"
+                        value={inlineProfile.primary_language}
+                        onChange={(e) =>
+                          setInlineProfile((prev) => ({ ...prev, primary_language: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <TextInput
+                      label="Profile photo URL"
+                      placeholder="https://..."
+                      value={inlineProfile.profile_photo_url}
+                      onChange={(e) =>
+                        setInlineProfile((prev) => ({ ...prev, profile_photo_url: e.target.value }))
+                      }
+                    />
+                    <TextInput
+                      label="Cover photo URL"
+                      placeholder="https://..."
+                      value={inlineProfile.cover_photo_url}
+                      onChange={(e) =>
+                        setInlineProfile((prev) => ({ ...prev, cover_photo_url: e.target.value }))
+                      }
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <TextInput
+                        label="Instagram"
+                        placeholder="https://instagram.com/yourhandle"
+                        value={inlineProfile.instagram_url}
+                        onChange={(e) =>
+                          setInlineProfile((prev) => ({ ...prev, instagram_url: e.target.value }))
+                        }
+                      />
+                      <TextInput
+                        label="YouTube"
+                        placeholder="https://youtube.com/@yourhandle"
+                        value={inlineProfile.youtube_url}
+                        onChange={(e) =>
+                          setInlineProfile((prev) => ({ ...prev, youtube_url: e.target.value }))
+                        }
+                      />
+                      <TextInput
+                        label="Twitter / X"
+                        placeholder="https://twitter.com/yourhandle"
+                        value={inlineProfile.twitter_url}
+                        onChange={(e) =>
+                          setInlineProfile((prev) => ({ ...prev, twitter_url: e.target.value }))
+                        }
+                      />
+                      <TextInput
+                        label="LinkedIn"
+                        placeholder="https://linkedin.com/in/yourprofile"
+                        value={inlineProfile.linkedin_url}
+                        onChange={(e) =>
+                          setInlineProfile((prev) => ({ ...prev, linkedin_url: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <TextInput
+                      label="Website"
+                      placeholder="https://yourwebsite.com"
+                      value={inlineProfile.website_url}
+                      onChange={(e) =>
+                        setInlineProfile((prev) => ({ ...prev, website_url: e.target.value }))
+                      }
+                    />
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => navigate('/creator/profile-setup')}
+                      >
+                        Open full editor
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={handleSaveInlineProfile}
+                        disabled={isSavingInlineProfile}
+                      >
+                        {isSavingInlineProfile ? 'Saving…' : 'Save profile'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <Button
                 variant="secondary"
-                onClick={() => navigate('/creator/support')}
+                onClick={() => setIsSupportFormOpen((prev) => !prev)}
                 className="w-full"
               >
                 Contact Support
               </Button>
+              {isSupportFormOpen ? (
+                <div className="rounded-xl border border-[#E9ECEF] bg-[#F8F9FA] p-4 text-left">
+                  <div className="text-sm font-semibold text-[#212529]">Help & Support</div>
+                  <div className="mt-3 space-y-3">
+                    <TextInput
+                      label="Subject"
+                      placeholder="Briefly describe your issue"
+                      value={supportSubject}
+                      onChange={(e) => setSupportSubject(e.target.value)}
+                    />
+                    <TextArea
+                      label="Details"
+                      rows={4}
+                      placeholder="Share details (payout, verification, events, etc.)"
+                      value={supportDescription}
+                      onChange={(e) => setSupportDescription(e.target.value)}
+                    />
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={handleSubmitSupport}
+                      disabled={isSubmittingSupport}
+                    >
+                      {isSubmittingSupport ? 'Sending…' : 'Send to support'}
+                    </Button>
+
+                    <div className="pt-2">
+                      <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">
+                        Recent requests
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {isLoadingSupportTickets ? (
+                          <div className="text-xs text-[#6C757D]">Loading…</div>
+                        ) : supportTickets.length === 0 ? (
+                          <div className="text-xs text-[#6C757D]">No tickets yet.</div>
+                        ) : (
+                          supportTickets.map((ticket) => (
+                            <div
+                              key={ticket.id}
+                              className="rounded-[10px] border border-[#E9ECEF] bg-white p-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="text-sm font-semibold text-[#212529] line-clamp-1">
+                                  {ticket.subject}
+                                </div>
+                                <Badge variant="primary" className="shrink-0">
+                                  {ticket.status}
+                                </Badge>
+                              </div>
+                              <div className="mt-1 text-xs text-[#6C757D]">
+                                {format(new Date(ticket.createdAt), 'dd MMM, yyyy')}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={handleLogout}
@@ -707,19 +1075,30 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           </div>
           <div className="flex items-center gap-4">
             {role === 'creator' && !isLoadingPayout && !hasPayoutMethod && (
-              <Button
-                size="lg"
-                className="bg-[#050014] text-white hover:bg-[#140423]"
-                onClick={() => {
-                  navigate('/creator/settings#payouts');
-                  setTimeout(() => {
-                    const el = document.querySelector('#payouts');
-                    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }, 50);
-                }}
-              >
-                Add bank account
-              </Button>
+              <>
+                <Button
+                  size="lg"
+                  className="hidden bg-[#050014] text-white hover:bg-[#140423] md:inline-flex"
+                  onClick={() => {
+                    navigate('/creator/settings#payouts');
+                    setTimeout(() => {
+                      const el = document.querySelector('#payouts');
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                  }}
+                >
+                  Add bank account
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="border border-[#E9ECEF] text-[#050014] hover:bg-[#F8F9FA] md:hidden"
+                  aria-label="Add bank account"
+                  onClick={() => setIsPayoutModalOpen(true)}
+                >
+                  🏦
+                </Button>
+              </>
             )}
             <div className="relative hidden md:block">
               <input
