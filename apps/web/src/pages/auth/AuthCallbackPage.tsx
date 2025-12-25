@@ -65,9 +65,7 @@ export function AuthCallbackPage() {
           targetPath = roleRedirectMap[inferredRole] ?? '/fan';
         }
 
-        setStatus('success');
-        setMessage('Success! Redirecting…');
-        setTimeout(() => navigate(targetPath ?? '/auth', { replace: true }), 600);
+        navigate(targetPath ?? '/fan', { replace: true });
       } catch {
         setStatus('error');
         setMessage('Could not complete authentication.');

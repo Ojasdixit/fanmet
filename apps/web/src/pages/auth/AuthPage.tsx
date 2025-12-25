@@ -329,9 +329,6 @@ export function AuthPage() {
                 >
                   {isGoogleSubmitting ? 'Connecting to Google…' : 'Continue with Google'}
                 </Button>
-                <Button variant="ghost" size="md" className="h-9 text-[13px]">
-                  Continue with Apple
-                </Button>
               </div>
 
               {oauthError ? <p className="text-[11px] font-medium text-[#DC3545]">{oauthError}</p> : null}
