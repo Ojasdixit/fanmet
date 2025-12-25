@@ -13,12 +13,18 @@ interface AuthUser {
   creatorProfileStatus?: 'pending' | 'approved' | 'rejected';
 }
 
+interface OAuthRedirectParams {
+  redirectTo?: string;
+  role?: UserRole;
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (params: { email: string; password: string }) => Promise<AuthUser>;
   signup: (params: { email: string; password: string; role: UserRole }) => Promise<AuthUser>;
+  loginWithGoogle: (params?: OAuthRedirectParams) => Promise<void>;
   sendPasswordResetEmail: (params: { email: string; redirectTo?: string }) => Promise<void>;
   resendVerificationEmail: (params: { email: string; redirectTo?: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -43,6 +49,24 @@ export const buildUsername = (email: string) => {
   const localPart = email.split('@')[0] || '';
   const normalized = localPart.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
   return normalized || 'user';
+};
+
+const buildAuthRedirectUrl = ({ redirectTo, role }: OAuthRedirectParams = {}) => {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+
+  const url = new URL('/auth/callback', window.location.origin);
+
+  if (redirectTo && redirectTo.startsWith('/')) {
+    url.searchParams.set('redirect', redirectTo);
+  }
+
+  if (role) {
+    url.searchParams.set('role', role);
+  }
+
+  return url.toString();
 };
 
 const toAuthUser = (row: DbUser, profile?: ProfileRow | null): AuthUser => ({
@@ -247,6 +271,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const loginWithGoogle: AuthContextValue['loginWithGoogle'] = async (params) => {
+    const redirectTo = buildAuthRedirectUrl(params);
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Could not start Google sign-in.');
+    }
+  };
+
   const sendPasswordResetEmail: AuthContextValue['sendPasswordResetEmail'] = async ({
     email,
     redirectTo,
@@ -329,6 +372,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isLoading,
       login,
       signup,
+      loginWithGoogle,
       sendPasswordResetEmail,
       resendVerificationEmail,
       logout,

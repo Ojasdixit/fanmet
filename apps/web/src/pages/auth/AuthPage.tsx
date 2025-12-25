@@ -16,7 +16,7 @@ const highlightStats = [
 ];
 
 export function AuthPage() {
-  const [mode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
@@ -33,7 +33,9 @@ export function AuthPage() {
   const [isCreatorSubmitting, setIsCreatorSubmitting] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login, signup, resendVerificationEmail, isAuthenticated, user } = useAuth();
+  const { login, signup, resendVerificationEmail, loginWithGoogle, isAuthenticated, user } = useAuth();
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [oauthError, setOauthError] = useState('');
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -83,6 +85,23 @@ export function AuthPage() {
       setFormError(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (isGoogleSubmitting) return;
+    setOauthError('');
+    setIsGoogleSubmitting(true);
+    try {
+      const redirectParam = searchParams.get('redirect');
+      await loginWithGoogle({
+        redirectTo: redirectParam && redirectParam.startsWith('/') ? redirectParam : undefined,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Could not start Google sign-in. Please try again.';
+      setOauthError(message);
+      setIsGoogleSubmitting(false);
     }
   };
 
@@ -301,13 +320,21 @@ export function AuthPage() {
               </div>
 
               <div className="grid gap-2">
-                <Button variant="secondary" size="md" className="h-9 text-[13px]">
-                  Continue with Google
+                <Button
+                  variant="secondary"
+                  size="md"
+                  className="h-9 text-[13px]"
+                  onClick={handleGoogleSignIn}
+                  disabled={isSubmitting || isGoogleSubmitting}
+                >
+                  {isGoogleSubmitting ? 'Connecting to Google…' : 'Continue with Google'}
                 </Button>
                 <Button variant="ghost" size="md" className="h-9 text-[13px]">
                   Continue with Apple
                 </Button>
               </div>
+
+              {oauthError ? <p className="text-[11px] font-medium text-[#DC3545]">{oauthError}</p> : null}
             </form>
 
             <div className="rounded-2xl border border-dashed border-[#E9ECEF] bg-white/60 p-4">
