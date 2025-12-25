@@ -33,7 +33,7 @@ type MeetingViewState = 'loading' | 'waiting_room' | 'live' | 'ended' | 'cancell
 export const MeetingRoom = () => {
     const { meetId } = useParams<{ meetId: string }>();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, isLoading } = useAuth();
     
     // Create Agora client once and memoize it - MUST be before any conditional returns
     const client = useMemo(() => AgoraRTC.createClient({ mode: "rtc", codec: "vp8" }), []);
@@ -47,6 +47,7 @@ export const MeetingRoom = () => {
 
     // Early returns AFTER all hooks
     if (!meetId) return <ErrorView message="Invalid Meeting Link" onBack={() => navigate('/')} />;
+    if (isLoading) return <LoadingView />;
     if (!user) return <ErrorView message="Please log in to join the meeting" onBack={() => navigate('/login')} />;
 
     return (
@@ -448,6 +449,11 @@ function LiveCall({
     const [tokenLoading, setTokenLoading] = useState(true);
     const [micOn, setMicOn] = useState(true);
     const [cameraOn, setCameraOn] = useState(true);
+    const [primaryView, setPrimaryView] = useState<'local' | number>('local');
+    const [userPinnedPrimary, setUserPinnedPrimary] = useState(false);
+    const [isSwapping, setIsSwapping] = useState(false);
+    const swapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const remoteFallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     
     // CRITICAL: Use meeting.id (database UUID) as channel name, NOT meetId from URL
     // This ensures both creator and fan join the SAME Agora channel regardless of URL case
@@ -583,8 +589,73 @@ function LiveCall({
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
-    const primaryRemoteUser = remoteUsers[0];
-    const secondaryRemoteUsers = remoteUsers.slice(1);
+    const focusedRemoteUser =
+        remoteUsers.find((user) => user.uid === primaryView) || remoteUsers[0] || null;
+    const secondaryRemoteUsers = focusedRemoteUser
+        ? remoteUsers.filter((user) => user.uid !== focusedRemoteUser.uid)
+        : [];
+    const isLocalPrimary = primaryView === 'local' || !focusedRemoteUser;
+
+    useEffect(() => {
+        if (remoteUsers.length === 0) {
+            if (!remoteFallbackTimeoutRef.current) {
+                remoteFallbackTimeoutRef.current = setTimeout(() => {
+                    setPrimaryView('local');
+                    setUserPinnedPrimary(false);
+                    remoteFallbackTimeoutRef.current = null;
+                }, 350);
+            }
+            return;
+        }
+
+        if (remoteFallbackTimeoutRef.current) {
+            clearTimeout(remoteFallbackTimeoutRef.current);
+            remoteFallbackTimeoutRef.current = null;
+        }
+
+        const primaryRemoteStillPresent =
+            primaryView !== 'local' && remoteUsers.some((user) => user.uid === primaryView);
+
+        if (primaryView !== 'local' && !primaryRemoteStillPresent) {
+            const nextRemote = remoteUsers[0];
+            if (nextRemote && primaryView !== nextRemote.uid) {
+                setPrimaryView(nextRemote.uid as number);
+            }
+        } else if (!userPinnedPrimary && primaryView === 'local' && remoteUsers.length > 0) {
+            setPrimaryView(remoteUsers[0].uid as number);
+        }
+    }, [remoteUsers, primaryView, userPinnedPrimary]);
+
+    useEffect(() => {
+        return () => {
+            if (swapTimeoutRef.current) {
+                clearTimeout(swapTimeoutRef.current);
+            }
+            if (remoteFallbackTimeoutRef.current) {
+                clearTimeout(remoteFallbackTimeoutRef.current);
+            }
+        };
+    }, []);
+
+    const togglePrimaryView = () => {
+        if (remoteUsers.length === 0) return;
+        setUserPinnedPrimary(true);
+        setIsSwapping(true);
+        if (swapTimeoutRef.current) {
+            clearTimeout(swapTimeoutRef.current);
+        }
+        swapTimeoutRef.current = setTimeout(() => {
+            setIsSwapping(false);
+            swapTimeoutRef.current = null;
+        }, 320);
+        setPrimaryView((prev) => {
+            if (prev === 'local') {
+                const fallbackRemote = remoteUsers[0];
+                return (fallbackRemote?.uid as number) ?? 'local';
+            }
+            return 'local';
+        });
+    };
     const recordingDotColor =
         recordingStatus === 'recording'
             ? 'bg-red-500 animate-pulse'
@@ -623,15 +694,33 @@ function LiveCall({
                 </header>
 
                 <main className="relative flex-1 px-4 pb-36 pt-2 sm:px-8">
-                    <div className="relative h-full w-full overflow-hidden rounded-[32px] border border-white/10 bg-black/40 shadow-[0_30px_120px_rgba(0,0,0,0.45)]">
-                        {primaryRemoteUser ? (
-                            <RemoteUser user={primaryRemoteUser} className="h-full w-full object-cover" />
+                    <div
+                        className={`relative h-full w-full overflow-hidden rounded-[32px] border border-white/10 bg-black/40 shadow-[0_30px_120px_rgba(0,0,0,0.45)] transition-all duration-300 ease-out ${
+                            isSwapping ? 'ring-2 ring-white/20 scale-[1.01]' : ''
+                        }`}
+                    >
+                        {!isLocalPrimary && focusedRemoteUser ? (
+                            <RemoteUser user={focusedRemoteUser} className="h-full w-full object-cover" />
+                        ) : cameraOn ? (
+                            <LocalUser
+                                audioTrack={localMicrophoneTrack}
+                                videoTrack={localCameraTrack}
+                                cameraOn={cameraOn}
+                                micOn={micOn}
+                                playAudio={false}
+                                playVideo={cameraOn}
+                                className="h-full w-full object-cover"
+                            />
                         ) : (
                             <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-center">
                                 <div className="mb-4 text-5xl">📡</div>
-                                <p className="text-base font-semibold">Waiting for {isCreator ? 'fan' : 'creator'} to connect</p>
+                                <p className="text-base font-semibold">
+                                    {remoteUsers.length ? 'Your camera is off' : `Waiting for ${isCreator ? 'fan' : 'creator'} to connect`}
+                                </p>
                                 <p className="mt-2 max-w-xs text-sm text-white/70">
-                                    We’ll pull them in the moment their camera is active.
+                                    {remoteUsers.length
+                                        ? 'Switch on your camera or tap swap to spotlight the participant.'
+                                        : 'We’ll pull them in the moment their camera is active.'}
                                 </p>
                             </div>
                         )}
@@ -640,10 +729,14 @@ function LiveCall({
 
                         <div className="absolute left-5 top-5 flex flex-col gap-1 rounded-2xl bg-black/30 px-4 py-3 backdrop-blur">
                             <span className="text-[11px] uppercase tracking-[0.3em] text-white/70">
-                                {primaryRemoteUser ? 'Connected' : 'Calling'}
+                                {!isLocalPrimary && focusedRemoteUser ? 'Connected' : remoteUsers.length ? 'Self view' : 'Calling'}
                             </span>
                             <p className="text-lg font-semibold">
-                                {isCreator ? 'Fan' : 'Creator'} view
+                                {!isLocalPrimary
+                                    ? isCreator
+                                        ? 'Fan in focus'
+                                        : 'Creator in focus'
+                                    : 'You are in focus'}
                             </p>
                             <p className="text-xs text-white/70">
                                 {new Date(meeting.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -676,21 +769,34 @@ function LiveCall({
                         </div>
                     </div>
 
-                    <div className="absolute bottom-24 right-6 w-32 rounded-[22px] border border-white/20 bg-black/50 p-2 shadow-2xl backdrop-blur sm:right-12 sm:w-40">
-                        <LocalUser
-                            audioTrack={localMicrophoneTrack}
-                            videoTrack={localCameraTrack}
-                            cameraOn={cameraOn}
-                            micOn={micOn}
-                            playAudio={false}
-                            playVideo={cameraOn}
-                            className="h-40 w-full rounded-2xl object-cover"
-                        />
-                        <div className="absolute bottom-4 left-4 flex items-center gap-2 rounded-full bg-black/60 px-2 py-1 text-[11px] font-medium">
-                            You
-                            <span className={`h-2 w-2 rounded-full ${micOn ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                        </div>
-                    </div>
+                    {remoteUsers.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={togglePrimaryView}
+                            className="group absolute bottom-28 right-4 z-20 w-28 rounded-[20px] border border-white/30 bg-black/70 p-2 text-left shadow-2xl backdrop-blur transition-all duration-300 ease-out hover:scale-105 hover:border-white/80 sm:right-10 sm:w-32"
+                        >
+                            <div className="relative h-32 w-full overflow-hidden rounded-2xl">
+                                {isLocalPrimary && focusedRemoteUser ? (
+                                    <RemoteUser user={focusedRemoteUser} className="h-full w-full object-cover" />
+                                ) : (
+                                    <LocalUser
+                                        audioTrack={localMicrophoneTrack}
+                                        videoTrack={localCameraTrack}
+                                        cameraOn={cameraOn}
+                                        micOn={micOn}
+                                        playAudio={false}
+                                        playVideo={cameraOn}
+                                        className="h-full w-full object-cover"
+                                    />
+                                )}
+                                <div className="absolute inset-0 bg-black/30 opacity-0 transition group-hover:opacity-100" />
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[10px] font-medium uppercase tracking-wide text-white/80">
+                                <span>{isLocalPrimary ? (isCreator ? 'Fan view' : 'Creator view') : 'You'}</span>
+                                <span className="text-white/60">Tap to swap</span>
+                            </div>
+                        </button>
+                    )}
                 </main>
 
                 <footer className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col gap-4 rounded-t-[32px] bg-black/60 px-6 pb-8 pt-6 backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between sm:px-10">
@@ -715,7 +821,7 @@ function LiveCall({
                     <div className="flex flex-1 flex-wrap items-center justify-center gap-4 sm:justify-end">
                         <button
                             onClick={() => setMicOn((prev) => !prev)}
-                            className={`flex h-16 w-16 flex-col items-center justify-center rounded-full text-xs font-semibold transition ${
+                            className={`flex h-14 w-14 flex-col items-center justify-center rounded-full text-[11px] font-semibold transition sm:h-16 sm:w-16 ${
                                 micOn ? 'bg-white/15 text-white' : 'bg-rose-600 text-white shadow-lg shadow-rose-900/40'
                             }`}
                         >
@@ -725,7 +831,7 @@ function LiveCall({
 
                         <button
                             onClick={() => setCameraOn((prev) => !prev)}
-                            className={`flex h-16 w-16 flex-col items-center justify-center rounded-full text-xs font-semibold transition ${
+                            className={`flex h-14 w-14 flex-col items-center justify-center rounded-full text-[11px] font-semibold transition sm:h-16 sm:w-16 ${
                                 cameraOn ? 'bg-white/15 text-white' : 'bg-rose-600 text-white shadow-lg shadow-rose-900/40'
                             }`}
                         >
@@ -735,7 +841,7 @@ function LiveCall({
 
                         <button
                             onClick={onLeave}
-                            className="flex h-16 flex-1 items-center justify-center rounded-2xl bg-rose-600 text-sm font-semibold uppercase tracking-wide text-white shadow-2xl shadow-rose-900/40 sm:h-14 sm:flex-none sm:px-10"
+                            className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-rose-600 text-sm font-semibold uppercase tracking-wide text-white shadow-2xl shadow-rose-900/40 sm:h-14 sm:flex-none sm:px-8"
                         >
                             <PhoneOff className="mr-2 h-5 w-5" />
                             Leave

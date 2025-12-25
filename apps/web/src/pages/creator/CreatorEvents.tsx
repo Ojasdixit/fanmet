@@ -11,7 +11,9 @@ export function CreatorEvents() {
 
   const creatorUsername = user?.role === 'creator' ? user.username : null;
   const creatorEvents = creatorUsername
-    ? events.filter((event) => event.creatorUsername === creatorUsername)
+    ? events
+        .filter((event) => event.creatorUsername === creatorUsername)
+        .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime())
     : [];
 
   const handleShareEventLink = (eventId: string) => {

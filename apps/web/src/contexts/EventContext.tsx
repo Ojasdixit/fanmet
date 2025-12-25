@@ -16,6 +16,7 @@ export interface CreatorEvent {
   currentBid: number;
   participants: number;
   endsIn: string;
+  startsAt: string;
 }
 
 export interface Bid {
@@ -184,6 +185,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
           currentBid: maxBid,
           participants: uniqueParticipants,
           endsIn: endsIn,
+          startsAt: e.starts_at,
         };
       });
       setEvents(mappedEvents);
@@ -333,6 +335,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       currentBid: 0,
       participants: 0,
       endsIn: 'Bid ding open',
+      startsAt,
     };
 
     setEvents((prev) => [...prev, newEvent]);
