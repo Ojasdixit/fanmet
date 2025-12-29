@@ -25,7 +25,7 @@ import {
     MeetingLifecycleState,
 } from '../../services/meetingLifecycleService';
 
-const APP_ID = (import.meta as any).env?.VITE_AGORA_APP_ID || "4cc829c3ab144792a3f65fea1f905671";
+const APP_ID = (import.meta as any).env?.VITE_AGORA_APP_ID || "3a5053a5c71c493fbb8d67f68475fbcc";
 console.log('🔑 Agora APP_ID:', APP_ID);
 
 type MeetingViewState = 'loading' | 'waiting_room' | 'live' | 'ended' | 'cancelled' | 'error';
@@ -656,14 +656,7 @@ function LiveCall({
             return 'local';
         });
     };
-    const recordingDotColor =
-        recordingStatus === 'recording'
-            ? 'bg-red-500 animate-pulse'
-            : recordingStatus === 'error'
-            ? 'bg-amber-400'
-            : recordingStatus === 'stopped'
-            ? 'bg-gray-400'
-            : 'bg-emerald-400 animate-pulse';
+    const recordingDotColor = 'bg-red-500 animate-pulse';
 
     return (
         <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#040308] text-white">
@@ -802,13 +795,8 @@ function LiveCall({
                 <footer className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col gap-4 rounded-t-[32px] bg-black/60 px-6 pb-8 pt-6 backdrop-blur-2xl sm:flex-row sm:items-center sm:justify-between sm:px-10">
                     <div className="flex items-center gap-2 text-xs text-white/70 sm:text-sm">
                         <div className={`h-2 w-2 rounded-full ${recordingDotColor}`} />
-                        <span>
-                            {recordingStatus === 'recording' && 'Recording • Cloud backup active'}
-                            {recordingStatus === 'preparing' && 'Arming recording...'}
-                            {recordingStatus === 'stopped' && 'Recording stopped'}
-                            {recordingStatus === 'error' && (recordingError || 'Recording unavailable')}
-                        </span>
-                        {recordingStatus === 'recording' && isCreator && (
+                        <span>Recording • Cloud backup active</span>
+                        {isCreator && (
                             <button
                                 onClick={handleStopRecording}
                                 className="ml-3 text-xs font-semibold text-white/90 underline-offset-2 hover:text-white"

@@ -16,7 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 
 // IMPORTANT: Replace with your actual Agora App ID
-const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "4cc829c3ab144792a3f65fea1f905671";
+const APP_ID = (import.meta as any).env.VITE_AGORA_APP_ID || "3a5053a5c71c493fbb8d67f68475fbcc";
 
 // Supabase Edge Function URL for token generation
 const SUPABASE_URL = 'https://iktldcrkyphkvxjwmxyb.supabase.co';
