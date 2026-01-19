@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Badge, Button, Card, CardContent, CardHeader, TextInput } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
@@ -12,7 +12,7 @@ export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
-  const { events, placeBid, isLoading, getBidHistory, bidHistory, getUserCurrentBidForEvent } = useEvents();
+  const { events, placeBid, isLoading, getBidHistory, bidHistory, getUserCurrentBidForEvent, getWinningBid } = useEvents();
   const { getProfile } = useCreatorProfiles();
 
   let event = events.find((item) => item.id === eventId);
@@ -70,6 +70,8 @@ export function EventDetailPage() {
   const [bidAmount, setBidAmount] = useState('');
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [winner, setWinner] = useState<{ username: string; amount: number } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   // Get creator profile for the event
   const creatorProfile = event ? getProfile(event.creatorUsername) : undefined;
@@ -95,6 +97,27 @@ export function EventDetailPage() {
       setBidAmount(String(event.basePrice));
     }
   }, [event?.id, event?.currentBid, event?.basePrice]);
+
+  useEffect(() => {
+    const fetchWinner = async () => {
+      if (!event || !isEventCompleted || event.id.startsWith('synthetic-')) return;
+      const res = await getWinningBid(event.id);
+      if (res) {
+        setWinner({ username: res.fanUsername, amount: res.amount });
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 4000);
+      }
+    };
+
+    void fetchWinner();
+  }, [event?.id, isEventCompleted]);
+
+  const confettiPieces = useMemo(() =>
+    Array.from({ length: 36 }).map((_, idx) => ({
+      id: idx,
+      left: Math.random() * 100,
+      delay: Math.random() * 0.4,
+    })), []);
 
   // Fetch bid history when event loads
   useEffect(() => {
@@ -245,6 +268,46 @@ export function EventDetailPage() {
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-70px)] max-w-3xl flex-col bg-white pb-6">
+      {isEventCompleted && winner && (
+        <div className="relative overflow-hidden rounded-b-3xl bg-gradient-to-r from-[#FF8FB1] via-[#C045FF] to-[#7B2CBF] px-4 py-5 text-white shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs uppercase tracking-wide text-white/80">Auction winner</span>
+              <span className="text-2xl font-semibold">@{winner.username}</span>
+              <span className="text-sm text-white/90">Winning bid {formatCurrency(winner.amount)}</span>
+              <span className="text-xs text-white/80">🎉 Congrats! Meeting link has been created for the winner.</span>
+            </div>
+            <span className="text-4xl">🥳</span>
+          </div>
+
+          {showConfetti && (
+            <div className="pointer-events-none absolute inset-0">
+              {confettiPieces.map((piece) => (
+                <span
+                  key={piece.id}
+                  className="absolute h-2 w-2 rounded-full"
+                  style={{
+                    left: `${piece.left}%`,
+                    top: '-10%',
+                    background: ['#FFE5D9', '#FFD166', '#9B8CFF', '#7AE7C7'][piece.id % 4],
+                    animation: `confetti-fall 2.8s ease-out ${piece.delay}s`,
+                  }}
+                />
+              ))}
+              <style>
+                {`
+                  @keyframes confetti-fall {
+                    0% { transform: translate3d(0,-10px,0) rotate(0deg); opacity: 1; }
+                    80% { opacity: 1; }
+                    100% { transform: translate3d(0,120vh,0) rotate(340deg); opacity: 0; }
+                  }
+                `}
+              </style>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Cover + compact header */}
       <div className="relative">
         <div className="h-40 w-full bg-gradient-to-br from-[#FFE5D9] via-white to-[#F4E6FF] md:h-48" />

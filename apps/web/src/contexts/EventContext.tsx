@@ -38,6 +38,13 @@ export interface BidHistoryItem {
   isCurrentLeader: boolean;
 }
 
+export interface WinningBid {
+  id: string;
+  fanId: string;
+  fanUsername: string;
+  amount: number;
+}
+
 export interface Meet {
   id: string;
   eventId: string;
@@ -85,6 +92,7 @@ interface EventContextValue {
   getBidHistory: (eventId: string) => Promise<BidHistoryItem[]>;
   getUserCurrentBidForEvent: (eventId: string) => number;
   finalizeEvent: (eventId: string) => Promise<void>;
+  getWinningBid: (eventId: string) => Promise<WinningBid | null>;
 }
 
 const EventContext = createContext<EventContextValue | undefined>(undefined);
@@ -93,7 +101,12 @@ function formatSchedule(date: string, time: string) {
   if (!date && !time) return '';
   if (!date) return time;
   if (!time) return date;
-  return `${date}   ${time}`;
+  // Input date is expected in ISO yyyy-mm-dd from the date input; display as dd/mm/yyyy.
+  const parsed = new Date(date);
+  const displayDate = Number.isNaN(parsed.getTime())
+    ? date
+    : parsed.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `${displayDate}   ${time}`;
 }
 
 export const EventProvider = ({ children }: { children: ReactNode }) => {
@@ -151,7 +164,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        const dateStr = startsAt.toLocaleDateString();
+        const dateStr = startsAt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
         const timeStr = startsAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
         const creatorProfile = profileMap.get(e.creator_id);
@@ -390,6 +403,33 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     setBidHistory(history);
     return history;
+  };
+
+  const getWinningBid: EventContextValue['getWinningBid'] = async (eventId) => {
+    const { data: bidsData, error } = await supabase
+      .from('bids')
+      .select('id, fan_id, amount')
+      .eq('event_id', eventId)
+      .order('amount', { ascending: false })
+      .limit(1);
+
+    if (error || !bidsData || bidsData.length === 0) {
+      return null;
+    }
+
+    const winner = bidsData[0];
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('user_id', winner.fan_id)
+      .maybeSingle();
+
+    return {
+      id: winner.id,
+      fanId: winner.fan_id,
+      fanUsername: profile?.username || 'winner',
+      amount: winner.amount,
+    };
   };
 
   // Place bid - payment is handled directly via Razorpay before this is called
@@ -703,6 +743,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       getBidHistory,
       getUserCurrentBidForEvent,
       finalizeEvent,
+      getWinningBid,
     }),
     [events, myBids, myMeets, bidHistory, isLoading],
   );
