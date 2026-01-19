@@ -20,6 +20,94 @@ interface Meet {
   recording_stopped_at: string | null;
 }
 
+interface EventRow {
+  id: string;
+  creator_id: string;
+  starts_at: string;
+  duration_minutes: number;
+  bidding_closes_at: string | null;
+  meeting_link: string | null;
+  status: string;
+  is_paid: boolean;
+}
+
+async function finalizeExpiredEvents(supabase: any) {
+  console.log("Checking for events past bidding deadline...");
+  const nowIso = new Date().toISOString();
+
+  const { data: events, error } = await supabase
+    .from("events")
+    .select("id, creator_id, starts_at, duration_minutes, bidding_closes_at, meeting_link, status, is_paid")
+    .in("status", ["upcoming", "live"])
+    .lte("bidding_closes_at", nowIso);
+
+  if (error) {
+    console.error("Error fetching expired events:", error);
+    return { finalized: 0 };
+  }
+
+  if (!events || events.length === 0) {
+    console.log("No events past bidding deadline.");
+    return { finalized: 0 };
+  }
+
+  let finalized = 0;
+
+  for (const event of events as EventRow[]) {
+    // Find highest active bid
+    const { data: bids, error: bidsError } = await supabase
+      .from("bids")
+      .select("id, fan_id, amount")
+      .eq("event_id", event.id)
+      .eq("status", "active")
+      .order("amount", { ascending: false })
+      .limit(1);
+
+    if (bidsError) {
+      console.error("Error fetching bids for event", event.id, bidsError);
+      continue;
+    }
+
+    const winnerBid = bids && bids.length > 0 ? bids[0] : null;
+
+    if (winnerBid) {
+      // Mark winning bid
+      await supabase
+        .from("bids")
+        .update({ status: "won" })
+        .eq("id", winnerBid.id);
+
+      // Create meet for winner
+      const { error: meetError } = await supabase.from("meets").insert({
+        event_id: event.id,
+        creator_id: event.creator_id,
+        fan_id: winnerBid.fan_id,
+        scheduled_at: event.starts_at,
+        duration_minutes: event.duration_minutes,
+        meeting_link: event.meeting_link,
+        status: "scheduled",
+      });
+
+      if (meetError) {
+        console.error("Error creating meet for event", event.id, meetError);
+      }
+    } else if (event.is_paid) {
+      console.log("No bids for paid event", event.id, "- skipping meet creation");
+    }
+
+    // Update event status and winning bid reference
+    await supabase
+      .from("events")
+      .update({ status: "completed", winning_bid_id: winnerBid?.id ?? null })
+      .eq("id", event.id);
+
+    finalized += 1;
+  }
+
+  console.log("Auto-finalized events:", finalized);
+  return { finalized };
+}
+
 async function logEvent(
   supabase: any,
   meetId: string,
@@ -406,12 +494,14 @@ Deno.serve(async (req: Request) => {
 
     console.log("=== Meeting Lifecycle Check @ " + new Date().toISOString() + " ===");
 
+    const biddingResults = await finalizeExpiredEvents(supabase);
     const noShowResults = await checkScheduledStartNoShows(supabase);
     const completionResults = await checkScheduledEndCompletions(supabase);
 
     const result = {
       success: true,
       timestamp: new Date().toISOString(),
+      biddingFinalize: biddingResults,
       noShowCheck: noShowResults,
       completionCheck: completionResults,
     };

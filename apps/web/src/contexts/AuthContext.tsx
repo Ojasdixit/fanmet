@@ -184,6 +184,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     void loadUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        const authUser = session?.user;
+        if (authUser) {
+          try {
+            const resolvedUser = await resolveAuthUser(authUser);
+            setUser(resolvedUser);
+          } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('Failed to resolve user after auth state change:', error);
+          }
+        }
+      }
+
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login: AuthContextValue['login'] = async ({ email, password }) => {
