@@ -52,7 +52,9 @@ rm scripts/generate-maintenance-hash.js
 2. **Hash Comparison**: The input hash is compared with the stored hash using timing-safe comparison
 3. **Database Update**: If the code is correct, the `system_settings` table is updated
 4. **Real-Time Sync**: All connected clients receive the update via Supabase real-time subscriptions
-5. **Automatic Redirect**: When maintenance mode is enabled, all non-admin users are redirected to the maintenance page
+5. **Automatic Redirect**: When maintenance mode is toggled, remember to also update the status page so fans know what to expect.
+
+> _Last Netlify redeploy triggered: pending current session (update after successful deploy)._ 
 
 ### Security Measures
 

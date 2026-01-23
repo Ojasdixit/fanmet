@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, CardContent, CardHeader, Badge } from '@fanmeet/ui';
 import { formatDateTime, formatCurrency } from '@fanmeet/utils';
 import { useEvents } from '../../contexts/EventContext';
-import { supabase } from '../../lib/supabaseClient';
 
 function getStartsIn(scheduledAt: string) {
   const start = new Date(scheduledAt);
@@ -30,9 +29,8 @@ function getStartsIn(scheduledAt: string) {
 }
 
 export function FanMeets() {
-  const { myMeets } = useEvents();
+  const { myMeets, events } = useEvents();
   const navigate = useNavigate();
-  const [eventsWithNoBids, setEventsWithNoBids] = useState<any[]>([]);
   const [loadingNoBids, setLoadingNoBids] = useState(true);
 
   // Filter for scheduled, live, completed, and cancelled meets
@@ -67,44 +65,18 @@ export function FanMeets() {
   const scheduledMeets = upcomingMeets.filter((meet) => meet.status === 'scheduled');
   const completedMeets = upcomingMeets.filter((meet) => meet.status === 'completed');
 
+  const eventsWithNoBids = useMemo(() => {
+    const eligibleStatuses = new Set(['Upcoming', 'LIVE', 'Accepting Bids', 'Completed']);
+    return events
+      .filter((event) => eligibleStatuses.has(event.status) && event.currentBid === 0)
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+  }, [events]);
+
   useEffect(() => {
-    const fetchEventsWithNoBids = async () => {
-      try {
-        const { data: eventsData, error } = await supabase
-          .from('events')
-          .select('id, title, status, starts_at, base_price, description')
-          .in('status', ['upcoming', 'live', 'completed'])
-          .order('starts_at', { ascending: true });
-
-        if (error) {
-          console.error('Error fetching events:', error);
-          setLoadingNoBids(false);
-          return;
-        }
-
-        if (eventsData) {
-          // Filter events that have no bids
-          const eventIds = eventsData.map(e => e.id);
-          const { data: bidsData } = await supabase
-            .from('bids')
-            .select('event_id')
-            .in('event_id', eventIds);
-
-          const bidsMap = new Map<string, boolean>();
-          bidsData?.forEach(b => bidsMap.set(b.event_id, true));
-
-          const noBidsEvents = eventsData.filter(e => !bidsMap.has(e.id));
-          setEventsWithNoBids(noBidsEvents);
-        }
-      } catch (err) {
-        console.error('Error fetching events with no bids:', err);
-      } finally {
-        setLoadingNoBids(false);
-      }
-    };
-
-    fetchEventsWithNoBids();
-  }, []);
+    if (loadingNoBids && events.length >= 0) {
+      setLoadingNoBids(false);
+    }
+  }, [events.length, loadingNoBids]);
 
   const handleCopy = (link?: string) => {
     if (!link) return;
@@ -281,14 +253,14 @@ export function FanMeets() {
               <div
                 key={event.id}
                 className="flex flex-col gap-4 rounded-[14px] border border-[#E9ECEF] bg-white p-4 cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => event.status !== 'completed' && navigate(`/events/${event.id}`)}
+                onClick={() => event.status !== 'Completed' && navigate(`/events/${event.id}`)}
               >
                 <div className="flex flex-wrap items-center gap-3">
-                  <Badge variant={event.status === 'completed' ? 'default' : 'primary'}>
-                    {event.status === 'completed' ? '✅ Completed - No Bids' : '🎯 No Bids Yet'}
+                  <Badge variant={event.status === 'Completed' ? 'default' : 'primary'}>
+                    {event.status === 'Completed' ? '✅ Completed - No Bids' : '🎯 No Bids Yet'}
                   </Badge>
                   <span className="text-xs text-[#6C757D]">
-                    {event.status === 'completed' ? 'Ended' : 'Starts'} {formatDateTime(event.starts_at)}
+                    {event.status === 'Completed' ? 'Ended' : 'Starts'} {formatDateTime(event.startsAt)}
                   </span>
                 </div>
                 <div>
@@ -300,10 +272,10 @@ export function FanMeets() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-[#6C757D]">Base Price</div>
-                    <div className="font-semibold text-[#C045FF]">{formatCurrency(event.base_price)}</div>
+                    <div className="font-semibold text-[#C045FF]">{formatCurrency(event.basePrice)}</div>
                   </div>
-                  <Button size="sm" disabled={event.status === 'completed'}>
-                    {event.status === 'completed' ? 'Event Ended' : 'View & Bid →'}
+                  <Button size="sm" disabled={event.status === 'Completed'}>
+                    {event.status === 'Completed' ? 'Event Ended' : 'View & Bid →'}
                   </Button>
                 </div>
               </div>
