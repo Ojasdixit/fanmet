@@ -89,7 +89,31 @@ export function CreatorMeets() {
     if (!eventsError && eventsData) {
       const meetEventIds = new Set((data ?? []).map((meet) => meet.event_id));
       const orphanEvents = eventsData.filter((event) => !meetEventIds.has(event.id));
-      setEventsWithoutMeet(orphanEvents);
+
+      if (orphanEvents.length > 0) {
+        const orphanIds = orphanEvents.map((event) => event.id);
+        const { data: orphanBids } = await supabase
+          .from('bids')
+          .select('event_id, amount')
+          .in('event_id', orphanIds);
+
+        const bidsByEvent = new Map<string, number>();
+        (orphanBids ?? []).forEach((bid) => {
+          const current = bidsByEvent.get(bid.event_id) ?? 0;
+          if ((bid.amount ?? 0) > current) {
+            bidsByEvent.set(bid.event_id, bid.amount ?? 0);
+          }
+        });
+
+        setEventsWithoutMeet(
+          orphanEvents.map((event) => ({
+            ...event,
+            highestBid: bidsByEvent.get(event.id) ?? 0,
+          })),
+        );
+      } else {
+        setEventsWithoutMeet([]);
+      }
     } else if (eventsError) {
       console.error('Error fetching creator events:', eventsError);
       setEventsWithoutMeet([]);
@@ -290,9 +314,11 @@ export function CreatorMeets() {
                       </Button>
                     </div>
                     <p className="mt-2 text-xs text-[#C045FF]">
-                      {event.status === 'completed'
-                        ? 'No winning bid was placed before bidding closed.'
-                        : 'Waiting for bids – share the link to secure a fan.'}
+                      {event.status === 'completed' && (event as any).highestBid && (event as any).highestBid > 0
+                        ? `Highest bid ${formatCurrency((event as any).highestBid)} received. Finalize the event to schedule the meet.`
+                        : event.status === 'completed'
+                          ? 'No winning bid was placed before bidding closed.'
+                          : 'Waiting for bids – share the link to secure a fan.'}
                     </p>
                   </div>
                 ))}

@@ -78,6 +78,19 @@ const toAuthUser = (row: DbUser, profile?: ProfileRow | null): AuthUser => ({
   creatorProfileStatus: profile?.creator_profile_status || row.creator_profile_status,
 });
 
+const toFallbackAuthUser = (authUser: User): AuthUser => {
+  const role = (authUser.user_metadata?.role as UserRole) ?? 'fan';
+  const email = authUser.email ?? (authUser.user_metadata?.email as string) ?? 'unknown@fanmeet.app';
+
+  return {
+    id: authUser.id,
+    email,
+    role,
+    username: buildUsername(email),
+    user_metadata: authUser.user_metadata,
+  };
+};
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const SIGNUP_RETRYABLE_STATUS = new Set([429, 503]);
 const MAX_SIGNUP_ATTEMPTS = 3;
@@ -163,6 +176,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const hydrateUserInBackground = (authUser: User, fallbackRole?: UserRole) => {
+      resolveAuthUser(authUser, fallbackRole)
+        .then((resolvedUser) => {
+          if (!cancelled) {
+            setUser(resolvedUser);
+          }
+        })
+        .catch((error) => {
+          console.warn('[AuthContext] Background hydration failed, retrying...', error);
+          setTimeout(() => {
+            if (!cancelled) {
+              hydrateUserInBackground(authUser, fallbackRole);
+            }
+          }, 2000);
+        });
+    };
+
     const loadUser = async () => {
       try {
         const {
@@ -173,10 +205,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           return;
         }
 
-        const resolvedUser = await resolveAuthUser(authUser);
-        setUser(resolvedUser);
+        setUser(toFallbackAuthUser(authUser));
+        hydrateUserInBackground(authUser);
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error('Failed to load user:', error);
       } finally {
         setIsLoading(false);
@@ -187,17 +218,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         const authUser = session?.user;
         if (authUser) {
-          try {
-            const resolvedUser = await resolveAuthUser(authUser);
-            setUser(resolvedUser);
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error('Failed to resolve user after auth state change:', error);
-          }
+          setUser(toFallbackAuthUser(authUser));
+          hydrateUserInBackground(authUser);
         }
       }
 
@@ -207,6 +233,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
     };
   }, []);
@@ -223,9 +250,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Please verify your email before logging in.');
     }
 
-    const nextUser = await resolveAuthUser(data.user);
-    setUser(nextUser);
-    return nextUser;
+    const fallbackUser = toFallbackAuthUser(data.user);
+    setUser(fallbackUser);
+    return fallbackUser;
   };
 
   const signup: AuthContextValue['signup'] = async ({ email, password, role }) => {
