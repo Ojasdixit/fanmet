@@ -98,9 +98,10 @@ export const MobileBottomNav = ({ role, onProfileClick }: MobileBottomNavProps) 
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-[#E9ECEF]/80 bg-white/95 shadow-[0_-6px_24px_rgba(5,0,20,0.08)] backdrop-blur-xl md:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-[#E9ECEF]/80 bg-white shadow-[0_-6px_24px_rgba(5,0,20,0.08)] md:hidden"
       style={{
-        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)',
+        paddingTop: '0.4rem',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
       <div className="flex h-16 items-center justify-around px-2">
