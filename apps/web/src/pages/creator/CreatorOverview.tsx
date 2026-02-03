@@ -189,12 +189,29 @@ export function CreatorOverview() {
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-        const { data: bidsData, error: bidsError } = await supabase
+        console.log('[TopCreators] Fetching bids from', monthStart, 'to', nextMonthStart);
+
+        // Get won bids from this month
+        let { data: bidsData, error: bidsError } = await supabase
           .from('bids')
           .select('event_id, amount, status, created_at')
           .eq('status', 'won')
           .gte('created_at', monthStart.toISOString())
           .lt('created_at', nextMonthStart.toISOString());
+
+        console.log('[TopCreators] bidsError:', bidsError, 'bidsData:', bidsData?.length);
+
+        // If no data this month, fall back to all-time
+        if (!bidsData || bidsData.length === 0) {
+          console.log('[TopCreators] No data this month, falling back to all-time');
+          const allTimeResult = await supabase
+            .from('bids')
+            .select('event_id, amount, status, created_at')
+            .eq('status', 'won');
+          bidsData = allTimeResult.data;
+          bidsError = allTimeResult.error;
+          console.log('[TopCreators] All-time bidsData:', bidsData?.length);
+        }
 
         if (bidsError || !bidsData || bidsData.length === 0) {
           setTopCreators([]);
@@ -208,10 +225,13 @@ export function CreatorOverview() {
           return;
         }
 
+        // Get events with their creator_ids
         const { data: eventsData, error: eventsError } = await supabase
           .from('events')
           .select('id, creator_id')
           .in('id', eventIds);
+
+        console.log('[TopCreators] eventsError:', eventsError, 'eventsData:', eventsData?.length);
 
         if (eventsError || !eventsData || eventsData.length === 0) {
           setTopCreators([]);
@@ -224,18 +244,28 @@ export function CreatorOverview() {
 
         const earningsPerCreator = new Map<string, number>();
 
+        // Platform fee: 10% deducted from earnings (creators get 90%)
+        const PLATFORM_FEE_PERCENT = 10;
+        const calculateNetEarnings = (grossAmount: number) =>
+          Math.floor(grossAmount * (100 - PLATFORM_FEE_PERCENT) / 100);
+
         for (const bid of bidsData as any[]) {
           const creatorId = eventToCreator.get(bid.event_id);
           if (!creatorId) continue;
           const previous = earningsPerCreator.get(creatorId) ?? 0;
-          earningsPerCreator.set(creatorId, previous + (bid.amount ?? 0));
+          // Use net earnings (after 10% platform fee)
+          const netEarnings = calculateNetEarnings(bid.amount ?? 0);
+          earningsPerCreator.set(creatorId, previous + netEarnings);
         }
+
+        console.log('[TopCreators] earningsPerCreator:', Array.from(earningsPerCreator.entries()));
 
         if (earningsPerCreator.size === 0) {
           setTopCreators([]);
           return;
         }
 
+        // Sort by earnings descending and take top 3
         const sortedCreators = Array.from(earningsPerCreator.entries())
           .sort((a, b) => b[1] - a[1])
           .slice(0, 3);
@@ -250,6 +280,9 @@ export function CreatorOverview() {
         const profileMap = new Map<string, any>(
           (profilesData ?? []).map((p: any) => [p.user_id, p]),
         );
+
+        console.log('[TopCreators] sortedCreators:', sortedCreators);
+        console.log('[TopCreators] profilesData:', profilesData?.length);
 
         const top: TopCreator[] = sortedCreators.map(([creatorId, earnings]) => {
           const profile = profileMap.get(creatorId);

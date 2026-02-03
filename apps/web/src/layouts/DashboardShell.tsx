@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotifications } from '../contexts/NotificationsContext';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabaseClient';
+import { MobileBottomNav } from '../components/MobileBottomNav';
+import { ProfileMenu } from '../components/ProfileMenu';
 
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 
@@ -136,6 +138,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
   const [isResizing, setIsResizing] = useState(false);
   const [activeRightPanel, setActiveRightPanel] = useState<'none' | 'notifications' | 'profile'>('none');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
 
   const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
   const [isLoadingPayout, setIsLoadingPayout] = useState(false);
@@ -1015,8 +1018,9 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           </button>
         </div>
       </aside>
+      {/* Mobile Sidebar Overlay - Only shown on tablet/desktop when sidebar is toggled */}
       {isSidebarOpen && (
-        <div className="fixed inset-0 z-40 flex md:hidden">
+        <div className="fixed inset-0 z-40 hidden md:flex">
           <button
             type="button"
             className="absolute inset-0 bg-black/40"
@@ -1061,7 +1065,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="flex items-center justify-center rounded-md border border-[#E9ECEF] p-2 text-[#343A40] md:hidden"
+              className="hidden items-center justify-center rounded-md border border-[#E9ECEF] p-2 text-[#343A40] md:flex"
               onClick={() => setIsSidebarOpen((open) => !open)}
             >
               <span className="sr-only">Open sidebar</span>
@@ -1156,10 +1160,28 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-x-hidden px-4 py-6 md:px-12 md:py-10">
+        <main
+          className="flex-1 overflow-x-hidden px-4 py-6 pb-24 md:px-12 md:py-10 md:pb-10"
+          style={{
+            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
+          }}
+        >
           <Outlet />
         </main>
       </div>
+      {/* Mobile Bottom Navigation */}
+      <MobileBottomNav
+        role={role}
+        onProfileClick={() => setIsProfileMenuOpen(true)}
+      />
+
+      {/* Profile Menu Modal */}
+      <ProfileMenu
+        isOpen={isProfileMenuOpen}
+        onClose={() => setIsProfileMenuOpen(false)}
+        role={role}
+        menu={config.menu}
+      />
     </div>
   );
 };
