@@ -1156,14 +1156,20 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
                   </span>
                 )}
               </Button>
-              <Avatar initials={userInitials} size="sm" />
+              <button
+                type="button"
+                onClick={() => setIsProfileMenuOpen(true)}
+                className="flex items-center justify-center"
+              >
+                <Avatar initials={userInitials} size="sm" />
+              </button>
             </div>
           </div>
         </header>
         <main
-          className="flex-1 overflow-x-hidden px-4 py-6 pb-24 md:px-12 md:py-10 md:pb-10"
+          className="flex-1 overflow-x-hidden px-4 py-6 md:px-12 md:py-10"
           style={{
-            paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))',
+            paddingBottom: 'calc(6rem + env(safe-area-inset-bottom, 0px))',
           }}
         >
           <Outlet />

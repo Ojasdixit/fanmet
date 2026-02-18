@@ -56,8 +56,8 @@ export function FanMeets() {
       const statusDiff = (statusOrder[a.status as keyof typeof statusOrder] || 4) - (statusOrder[b.status as keyof typeof statusOrder] || 4);
       if (statusDiff !== 0) return statusDiff;
 
-      // Priority 4: For same status, sort by scheduledAt ascending (nearest first)
-      return aTime.getTime() - bTime.getTime();
+      // Priority 4: For same status, sort by scheduledAt descending (newest first)
+      return bTime.getTime() - aTime.getTime();
     });
 
   // Categorize meets by status

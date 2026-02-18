@@ -6,6 +6,7 @@ export interface CreatorEvent {
   id: string;
   creatorUsername: string;
   creatorDisplayName: string;
+  creatorProfilePhoto?: string;
   title: string;
   description?: string;
   category?: string;
@@ -136,7 +137,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       const creatorIds = data.map((e) => e.creator_id);
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('user_id, username, display_name')
+        .select('user_id, username, display_name, profile_photo_url')
         .in('user_id', creatorIds);
 
       const profileMap = new Map(profiles?.map((p) => [p.user_id, p]) || []);
@@ -188,6 +189,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
           id: e.id,
           creatorUsername,
           creatorDisplayName: creatorProfile?.display_name || 'Unknown',
+          creatorProfilePhoto: creatorProfile?.profile_photo_url,
           title: e.title,
           description: e.description,
           category: e.category || 'general',
@@ -220,7 +222,8 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       const { data: bidsData, error: bidsError } = await supabase
         .from('bids')
         .select('*')
-        .eq('fan_id', user.id);
+        .eq('fan_id', user.id)
+        .order('created_at', { ascending: false });
 
       if (!bidsError && bidsData) {
         const eventIds = bidsData.map((b) => b.event_id);
@@ -531,7 +534,8 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     const { data: bidsData } = await supabase
       .from('bids')
       .select('*')
-      .eq('fan_id', user.id);
+      .eq('fan_id', user.id)
+      .order('created_at', { ascending: false });
 
     if (bidsData) {
       const eventIds = bidsData.map((b) => b.event_id);

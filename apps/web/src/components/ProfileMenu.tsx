@@ -86,12 +86,12 @@ export const ProfileMenu = ({ isOpen, onClose, role, menu }: ProfileMenuProps) =
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm md:hidden" />
+      <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm" />
 
       {/* Menu Panel */}
       <div
         ref={menuRef}
-        className="fixed bottom-[72px] left-4 right-4 z-[70] max-h-[70vh] overflow-hidden rounded-2xl bg-white shadow-2xl md:hidden"
+        className="fixed bottom-[72px] left-4 right-4 z-[70] max-h-[70vh] overflow-hidden rounded-2xl bg-white shadow-2xl"
         style={{
           maxHeight: 'calc(100vh - 100px)',
         }}
@@ -182,14 +182,13 @@ export const ProfileMenu = ({ isOpen, onClose, role, menu }: ProfileMenuProps) =
 
         {/* Footer */}
         <div className="border-t border-[#E9ECEF] bg-[#F8F9FA] p-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            className="w-full border-none bg-[#050014] text-white hover:bg-[#140423]"
+          <button
+            type="button"
             onClick={handleLogout}
+            className="inline-flex h-10 w-full items-center justify-center rounded-[8px] bg-[#050014] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#140423] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           >
             Logout
-          </Button>
+          </button>
         </div>
       </div>
     </>

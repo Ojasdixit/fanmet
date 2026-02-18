@@ -38,7 +38,7 @@ export function CreatorMeets() {
         events:event_id (title, base_price)
       `)
       .eq('creator_id', user.id)
-      .order('scheduled_at', { ascending: true });
+      .order('scheduled_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching meets:', error);

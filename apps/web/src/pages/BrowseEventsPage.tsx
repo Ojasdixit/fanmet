@@ -1,6 +1,6 @@
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, Button, Badge } from '@fanmeet/ui';
+import { Card, CardContent, CardHeader, Button, Badge, Avatar } from '@fanmeet/ui';
 import { formatCurrency } from '@fanmeet/utils';
 import { useEvents } from '../contexts/EventContext';
 
@@ -114,8 +114,14 @@ export function BrowseEventsPage() {
             >
               <div className="relative h-36 w-full flex-shrink-0 bg-gradient-to-br from-[#FCE7FF] via-white to-[#E5DEFF]" />
               <div className="flex flex-1 flex-col gap-4 px-6 pb-6 pt-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex items-start gap-4">
+                  <Avatar
+                    src={event.creatorProfilePhoto}
+                    initials={event.creatorDisplayName?.slice(0, 2).toUpperCase() || 'CR'}
+                    size="md"
+                    className="flex-shrink-0"
+                  />
+                  <div className="flex-1">
                     {event.status === 'Accepting Bids' ? (
                       <div className="mb-1 inline-block rounded-[8px] bg-[#1E4620] px-2 py-1">
                         <span className="text-[11px] font-semibold text-[#4ADE80]">✓ Accepting Bids</span>
