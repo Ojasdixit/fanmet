@@ -78,6 +78,11 @@ export function InfluencerPage() {
       const basePrice = 100 + index * 25;
       const currentBid = index % 2 === 0 ? basePrice + 120 : 0;
       const participants = index % 2 === 0 ? 5 + index * 2 : 0;
+      // Generate dates within last 15 days for demo events
+      const daysAgo = index * 2; // 0, 2, 4, 6, 8 days ago
+      const eventDate = new Date();
+      eventDate.setDate(eventDate.getDate() - daysAgo);
+      const startsAt = eventDate.toISOString();
 
       return {
         id: `synthetic-${usernameSlug}-${index}`,
@@ -102,14 +107,29 @@ export function InfluencerPage() {
         currentBid,
         participants,
         endsIn: index === 0 ? '00:35:12 left' : 'Starts soon',
+        startsAt,
       };
     })
     : undefined;
 
   const effectiveEvents = storedEvents.length > 0 ? storedEvents : syntheticEvents ?? [];
 
-  // Sort events: newest first (by id which contains timestamp, or reverse order)
-  const sortedEvents = [...effectiveEvents].reverse();
+  // Filter events to last 15 days and sort with recent events first
+  const now = new Date();
+  const fifteenDaysAgo = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+  const filteredEvents = effectiveEvents.filter((event) => {
+    // Check if event has startsAt and is within last 15 days
+    if (!event.startsAt) return false;
+    const eventDate = new Date(event.startsAt);
+    return eventDate >= fifteenDaysAgo;
+  });
+  
+  // Sort events: newest first (by startsAt date descending)
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    const dateA = a.startsAt ? new Date(a.startsAt).getTime() : 0;
+    const dateB = b.startsAt ? new Date(b.startsAt).getTime() : 0;
+    return dateB - dateA; // Descending order (newest first)
+  });
 
   const primaryEvent = sortedEvents[0];
 
@@ -353,7 +373,7 @@ export function InfluencerPage() {
               <Card>
                 <CardContent>
                   <p className="text-sm text-[#6C757D]">
-                    This creator has not set up any bidding events yet. Check back soon for upcoming sessions.
+                    This creator has no upcoming events in the last 15 days. Check back soon for new sessions.
                   </p>
                 </CardContent>
               </Card>

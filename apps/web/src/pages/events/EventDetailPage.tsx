@@ -93,6 +93,29 @@ export function EventDetailPage() {
   const nextSuggestedBid = isFirstBidOnEvent ? event!.basePrice : displayedHighestBid + BID_STEP;
   // Minimum bid user can place (for validation)
   const minimumBidRequired = isFirstBidOnEvent ? event!.basePrice : displayedHighestBid + BID_STEP;
+  
+  // Validation: check if bid amount is valid
+  const isValidBidAmount = (() => {
+    const amount = Number(bidAmount);
+    if (!amount || Number.isNaN(amount)) return false;
+    if (amount < minimumBidRequired) return false;
+    if (isFirstBidOnEvent) {
+      // First bid on event must be exactly base price
+      return amount === event!.basePrice;
+    }
+    // All bids must be multiples of 50
+    return amount % BID_STEP === 0;
+  })();
+  const validationError = (() => {
+    const amount = Number(bidAmount);
+    if (!amount || Number.isNaN(amount)) return 'Enter a valid amount';
+    if (amount < minimumBidRequired) return `Minimum bid is ${formatCurrency(minimumBidRequired)}`;
+    if (isFirstBidOnEvent && amount !== event!.basePrice) {
+      return `First bid must be exactly ₹${event!.basePrice}`;
+    }
+    if (amount % BID_STEP !== 0) return `Bid must be multiple of ${formatCurrency(BID_STEP)}`;
+    return null;
+  })();
 
   useEffect(() => {
     if (!event) return;
@@ -563,9 +586,10 @@ export function EventDetailPage() {
               <Button 
                 className="md:w-40" 
                 onClick={handlePlaceBid}
-                disabled={isProcessingPayment || isEventCompleted}
+                disabled={isProcessingPayment || isEventCompleted || !isValidBidAmount}
+                title={validationError || undefined}
               >
-                {isEventCompleted ? 'Event Completed' : isProcessingPayment ? 'Processing...' : 'Place Bid →'}
+                {isEventCompleted ? 'Event Completed' : isProcessingPayment ? 'Processing...' : validationError || 'Place Bid →'}
               </Button>
             </div>
           </CardContent>
