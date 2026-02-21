@@ -83,19 +83,24 @@ export function EventDetailPage() {
   const cumulativeTotal = userCurrentBid + bidIncrement;
 
   const BID_STEP = 50;
-  const isFirstBid = Boolean(event && event.currentBid === 0);
+  // isFirstBidForUser = has this user placed any bid on this event yet?
+  const isFirstBidForUser = userCurrentBid === 0;
+  // isFirstBidOnEvent = has anyone bid on this event yet?
+  const isFirstBidOnEvent = Boolean(event && event.currentBid === 0);
   const isEventCompleted = Boolean(event && String(event.status).toLowerCase() === 'completed');
   const displayedHighestBid = event ? (event.currentBid > 0 ? event.currentBid : event.basePrice) : 0;
-  const nextSuggestedBid = event
-    ? isFirstBid
-      ? event.basePrice
-      : displayedHighestBid + BID_STEP
-    : 0;
+  // If user hasn't bid yet, they must bid at least the current highest + step (or base price if no bids)
+  const nextSuggestedBid = isFirstBidOnEvent ? event!.basePrice : displayedHighestBid + BID_STEP;
+  // Minimum bid user can place (for validation)
+  const minimumBidRequired = isFirstBidOnEvent ? event!.basePrice : displayedHighestBid + BID_STEP;
 
   useEffect(() => {
     if (!event) return;
-    if (isFirstBid) {
+    // Set initial bid amount: if event has no bids, use base price; otherwise use next suggested bid
+    if (isFirstBidOnEvent) {
       setBidAmount(String(event.basePrice));
+    } else {
+      setBidAmount(String(nextSuggestedBid));
     }
   }, [event?.id, event?.currentBid, event?.basePrice]);
 
@@ -210,9 +215,14 @@ export function EventDetailPage() {
         return;
       }
     } else {
-      // For first bid, must be exactly the base price
-      if (rawAmount !== event.basePrice) {
-        window.alert(`The first bid must be exactly ₹${event.basePrice}.`);
+      // For user's first bid, must be at least the minimum required
+      if (rawAmount < minimumBidRequired) {
+        window.alert(`Your bid must be at least ${formatCurrency(minimumBidRequired)}. The current highest bid is ${formatCurrency(displayedHighestBid)}.`);
+        return;
+      }
+      // If this is the first bid on the event, it must be exactly base price
+      if (isFirstBidOnEvent && rawAmount !== event.basePrice) {
+        window.alert(`The first bid on this event must be exactly ₹${event.basePrice}.`);
         return;
       }
     }
@@ -511,14 +521,19 @@ export function EventDetailPage() {
                 <TextInput
                   type="number"
                   label={userCurrentBid > 0 ? "Add to your bid" : "Your bid amount"}
-                  placeholder={String(event.basePrice)}
+                  placeholder={String(minimumBidRequired)}
                   value={bidAmount}
                   onChange={(inputEvent) => setBidAmount(inputEvent.target.value)}
-                  disabled={isFirstBid || isEventCompleted}
+                  disabled={isEventCompleted}
                 />
-                {isFirstBid && (
+                {isFirstBidOnEvent && (
                   <div className="mt-2 text-[11px] text-[#6C757D]">
-                    First bid is fixed to the creator&apos;s base price.
+                    First bid on this event must be exactly the creator&apos;s base price (₹{event.basePrice}).
+                  </div>
+                )}
+                {!isFirstBidOnEvent && isFirstBidForUser && (
+                  <div className="mt-2 text-[11px] text-[#6C757D]">
+                    Minimum bid is {formatCurrency(minimumBidRequired)} (current highest + {formatCurrency(BID_STEP)}).
                   </div>
                 )}
                 {isEventCompleted && (
