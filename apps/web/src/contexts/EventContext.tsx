@@ -90,6 +90,7 @@ interface EventContextValue {
   placeBidWithPayment: (eventId: string, amount: number, userEmail: string) => Promise<void>;
   updateMeetStatus: (meetId: string, status: 'scheduled' | 'live' | 'completed' | 'cancelled' | 'cancelled_no_show_creator' | 'no_show') => Promise<void>;
   refreshMeets: () => Promise<void>;
+  refreshEvents: () => Promise<void>;
   getBidHistory: (eventId: string) => Promise<BidHistoryItem[]>;
   getUserCurrentBidForEvent: (eventId: string) => number;
   finalizeEvent: (eventId: string) => Promise<void>;
@@ -118,8 +119,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
 
-  useEffect(() => {
-    const fetchEvents = async () => {
+  const fetchEvents = async () => {
       // Fetch events
       const { data, error } = await supabase.from('events').select('*');
 
@@ -207,7 +207,32 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       setIsLoading(false);
     };
 
+  useEffect(() => {
     fetchEvents();
+  }, []);
+
+  // Set up Realtime subscription for bids table (global updates)
+  useEffect(() => {
+    const bidsChannel = supabase
+      .channel('global-bids')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bids',
+        },
+        (payload) => {
+          console.log('📡 Realtime bid update:', payload);
+          // Refresh all events when any bid changes
+          fetchEvents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(bidsChannel);
+    };
   }, []);
 
   useEffect(() => {
@@ -514,6 +539,9 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     // Refresh bid history for the event
     await getBidHistory(eventId);
+
+    // Refresh all events to update global state
+    await fetchEvents();
   };
 
   // Place bid with direct payment (opens Razorpay)
@@ -744,6 +772,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       placeBidWithPayment,
       updateMeetStatus,
       refreshMeets,
+      refreshEvents: fetchEvents,
       getBidHistory,
       getUserCurrentBidForEvent,
       finalizeEvent,
