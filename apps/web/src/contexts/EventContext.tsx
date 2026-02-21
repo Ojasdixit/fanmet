@@ -213,6 +213,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
   // Set up Realtime subscription for bids table (global updates)
   useEffect(() => {
+    console.log('🔌 Setting up bids realtime subscription...');
     const bidsChannel = supabase
       .channel('global-bids')
       .on(
@@ -223,15 +224,24 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
           table: 'bids',
         },
         (payload) => {
-          console.log('📡 Realtime bid update:', payload);
+          console.log('📡 Realtime bid update received:', payload);
           // Refresh all events when any bid changes
           fetchEvents();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Bids subscription status:', status);
+      });
+
+    // Fallback: Poll every 5 seconds to ensure all users see updates
+    const pollInterval = setInterval(() => {
+      console.log('🔄 Polling for bid updates...');
+      fetchEvents();
+    }, 5000);
 
     return () => {
       supabase.removeChannel(bidsChannel);
+      clearInterval(pollInterval);
     };
   }, []);
 

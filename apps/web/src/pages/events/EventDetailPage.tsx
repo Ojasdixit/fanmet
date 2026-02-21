@@ -72,6 +72,7 @@ export function EventDetailPage() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [winner, setWinner] = useState<{ username: string; amount: number } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const { refreshEvents } = useEvents();
 
   // Get creator profile for the event
   const creatorProfile = event ? getProfile(event.creatorUsername) : undefined;
@@ -125,6 +126,19 @@ export function EventDetailPage() {
       getBidHistory(event.id);
     }
   }, [event?.id]);
+
+  // Periodic refresh for bid history and events (every 3 seconds)
+  useEffect(() => {
+    if (!event?.id || event.id.startsWith('synthetic-')) return;
+    
+    const refreshInterval = setInterval(() => {
+      console.log('🔄 Refreshing bids for event:', event.id);
+      getBidHistory(event.id);
+      refreshEvents();
+    }, 3000);
+
+    return () => clearInterval(refreshInterval);
+  }, [event?.id, refreshEvents]);
 
   // Show loading state while events are being fetched
   if (isLoading) {
