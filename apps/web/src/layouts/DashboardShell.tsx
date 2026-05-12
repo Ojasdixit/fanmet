@@ -262,12 +262,12 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       try {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('bank_account_name, bank_account_number, bank_ifsc, upi_id, razorpay_fund_account_id')
+          .select('bank_account_name, bank_account_number, bank_ifsc, upi_id')
           .eq('user_id', user.id)
           .maybeSingle();
 
         const linked = Boolean(
-          profile?.razorpay_fund_account_id || profile?.bank_account_number || profile?.upi_id,
+          profile?.bank_account_number || profile?.upi_id,
         );
         setHasPayoutMethod(linked);
 
@@ -405,33 +405,12 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
 
     setIsSavingPayout(true);
     try {
-      const payload: any = {
-        name: payoutDetails.bank_account_name,
-        ifsc: payoutDetails.bank_ifsc,
-        account_number: payoutDetails.bank_account_number,
-        upi_id: payoutDetails.upi_id,
-      };
-
-      const { data: payoutData, error: payoutError } = await supabase.functions.invoke('create-razorpay-fund-account', {
-        body: payload,
-      });
-
-      if (payoutError) {
-        console.error('Edge function error:', payoutError);
-        alert(`Verification failed: ${payoutError.message || 'Unknown error'}`);
-        setIsSavingPayout(false);
-        return;
-      }
-
+      // Save directly to profiles table - no RazorpayX needed for manual payouts
       const { confirm_bank_account_number, ...dbUpdates } = payoutDetails;
-      const updates: any = { ...dbUpdates };
-      if (payoutData?.fund_account_id) {
-        updates.razorpay_fund_account_id = payoutData.fund_account_id;
-      }
 
       const { error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(dbUpdates)
         .eq('user_id', user.id);
 
       if (error) throw error;
@@ -439,8 +418,8 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       setIsPayoutModalOpen(false);
       alert('Payout details saved successfully!');
     } catch (error) {
-      console.error('Error updating payout details:', error);
-      alert('Failed to update payout details.');
+      console.error('Error saving payout details:', error);
+      alert('Failed to save payout details.');
     } finally {
       setIsSavingPayout(false);
     }

@@ -1,3 +1,7 @@
+// DEPRECATED: This edge function is no longer used.
+// Manual payouts are now processed by admin instead of RazorpayX automatic payouts.
+// Admin uses the bank/UPI details saved in the profiles table.
+
 // Setup for Deno environment types
 declare const Deno: {
     env: { get(key: string): string | undefined };

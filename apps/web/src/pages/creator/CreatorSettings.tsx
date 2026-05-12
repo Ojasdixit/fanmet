@@ -392,44 +392,19 @@ export function CreatorSettings() {
 
     setSavingBank(true);
     try {
-      const payload: any = {
-        name: bankDetails.bank_account_name,
-        ifsc: bankDetails.bank_ifsc,
-        account_number: bankDetails.bank_account_number,
-        upi_id: bankDetails.upi_id,
-      };
-
-      // 1. Call Edge Function to create Razorpay Contact & Fund Account
-      const { data: payoutData, error: payoutError } = await supabase.functions.invoke('create-razorpay-fund-account', {
-        body: payload
-      });
-
-      if (payoutError) {
-        console.error('Edge function error:', payoutError);
-        alert(`Verification failed: ${payoutError.message || 'Unknown error'}`);
-        setSavingBank(false);
-        return;
-      }
-
-      // 2. Update Profile in DB
-      // Exclude confirm_bank_account_number from standard DB update
+      // Save directly to profiles table - no RazorpayX needed for manual payouts
       const { confirm_bank_account_number, ...dbUpdates } = bankDetails;
-
-      const updates: any = { ...dbUpdates };
-      if (payoutData?.fund_account_id) {
-        updates.razorpay_fund_account_id = payoutData.fund_account_id;
-      }
 
       const { error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(dbUpdates)
         .eq('user_id', user.id);
 
       if (error) throw error;
-      alert('Bank details updated successfully! Your earnings will be available for withdrawal 48 hours after event completion.');
+      alert('Bank/UPI details saved! Admin will use these for manual payouts.');
     } catch (error) {
-      console.error('Error updating bank details:', error);
-      alert('Failed to update bank details.');
+      console.error('Error saving bank details:', error);
+      alert('Failed to save bank details.');
     } finally {
       setSavingBank(false);
     }
@@ -682,12 +657,12 @@ export function CreatorSettings() {
       <Card elevated>
         <CardHeader
           title="Bank & Payout Details"
-          subtitle="Add your bank account or UPI for automatic withdrawals. Earnings are available 48 hours after event completion."
+          subtitle="Add your bank account or UPI for manual payouts. Admin will process your withdrawal requests."
         />
         <CardContent className="gap-5">
           <div className="rounded-[12px] bg-[#F4E6FF]/60 p-4">
             <p className="text-sm text-[#6C757D]">
-              💰 <strong>Auto-withdrawal:</strong> Your earnings (90% after platform fee) become available for withdrawal 48 hours after each event ends. Add either bank account OR UPI details below.
+              💰 <strong>Manual Payouts:</strong> Your earnings (90% after platform fee) are credited to your wallet. Request a withdrawal and admin will transfer to your bank/UPI within 24-48 hours.
             </p>
           </div>
 

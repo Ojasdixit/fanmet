@@ -22,6 +22,12 @@ interface WithdrawalRequest {
     withdrawn: number;
     pending: number;
   };
+  bankDetails: {
+    accountName: string | null;
+    accountNumber: string | null;
+    ifsc: string | null;
+    upiId: string | null;
+  };
 }
 
 interface PaymentForm {
@@ -50,17 +56,23 @@ export function AdminWithdrawalRequests() {
         .select('*')
         .order('requested_at', { ascending: false });
 
-      // Fetch creator info
+      // Fetch creator info with bank details
       const creatorIds = Array.from(new Set((requestsData ?? []).map((r: any) => r.creator_id)));
       const { data: profilesData } = creatorIds.length
-        ? await supabase.from('profiles').select('user_id, display_name, username').in('user_id', creatorIds)
+        ? await supabase.from('profiles').select('user_id, display_name, username, bank_account_name, bank_account_number, bank_ifsc, upi_id').in('user_id', creatorIds)
         : { data: [] };
 
-      const profileMap = new Map<string, { displayName: string; username: string }>();
+      const profileMap = new Map<string, { displayName: string; username: string; bankDetails: any }>();
       for (const p of (profilesData ?? []) as any[]) {
         profileMap.set(p.user_id, {
           displayName: p.display_name || p.username || 'Creator',
           username: p.username ? `@${p.username}` : '@creator',
+          bankDetails: {
+            accountName: p.bank_account_name || null,
+            accountNumber: p.bank_account_number || null,
+            ifsc: p.bank_ifsc || null,
+            upiId: p.upi_id || null,
+          },
         });
       }
 
@@ -121,6 +133,12 @@ export function AdminWithdrawalRequests() {
             total: totalEarnings,
             withdrawn: totalWithdrawn,
             pending: totalEarnings - totalWithdrawn,
+          },
+          bankDetails: profile?.bankDetails ?? {
+            accountName: null,
+            accountNumber: null,
+            ifsc: null,
+            upiId: null,
           },
         };
       });
@@ -274,7 +292,7 @@ export function AdminWithdrawalRequests() {
                     {request.status === 'pending' ? 'Awaiting payout' : request.status}
                   </Badge>
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2 text-sm text-[#212529]">
                     <p>Request ID: <strong>{request.code}</strong></p>
                     <p>Amount: <strong className="text-lg">{formatCurrency(request.amount)}</strong></p>
@@ -286,6 +304,23 @@ export function AdminWithdrawalRequests() {
                     <p>Total Earnings: <strong>{formatCurrency(request.earnings.total)}</strong></p>
                     <p>Withdrawn: <strong>{formatCurrency(request.earnings.withdrawn)}</strong></p>
                     <p>Available Balance: <strong className="text-[#28A745]">{formatCurrency(request.earnings.pending)}</strong></p>
+                  </div>
+                  <div className="space-y-2 rounded-[12px] border border-[#E9ECEF] bg-white p-4 text-sm text-[#212529]">
+                    <p className="font-semibold text-[#7B2CBF]">🏦 Payment Details</p>
+                    {request.bankDetails.upiId ? (
+                      <div>
+                        <p className="text-[#6C757D]">UPI ID</p>
+                        <p className="font-mono text-sm">{request.bankDetails.upiId}</p>
+                      </div>
+                    ) : request.bankDetails.accountNumber ? (
+                      <div className="space-y-1">
+                        <p><span className="text-[#6C757D]">Account Name:</span> <strong>{request.bankDetails.accountName || 'N/A'}</strong></p>
+                        <p><span className="text-[#6C757D]">Account Number:</span> <span className="font-mono">{request.bankDetails.accountNumber}</span></p>
+                        <p><span className="text-[#6C757D]">IFSC:</span> <span className="font-mono">{request.bankDetails.ifsc || 'N/A'}</span></p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-red-500">⚠️ No payment details saved. Ask creator to add bank/UPI in settings.</p>
+                    )}
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">

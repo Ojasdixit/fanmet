@@ -99,76 +99,43 @@ export function CreatorWithdrawals() {
         // Fetch linked bank account from profile
         const { data: profile } = await supabase
           .from('profiles')
-          .select('bank_account_number, bank_ifsc, upi_id, razorpay_fund_account_id')
+          .select('bank_account_number, bank_ifsc, upi_id, bank_account_name')
           .eq('user_id', user.id)
           .single();
 
         if (profile) {
-          const hasLinkedAccount = !!(profile.razorpay_fund_account_id || profile.bank_account_number || profile.upi_id);
+          const hasLinkedAccount = !!(profile.bank_account_number || profile.upi_id);
           setHasBankAccount(hasLinkedAccount);
 
-          const accountDisplay = profile.razorpay_fund_account_id
-            ? 'Linked Payout Account'
-            : profile.bank_account_number
-              ? `Bank Account ending in ${profile.bank_account_number.slice(-4)}`
-              : profile.upi_id
-                ? `UPI: ${profile.upi_id}`
-                : '';
+          const accountDisplay = profile.bank_account_number
+            ? `Bank: ${profile.bank_account_name || 'Account'} ending in ${profile.bank_account_number.slice(-4)}`
+            : profile.upi_id
+              ? `UPI: ${profile.upi_id}`
+              : '';
 
           if (accountDisplay) setDestination(accountDisplay);
         } else {
           setHasBankAccount(false);
         }
 
-        // Fetch creator's events and won bids to calculate total earnings
-        const { data: eventsData } = await supabase
-          .from('events')
-          .select('id')
-          .eq('creator_id', user.id);
+        // Fetch wallet balance
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('id, balance')
+          .eq('user_id', user.id)
+          .single();
 
-        const eventIds = (eventsData ?? []).map((e: any) => e.id);
+        const walletBalance = walletData?.balance ?? 0;
 
-        let totalEarnings = 0;
-        let pendingEarnings = 0;
+        // Fetch pending wallet transactions (not yet available for withdrawal)
+        const { data: pendingTransactions } = await supabase
+          .from('wallet_transactions')
+          .select('amount')
+          .eq('direction', 'credit')
+          .eq('status', 'pending')
+          .eq('wallet_id', walletData?.id);
 
-        if (eventIds.length > 0) {
-          const { data: bidsData } = await supabase
-            .from('bids')
-            .select('event_id, amount, status, created_at')
-            .in('event_id', eventIds)
-            .eq('status', 'won');
-
-          const { data: meetsData } = await supabase
-            .from('meets')
-            .select('event_id, status, updated_at')
-            .in('event_id', eventIds);
-
-          const meetsByEvent = new Map<string, any[]>();
-          for (const meet of (meetsData ?? []) as any[]) {
-            const list = meetsByEvent.get(meet.event_id) ?? [];
-            list.push(meet);
-            meetsByEvent.set(meet.event_id, list);
-          }
-
-          const now = new Date();
-          const RELEASE_DELAY_MS = 48 * 60 * 60 * 1000; // 48 hours
-
-          for (const bid of (bidsData ?? []) as any[]) {
-            // Calculate net earnings (90% after 10% platform fee)
-            const netAmount = calculateNetEarnings(bid.amount ?? 0);
-            totalEarnings += netAmount;
-
-            // Check if the meet for this event is completed AND > 48h old
-            const eventMeets = meetsByEvent.get(bid.event_id) ?? [];
-            const completedMeet = eventMeets.find((m: any) => m.status === 'completed');
-
-            const isReleased = completedMeet && completedMeet.updated_at && (now.getTime() - new Date(completedMeet.updated_at).getTime() > RELEASE_DELAY_MS);
-
-            if (!isReleased) {
-              pendingEarnings += netAmount;
-            }
-          }
-        }
+        const pendingEarnings = (pendingTransactions ?? []).reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
 
         // Fetch withdrawal requests
         const { data: withdrawalsData } = await supabase
@@ -206,9 +173,8 @@ export function CreatorWithdrawals() {
           });
         }
 
-        // Available = Total earnings from cleared meets - completed withdrawals - pending withdrawals
-        const clearedEarnings = totalEarnings - pendingEarnings;
-        const available = Math.max(clearedEarnings - completedWithdrawals - pendingWithdrawals, 0);
+        // Available = Wallet balance - pending withdrawals
+        const available = Math.max(walletBalance - pendingWithdrawals, 0);
 
         setAvailableBalance(available);
         setPendingClearance(pendingEarnings);
@@ -275,15 +241,7 @@ export function CreatorWithdrawals() {
         return;
       }
 
-      // Trigger Auto Payout via Razorpay (async)
-      // We don't block the UI for this, but we log if it fails.
-      supabase.functions.invoke('trigger-payout', {
-        body: { withdrawal_request_id: insertedData.id },
-      }).then(({ error: payoutError }) => {
-        if (payoutError) console.error('Auto-payout trigger failed:', payoutError);
-      });
-
-      alert(`Withdrawal request of ${formatCurrency(amount)} submitted successfully!`);
+      alert(`Withdrawal request of ${formatCurrency(amount)} submitted successfully! Admin will process your payout manually within 24-48 hours.`);
       setWithdrawAmount('');
       setDestination('');
 

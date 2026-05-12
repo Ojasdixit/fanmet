@@ -1,12 +1,14 @@
-// This is a stub for the 'create-razorpay-fund-account' Edge Function.
-// In a real deployment, you would deploy this to Supabase Functions.
+// @ts-nocheck
+// DEPRECATED: This edge function is no longer used.
+// Bank/UPI details are now saved directly to the profiles table.
+// Manual payouts are processed by admin instead of RazorpayX automatic payouts.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const RAZORPAY_KEY_ID = Deno.env.get('RAZORPAYX_TEST_API_KEY')
 const RAZORPAY_KEY_SECRET = Deno.env.get('RAZORPAYX_TEST_SECRET_KEY')
 
-serve(async (req) => {
+serve(async (req: Request) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' } })
     }
@@ -72,9 +74,9 @@ serve(async (req) => {
             JSON.stringify({ fund_account_id: fundData.id, contact_id: contactData.id }),
             { headers: { "Content-Type": "application/json", 'Access-Control-Allow-Origin': '*' } },
         )
-    } catch (error) {
+    } catch (error: any) {
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({ error: error?.message || 'Unknown error' }),
             { status: 400, headers: { "Content-Type": "application/json", 'Access-Control-Allow-Origin': '*' } },
         )
     }
