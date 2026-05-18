@@ -6,7 +6,6 @@ const RAZORPAY_KEY_SECRET = Deno.env.get('RAZORPAY_KEY_SECRET');
 
 interface CreateOrderRequest {
   amount: number;
-  currency?: string;
   receipt?: string;
   notes?: Record<string, string>;
 }
@@ -34,7 +33,8 @@ serve(async (req: Request) => {
     }
 
     // Parse request body
-    const { amount, currency = 'INR', receipt, notes }: CreateOrderRequest = await req.json();
+    const { amount, receipt, notes }: CreateOrderRequest = await req.json();
+    const currency = 'INR';
 
     // Validate amount (minimum 100 paise = ₹1)
     if (!amount || amount < 100) {
@@ -60,7 +60,7 @@ serve(async (req: Request) => {
       },
       body: JSON.stringify({
         amount,
-        currency,
+        currency: 'INR',
         receipt: receipt || `receipt_${Date.now()}`,
         notes: notes || {},
       }),

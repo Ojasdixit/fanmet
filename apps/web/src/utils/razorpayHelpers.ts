@@ -49,7 +49,7 @@ export const createRazorpayOrder = async (params: CreateRazorpayOrderParams): Pr
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ amount: params.amount }),
+        body: JSON.stringify({ amount: params.amount * 100 }),
     });
 
     if (!orderRes.ok) {
