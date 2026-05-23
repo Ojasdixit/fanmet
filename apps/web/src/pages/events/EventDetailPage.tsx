@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useEvents } from '../../contexts/EventContext';
 import { useCreatorProfiles } from '../../contexts/CreatorProfileContext';
 import { loadRazorpayScript, createRazorpayOrder, verifyRazorpayPayment, openRazorpayCheckout } from '../../utils/razorpayHelpers';
+import { supabase } from '../../lib/supabaseClient';
 
 export function EventDetailPage() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -293,6 +294,31 @@ export function EventDetailPage() {
             
             // Place the bid after successful payment
             await placeBid(event.id, actualBidAmount);
+
+            // Store payment details in bid_payments for refund processing
+            // Find the bid we just placed to link it
+            const { data: latestBid } = await supabase
+              .from('bids')
+              .select('id')
+              .eq('event_id', event.id)
+              .eq('fan_id', user!.id)
+              .eq('amount', actualBidAmount)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            await supabase.from('bid_payments').insert({
+              event_id: event.id,
+              fan_id: user!.id,
+              amount: actualBidAmount,
+              razorpay_order_id: orderId,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              bid_id: latestBid?.id || null,
+              status: 'paid',
+              verified_at: new Date().toISOString(),
+            });
+
             window.alert(`✅ Payment successful! Bid of ${formatCurrency(actualBidAmount)} placed!\n\nYou'll be notified if someone outbids you.\n\n💡 If you don't win, 90% will be auto-refunded.`);
             setBidAmount('');
           } catch (err) {

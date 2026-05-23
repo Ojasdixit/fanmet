@@ -6,6 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RAZORPAY_KEY_ID = Deno.env.get("RAZORPAY_KEY_ID") || "";
+const RAZORPAY_KEY_SECRET = Deno.env.get("RAZORPAY_KEY_SECRET") || "";
+
 interface Meet {
   id: string;
   event_id: string;
@@ -29,6 +32,187 @@ interface EventRow {
   meeting_link: string | null;
   status: string;
   is_paid: boolean;
+}
+
+async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: string | null) {
+  const now = new Date().toISOString();
+  const REFUND_PERCENT = 90;
+
+  try {
+    // Get ALL active bids for this event EXCEPT the winner
+    let query = supabase
+      .from("bids")
+      .select("id, fan_id, amount")
+      .eq("event_id", eventId)
+      .eq("status", "active");
+
+    if (winnerBidId) {
+      query = query.neq("id", winnerBidId);
+    }
+
+    const { data: losingBids, error: bidsError } = await query;
+
+    if (bidsError) {
+      console.error("Error fetching losing bids for event " + eventId + ":", bidsError);
+      return { refunded: 0, failed: 0 };
+    }
+
+    if (!losingBids || losingBids.length === 0) {
+      console.log("No losing bids to refund for event " + eventId);
+      return { refunded: 0, failed: 0 };
+    }
+
+    console.log("Found " + losingBids.length + " losing bid(s) to refund for event " + eventId);
+
+    let refundedCount = 0;
+    let failedCount = 0;
+
+    for (const bid of losingBids) {
+      try {
+        // Mark bid as lost
+        await supabase
+          .from("bids")
+          .update({ status: "lost" })
+          .eq("id", bid.id);
+
+        // Find the Razorpay payment for this bid
+        const { data: payment, error: paymentError } = await supabase
+          .from("bid_payments")
+          .select("razorpay_payment_id, amount")
+          .eq("bid_id", bid.id)
+          .eq("status", "paid")
+          .maybeSingle();
+
+        if (paymentError || !payment || !payment.razorpay_payment_id) {
+          // Fallback: find by event_id + fan_id + amount
+          const { data: fallbackPayment } = await supabase
+            .from("bid_payments")
+            .select("razorpay_payment_id, amount")
+            .eq("event_id", eventId)
+            .eq("fan_id", bid.fan_id)
+            .eq("amount", bid.amount)
+            .eq("status", "paid")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!fallbackPayment || !fallbackPayment.razorpay_payment_id) {
+            console.error("No Razorpay payment found for bid " + bid.id + " (fan: " + bid.fan_id + ", amount: " + bid.amount + ")");
+            failedCount++;
+            await supabase
+              .from("bids")
+              .update({ refund_status: "no_payment_found" })
+              .eq("id", bid.id);
+            continue;
+          }
+
+          // Use fallback payment
+          await processRazorpayRefund(supabase, bid, fallbackPayment, eventId, REFUND_PERCENT, now);
+          refundedCount++;
+          continue;
+        }
+
+        await processRazorpayRefund(supabase, bid, payment, eventId, REFUND_PERCENT, now);
+        refundedCount++;
+      } catch (err) {
+        console.error("Error refunding bid " + bid.id + ":", err);
+        failedCount++;
+        await supabase
+          .from("bids")
+          .update({ refund_status: "refund_failed" })
+          .eq("id", bid.id);
+      }
+    }
+
+    console.log("Refund results for event " + eventId + ": refunded=" + refundedCount + ", failed=" + failedCount);
+    return { refunded: refundedCount, failed: failedCount };
+  } catch (err) {
+    console.error("Error in refundLosingBidders:", err);
+    return { refunded: 0, failed: 0 };
+  }
+}
+
+async function processRazorpayRefund(
+  supabase: any,
+  bid: { id: string; fan_id: string; amount: number },
+  payment: { razorpay_payment_id: string; amount: number },
+  eventId: string,
+  refundPercent: number,
+  now: string
+) {
+  // Calculate 90% refund in paise (payment.amount is in rupees, Razorpay API needs paise)
+  const refundAmountRupees = Math.floor(bid.amount * refundPercent / 100);
+  const refundAmountPaise = refundAmountRupees * 100;
+
+  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    throw new Error("Razorpay credentials not configured");
+  }
+
+  console.log("Calling Razorpay refund API: payment_id=" + payment.razorpay_payment_id + ", refund_amount_paise=" + refundAmountPaise + " (" + refundPercent + "% of Rs." + bid.amount + ")");
+
+  // Call Razorpay Partial Refund API
+  const refundResponse = await fetch(
+    "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id + "/refund",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Basic " + btoa(RAZORPAY_KEY_ID + ":" + RAZORPAY_KEY_SECRET),
+      },
+      body: JSON.stringify({
+        amount: refundAmountPaise,
+        speed: "normal",
+        notes: {
+          reason: "losing_bid_partial_refund",
+          bid_id: bid.id,
+          event_id: eventId,
+          refund_percent: String(refundPercent),
+        },
+      }),
+    }
+  );
+
+  const refundData = await refundResponse.json();
+
+  if (!refundResponse.ok) {
+    console.error("Razorpay refund failed for payment " + payment.razorpay_payment_id + ":", refundData);
+    await supabase
+      .from("bids")
+      .update({
+        refund_status: "refund_failed",
+        refunded_at: now,
+      })
+      .eq("id", bid.id);
+    throw new Error("Razorpay refund API error: " + (refundData.error?.description || JSON.stringify(refundData)));
+  }
+
+  console.log("Razorpay refund successful: refund_id=" + refundData.id + ", amount=" + refundData.amount);
+
+  // Update bid with refund details
+  await supabase
+    .from("bids")
+    .update({
+      refund_amount: refundAmountRupees,
+      refund_status: "refunded",
+      refunded_at: now,
+    })
+    .eq("id", bid.id);
+
+  // Get event title for notification
+  const { data: eventData } = await supabase
+    .from("events")
+    .select("title")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  // Send notification to losing bidder
+  await supabase.from("notifications").insert({
+    user_id: bid.fan_id,
+    type: "bid_refund",
+    title: "Bid Refund Processed",
+    message: "You did not win the auction for \"" + (eventData?.title || "Event") + "\". A refund of Rs." + refundAmountRupees + " (" + refundPercent + "% of your bid) has been initiated to your original payment method.",
+    event_id: eventId,
+  });
 }
 
 async function finalizeExpiredEvents(supabase: any) {
@@ -100,6 +284,10 @@ async function finalizeExpiredEvents(supabase: any) {
       .from("events")
       .update({ status: "completed", winning_bid_id: winnerBid?.id ?? null })
       .eq("id", event.id);
+
+    // AFTER bidding is closed and winner determined, refund 90% to all losing bidders via Razorpay
+    const refundResults = await refundLosingBidders(supabase, event.id, winnerBid?.id ?? null);
+    console.log("Event " + event.id + " refund results:", refundResults);
 
     finalized += 1;
   }
