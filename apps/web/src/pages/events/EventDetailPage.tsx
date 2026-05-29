@@ -295,13 +295,9 @@ export function EventDetailPage() {
         description: `Bid of ${formatCurrency(actualBidAmount)} for ${event.title}`,
         onSuccess: async (response: any) => {
           try {
-            // Verify payment
-            await verifyRazorpayPayment(response);
-            
-            // Place the bid after successful payment
+            // Place the bid first so we can link the payment record
             await placeBid(event.id, actualBidAmount);
 
-            // Store payment details in bid_payments for refund processing
             // Find the bid we just placed to link it
             const { data: latestBid } = await supabase
               .from('bids')
@@ -313,17 +309,29 @@ export function EventDetailPage() {
               .limit(1)
               .maybeSingle();
 
-            await supabase.from('bid_payments').insert({
+            // Verify payment + save bid_payments server-side
+            const verifyResult = await verifyRazorpayPayment({
+              ...response,
               event_id: event.id,
               fan_id: user!.id,
+              bid_id: latestBid?.id || undefined,
               amount: actualBidAmount,
-              razorpay_order_id: orderId,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              bid_id: latestBid?.id || null,
-              status: 'paid',
-              verified_at: new Date().toISOString(),
             });
+
+            // Fallback: if server didn't save, insert locally
+            if (!verifyResult.saved) {
+              await supabase.from('bid_payments').insert({
+                event_id: event.id,
+                fan_id: user!.id,
+                amount: actualBidAmount,
+                razorpay_order_id: orderId,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                bid_id: latestBid?.id || null,
+                status: 'paid',
+                verified_at: new Date().toISOString(),
+              });
+            }
 
             window.alert(`✅ Payment successful! Bid of ${formatCurrency(actualBidAmount)} placed!\n\nYou'll be notified if someone outbids you.\n\n💡 If you don't win, 90% will be auto-refunded.`);
             setBidAmount('');

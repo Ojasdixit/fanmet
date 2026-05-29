@@ -50,7 +50,7 @@ export function useRazorpay(): UseRazorpayReturn {
         throw new Error('User not authenticated');
       }
 
-      const { data, error: fnError } = await supabase.functions.invoke('create-razorpay-order', {
+      const { data, error: fnError } = await supabase.functions.invoke('razorpay-create-order', {
         body: {
           amount,
           currency: 'INR',
@@ -129,7 +129,7 @@ export function useRazorpay(): UseRazorpayReturn {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('verify-razorpay-payment', {
+      const { data, error: fnError } = await supabase.functions.invoke('razorpay-verify-payment', {
         body: response,
       });
 

@@ -64,10 +64,14 @@ interface VerifyRazorpayPaymentParams {
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
+    event_id?: string;
+    fan_id?: string;
+    bid_id?: string;
+    amount?: number;
 }
 
 // Verify Razorpay payment via Edge Function
-export const verifyRazorpayPayment = async (params: VerifyRazorpayPaymentParams): Promise<{ newBalance: number }> => {
+export const verifyRazorpayPayment = async (params: VerifyRazorpayPaymentParams): Promise<{ newBalance: number; saved?: boolean }> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
         throw new Error('Please log in to continue.');

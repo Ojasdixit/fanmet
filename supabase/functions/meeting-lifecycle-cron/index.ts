@@ -101,7 +101,7 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
             failedCount++;
             await supabase
               .from("bids")
-              .update({ refund_status: "no_payment_found" })
+              .update({ refund_status: "failed" })
               .eq("id", bid.id);
             continue;
           }
@@ -119,7 +119,7 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
         failedCount++;
         await supabase
           .from("bids")
-          .update({ refund_status: "refund_failed" })
+          .update({ refund_status: "failed" })
           .eq("id", bid.id);
       }
     }
@@ -234,21 +234,45 @@ async function processRazorpayRefund(
     await supabase
       .from("bids")
       .update({
-        refund_status: "refund_failed",
+        refund_status: "failed",
         refunded_at: now,
       })
       .eq("id", bid.id);
     throw new Error("Razorpay refund API error: " + (refundData.error?.description || refundData.description || JSON.stringify(refundData)));
   }
 
-  console.log("Razorpay refund successful: refund_id=" + refundData.id + ", amount=" + refundData.amount + " paise, status=" + refundData.status);
+  console.log("Razorpay refund created: refund_id=" + refundData.id + ", amount=" + refundData.amount + " paise, initial_status=" + refundData.status);
+
+  // Step 5: Verify refund status by fetching it from Razorpay
+  const verifyRes = await fetch(
+    "https://api.razorpay.com/v1/refunds/" + refundData.id,
+    { method: "GET", headers: { "Authorization": authHeader } }
+  );
+  const verifyData = verifyRes.ok ? await verifyRes.json() : null;
+  const finalRefundStatus = verifyData?.status || refundData.status;
+
+  // Accept any non-failed status: processed, refunded, pending, initiated are all valid
+  if (finalRefundStatus === "failed") {
+    console.error("Razorpay refund failed. Status: " + finalRefundStatus);
+    await supabase
+      .from("bids")
+      .update({
+        refund_status: "failed",
+        refund_amount: 0,
+        refunded_at: now,
+      })
+      .eq("id", bid.id);
+    throw new Error("Refund status is 'failed' after verification");
+  }
+
+  console.log("Razorpay refund VERIFIED: refund_id=" + refundData.id + ", status=" + finalRefundStatus);
 
   // Update bid with refund details
   await supabase
     .from("bids")
     .update({
       refund_amount: actualRefundRupees,
-      refund_status: "refunded",
+      refund_status: "completed",
       refunded_at: now,
     })
     .eq("id", bid.id);
@@ -423,6 +447,8 @@ interface RefundResult {
   refundId: string;
   amount: number;
   error?: string;
+  razorpayRefunded?: boolean;
+  razorpayRefundError?: string;
 }
 
 async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
@@ -477,69 +503,143 @@ async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
       return { success: true, refundId, amount: 0 };
     }
 
-    // 3. AUTO-REFUND: Credit 100% back to fan's wallet (creator no-show = full refund)
-    let { data: fanWallet } = await supabase
-      .from("wallets")
-      .select("id, balance")
-      .eq("user_id", meet.fan_id)
-      .single();
+    // 3. Try to refund via Razorpay (90% refund for no-show) — no wallet involved
+    const REFUND_PERCENT = 90;
+    const refundAmount = Math.floor(bidAmount * REFUND_PERCENT / 100);
+    let razorpayRefunded = false;
+    let razorpayRefundError = "";
+    let razorpayRefundId = "";
+    let finalRefundStatus = "";
 
-    if (!fanWallet) {
-      const { data: newWallet } = await supabase
-        .from("wallets")
-        .insert({ user_id: meet.fan_id, balance: 0 })
-        .select("id, balance")
-        .single();
-      fanWallet = newWallet;
+    if (bidId && RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET) {
+      try {
+        // Find the payment record
+        const { data: payment } = await supabase
+          .from("bid_payments")
+          .select("razorpay_payment_id, amount")
+          .eq("bid_id", bidId)
+          .eq("status", "paid")
+          .maybeSingle();
+
+        if (payment && payment.razorpay_payment_id) {
+          const authHeader = "Basic " + btoa(RAZORPAY_KEY_ID + ":" + RAZORPAY_KEY_SECRET);
+          const refundAmountPaise = refundAmount * 100;
+
+          // Check payment status first
+          const paymentStatusRes = await fetch(
+            "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id,
+            { method: "GET", headers: { "Authorization": authHeader } }
+          );
+          const paymentInfo = paymentStatusRes.ok ? await paymentStatusRes.json() : null;
+
+          if (paymentInfo && (paymentInfo.status === "captured" || paymentInfo.status === "authorized")) {
+            // Capture if authorized
+            if (paymentInfo.status === "authorized") {
+              await fetch(
+                "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id + "/capture",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "Authorization": authHeader },
+                  body: JSON.stringify({ amount: paymentInfo.amount, currency: "INR" }),
+                }
+              );
+            }
+
+            // Issue refund
+            const refundResponse = await fetch(
+              "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id + "/refund",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": authHeader },
+                body: JSON.stringify({
+                  amount: Math.min(refundAmountPaise, paymentInfo.amount),
+                  speed: "normal",
+                  notes: {
+                    reason: "creator_no_show_refund_90_percent",
+                    bid_id: bidId,
+                    event_id: meet.event_id,
+                    meet_id: meet.id,
+                    refund_percent: "90",
+                  },
+                }),
+              }
+            );
+            const refundData = await refundResponse.json();
+
+            if (refundResponse.ok && refundData.id) {
+              razorpayRefundId = refundData.id;
+              console.log("Razorpay refund created: refund_id=" + refundData.id + ", initial_status=" + refundData.status);
+
+              // Step: Verify refund status by fetching it from Razorpay
+              const verifyRes = await fetch(
+                "https://api.razorpay.com/v1/refunds/" + refundData.id,
+                { method: "GET", headers: { "Authorization": authHeader } }
+              );
+              const verifyData = verifyRes.ok ? await verifyRes.json() : null;
+              finalRefundStatus = verifyData?.status || refundData.status;
+
+              // Accept any non-failed status: processed, refunded, pending, initiated are all valid
+            if (finalRefundStatus === "failed") {
+              razorpayRefundError = "Refund status is 'failed' after verification";
+              console.error("Razorpay refund failed:", razorpayRefundError);
+            } else {
+              razorpayRefunded = true;
+              console.log("Razorpay refund VERIFIED: refund_id=" + refundData.id + ", status=" + finalRefundStatus);
+            }
+            } else {
+              razorpayRefundError = refundData.error?.description || JSON.stringify(refundData);
+              console.error("Razorpay no-show refund failed:", razorpayRefundError);
+            }
+          } else {
+            razorpayRefundError = "Payment not in refundable state: " + (paymentInfo?.status || "unknown");
+            console.error("Razorpay payment not refundable:", razorpayRefundError);
+          }
+        } else {
+          console.warn("No bid_payments record found for bid " + bidId + ". Skipping Razorpay refund.");
+          razorpayRefundError = "No payment record found";
+        }
+      } catch (rzErr: any) {
+        razorpayRefundError = rzErr.message || String(rzErr);
+        console.error("Error calling Razorpay for no-show refund:", razorpayRefundError);
+      }
+    } else {
+      razorpayRefundError = "Razorpay credentials or bid_id missing";
     }
 
-    if (fanWallet) {
-      // Credit full amount to fan wallet
-      await supabase
-        .from("wallets")
-        .update({ 
-          balance: fanWallet.balance + bidAmount,
-          updated_at: now,
-        })
-        .eq("id", fanWallet.id);
-
-      // Record wallet transaction
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: fanWallet.id,
-        type: "creator_no_show_refund",
-        direction: "credit",
-        amount: bidAmount,
-        commission_amount: 0,
-        commission_type: "no_fee",
-        description: "Full refund for \"" + (event.title || "Event") + "\" - Creator no-show",
-        reference_table: "meets",
-        reference_id: meet.id,
-      });
+    // 4. Update bid refund status based on actual Razorpay verification
+    let dbRefundStatus = "pending";
+    if (razorpayRefunded) {
+      dbRefundStatus = "completed";
+    } else if (razorpayRefundError) {
+      dbRefundStatus = "failed";
     }
 
-    // 4. Update bid refund status
     if (bidId) {
       await supabase
         .from("bids")
         .update({
-          refund_amount: bidAmount,
-          refund_status: "refunded",
-          refunded_at: now,
+          refund_amount: razorpayRefunded ? refundAmount : 0,
+          refund_status: dbRefundStatus,
+          refunded_at: razorpayRefunded ? now : null,
         })
         .eq("id", bidId);
     }
 
     // 5. Send notification to fan
+    const notificationMessage = razorpayRefunded
+      ? "The creator did not join your scheduled meeting for \"" + (event.title || "Event") + "\". A refund of Rs." + refundAmount + " (90% of your bid) has been processed to your original payment method."
+      : "The creator did not join your scheduled meeting for \"" + (event.title || "Event") + "\". We could not process your refund automatically." + (razorpayRefundError ? " (Error: " + razorpayRefundError + ")" : "");
+
     await supabase.from("notifications").insert({
       user_id: meet.fan_id,
       type: "creator_no_show_refund",
-      title: "Full Refund - Creator No-Show",
-      message: "The creator did not join your scheduled meeting for \"" + (event.title || "Event") + "\". A full refund of Rs." + bidAmount + " has been credited to your wallet.",
+      title: razorpayRefunded ? "Full Refund Processed" : "Refund Failed - Contact Support",
+      message: notificationMessage,
       event_id: meet.event_id,
     });
 
-    console.log("AUTO-REFUND: " + bidAmount + " credited to fan " + meet.fan_id + " wallet");
-    return { success: true, refundId, amount: bidAmount };
+    console.log("No-show refund result: bid=" + bidId + ", status=" + dbRefundStatus + ", razorpay=" + (razorpayRefunded ? "processed" : "failed") + ", refund_id=" + razorpayRefundId);
+    return { success: razorpayRefunded, refundId: razorpayRefundId || refundId, amount: razorpayRefunded ? refundAmount : 0, razorpayRefunded, razorpayRefundError };
 
   } catch (err) {
     const error = err as Error;
