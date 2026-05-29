@@ -257,6 +257,24 @@ export function EventDetailPage() {
     setIsProcessingPayment(true);
     
     try {
+      // Double-check event is still accepting bids (prevent stale-state race conditions)
+      const { data: freshEvent, error: freshError } = await supabase
+        .from('events')
+        .select('status, bidding_closes_at')
+        .eq('id', event.id)
+        .maybeSingle();
+
+      if (freshError || !freshEvent) {
+        throw new Error('Could not verify event status. Please refresh and try again.');
+      }
+
+      if (freshEvent.status === 'completed' || freshEvent.status === 'cancelled') {
+        throw new Error('Bidding is closed for this event.');
+      }
+      if (freshEvent.bidding_closes_at && new Date(freshEvent.bidding_closes_at) <= new Date()) {
+        throw new Error('Bidding deadline has just passed. No more bids can be placed.');
+      }
+
       // Always pay directly via Razorpay (auto-refund system handles unsuccessful bids)
       const loaded = await loadRazorpayScript();
       if (!loaded) {
@@ -320,9 +338,10 @@ export function EventDetailPage() {
           setIsProcessingPayment(false);
         },
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Bid error:', err);
-      window.alert('Failed to initiate payment. Please try again.');
+      const msg = err?.message || 'Failed to initiate payment. Please try again.';
+      window.alert(msg);
       setIsProcessingPayment(false);
     }
   };

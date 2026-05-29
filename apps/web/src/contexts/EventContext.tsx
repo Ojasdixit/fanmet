@@ -489,12 +489,21 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
     const { data: eventRow, error: eventError } = await supabase
       .from('events')
-      .select('id, base_price')
+      .select('id, base_price, bidding_closes_at, status')
       .eq('id', eventId)
       .maybeSingle();
 
     if (eventError || !eventRow) {
       throw new Error('Could not load event for bidding.');
+    }
+
+    // Block bids after deadline or if event is already finalized
+    const now = new Date();
+    if (eventRow.status === 'completed' || eventRow.status === 'cancelled') {
+      throw new Error('Bidding is closed for this event.');
+    }
+    if (eventRow.bidding_closes_at && new Date(eventRow.bidding_closes_at) <= now) {
+      throw new Error('Bidding deadline has passed. No more bids can be placed.');
     }
 
     const { data: topBidRow, error: topBidError } = await supabase
