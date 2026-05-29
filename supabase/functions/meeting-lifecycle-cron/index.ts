@@ -69,11 +69,14 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
 
     for (const bid of losingBids) {
       try {
+        console.log("Processing losing bid " + bid.id + " (fan: " + bid.fan_id + ", amount: Rs." + bid.amount + ")");
+
         // Mark bid as lost
-        await supabase
+        const { error: lostError } = await supabase
           .from("bids")
           .update({ status: "lost" })
           .eq("id", bid.id);
+        if (lostError) console.error("Error marking bid " + bid.id + " as lost:", lostError);
 
         // Find the Razorpay payment for this bid
         const { data: payment, error: paymentError } = await supabase
@@ -83,8 +86,11 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
           .eq("status", "paid")
           .maybeSingle();
 
+        console.log("Bid " + bid.id + " payment lookup: found=" + !!payment + ", payment_id=" + (payment?.razorpay_payment_id || "none") + ", error=" + (paymentError ? JSON.stringify(paymentError) : "none"));
+
         if (paymentError || !payment || !payment.razorpay_payment_id) {
           // Fallback: find by event_id + fan_id + amount
+          console.log("Trying fallback payment lookup for bid " + bid.id + "...");
           const { data: fallbackPayment } = await supabase
             .from("bid_payments")
             .select("razorpay_payment_id, amount")
@@ -340,12 +346,20 @@ async function finalizeExpiredEvents(supabase: any) {
         .update({ status: "won" })
         .eq("id", winnerBid.id);
 
-      // Create meet for winner
+      // Create meet for winner — ensure scheduled_at is in the future
+      const eventStartTime = new Date(event.starts_at);
+      const nowTime = new Date();
+      const minScheduledAt = new Date(nowTime.getTime() + 5 * 60 * 1000); // at least 5 min from now
+      const scheduledAt = eventStartTime > nowTime ? event.starts_at : minScheduledAt.toISOString();
+      if (eventStartTime <= nowTime) {
+        console.warn("Event " + event.id + " starts_at (" + event.starts_at + ") is in the past. Using future scheduled_at: " + scheduledAt);
+      }
+
       const { error: meetError } = await supabase.from("meets").insert({
         event_id: event.id,
         creator_id: event.creator_id,
         fan_id: winnerBid.fan_id,
-        scheduled_at: event.starts_at,
+        scheduled_at: scheduledAt,
         duration_minutes: event.duration_minutes,
         meeting_link: event.meeting_link,
         status: "scheduled",
@@ -391,22 +405,32 @@ async function finalizeExpiredEvents(supabase: any) {
       const eventTitle = eventInfo?.title || "Event";
 
       // Notify winner fan
-      await supabase.from("notifications").insert({
+      const { error: winnerNotifError } = await supabase.from("notifications").insert({
         user_id: winnerBid.fan_id,
         type: "bid_won",
         title: "🎉 You Won!",
         message: "Congratulations! You won the auction for \"" + eventTitle + "\" with a bid of Rs." + winnerBid.amount + ". Your meeting has been scheduled. Check your Upcoming Meets for the meeting link.",
         event_id: event.id,
       });
+      if (winnerNotifError) {
+        console.error("FAILED to send bid_won notification to fan " + winnerBid.fan_id + " for event " + event.id + ":", winnerNotifError);
+      } else {
+        console.log("Sent bid_won notification to fan " + winnerBid.fan_id + " for event " + event.id);
+      }
 
       // Notify creator
-      await supabase.from("notifications").insert({
+      const { error: creatorNotifError } = await supabase.from("notifications").insert({
         user_id: event.creator_id,
         type: "event_finalized",
         title: "Auction Closed",
         message: "The auction for \"" + eventTitle + "\" has closed. The winning bid is Rs." + winnerBid.amount + ". Check your Upcoming Meets to start the session.",
         event_id: event.id,
       });
+      if (creatorNotifError) {
+        console.error("FAILED to send event_finalized notification to creator " + event.creator_id + " for event " + event.id + ":", creatorNotifError);
+      } else {
+        console.log("Sent event_finalized notification to creator " + event.creator_id + " for event " + event.id);
+      }
     } else if (event.is_paid) {
       console.log("No bids for paid event", event.id, "- skipping meet creation");
     }
