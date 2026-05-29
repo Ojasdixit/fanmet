@@ -3,7 +3,7 @@ import { Button, Card, CardContent, CardHeader, Badge, TextInput } from '@fanmee
 import { Pagination } from '../../components/Pagination';
 import { supabase } from '../../lib/supabaseClient';
 
-type CreatorStatus = 'pending' | 'approved' | 'rejected';
+type CreatorStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 
 interface CreatorRow {
   id: string;
@@ -32,18 +32,21 @@ const creatorStatusFilters: { label: string; value: 'all' | CreatorStatus }[] = 
   { label: 'Pending', value: 'pending' },
   { label: 'Approved', value: 'approved' },
   { label: 'Rejected', value: 'rejected' },
+  { label: 'Suspended', value: 'suspended' },
 ];
 
-const creatorStatusBadgeVariant: Record<CreatorStatus, 'primary' | 'success' | 'danger' | 'default'> = {
+const creatorStatusBadgeVariant: Record<CreatorStatus, 'primary' | 'success' | 'danger' | 'default' | 'warning'> = {
   pending: 'primary',
   approved: 'success',
   rejected: 'danger',
+  suspended: 'warning',
 };
 
 const creatorStatusLabel: Record<CreatorStatus, string> = {
   pending: 'Pending',
   approved: 'Approved',
   rejected: 'Rejected',
+  suspended: 'Suspended',
 };
 
 export function AdminCreators() {
@@ -242,8 +245,9 @@ export function AdminCreators() {
   );
 
   const updateCreatorStatus = async (creator: CreatorRow, nextStatus: CreatorStatus) => {
+    const actionLabel = nextStatus === 'approved' ? 'Approve' : nextStatus === 'suspended' ? 'Suspend' : 'Reject';
     const confirmed = window.confirm(
-      `${nextStatus === 'approved' ? 'Approve' : 'Reject'} ${creator.name}?`,
+      `${actionLabel} ${creator.name}?`,
     );
     if (!confirmed) return;
 
@@ -592,6 +596,16 @@ export function AdminCreators() {
                       disabled={isLoading}
                     >
                       Reject Creator
+                    </Button>
+                  )}
+                  {selectedCreator.status === 'approved' && (
+                    <Button
+                      variant="secondary"
+                      className="border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white"
+                      onClick={() => updateCreatorStatus(selectedCreator, 'suspended')}
+                      disabled={isLoading}
+                    >
+                      ⚠️ Suspend Creator
                     </Button>
                   )}
                   <Button

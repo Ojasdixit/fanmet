@@ -44,6 +44,13 @@ export function FanDashboard() {
   // Filter and sort events
   const filteredAndSortedEvents = useMemo(() => {
     let filtered = events.filter(event => {
+      // Remove completed/past events
+      if (event.status === 'Completed') return false;
+      // Remove events with no bids (no participants)
+      if (event.participants === 0 && event.currentBid === 0) return false;
+      // Remove events without a schedule date
+      if (!event.date || event.date === 'Invalid Date') return false;
+
       // Filter by category
       if (selectedCategory !== 'all' && event.category !== selectedCategory) {
         return false;

@@ -118,22 +118,34 @@ export function CreatorWithdrawals() {
           setHasBankAccount(false);
         }
 
-        // Fetch wallet balance
-        const { data: walletData } = await supabase
+        // Fetch wallet balance (use maybeSingle to handle case where no wallet exists yet)
+        let { data: walletData } = await supabase
           .from('wallets')
           .select('id, balance')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
+
+        // Auto-create wallet if it doesn't exist
+        if (!walletData) {
+          const { data: newWallet } = await supabase
+            .from('wallets')
+            .insert({ user_id: user.id, balance: 0 })
+            .select('id, balance')
+            .maybeSingle();
+          walletData = newWallet;
+        }
 
         const walletBalance = walletData?.balance ?? 0;
 
         // Fetch pending wallet transactions (not yet available for withdrawal)
-        const { data: pendingTransactions } = await supabase
-          .from('wallet_transactions')
-          .select('amount')
-          .eq('direction', 'credit')
-          .eq('status', 'pending')
-          .eq('wallet_id', walletData?.id);
+        const { data: pendingTransactions } = walletData?.id
+          ? await supabase
+              .from('wallet_transactions')
+              .select('amount')
+              .eq('direction', 'credit')
+              .eq('status', 'pending')
+              .eq('wallet_id', walletData.id)
+          : { data: null };
 
         const pendingEarnings = (pendingTransactions ?? []).reduce((sum: number, t: any) => sum + (t.amount ?? 0), 0);
 

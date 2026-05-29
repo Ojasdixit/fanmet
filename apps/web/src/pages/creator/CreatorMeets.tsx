@@ -6,10 +6,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 
 const preparationChecklist = [
-  'Review fan questions in advance to personalize the session.',
-  'Test your audio/video setup 15 minutes before the meet.',
-  'Keep exclusive content ready to reward high bidders.',
-  'Use the built-in timer to stay on schedule.'
+  'Join the call before the scheduled time — if you miss it, the meeting gets auto-cancelled and the fan is refunded.',
+  'Test your audio/video setup 5 minutes before the meet.',
+  'Keep the session engaging — ask questions and interact naturally.',
+  'The call auto-ends at the scheduled time and your earnings (90%) are credited to your wallet.'
 ];
 
 const statusVariantMap: Record<string, 'success' | 'warning' | 'primary' | 'danger' | 'default'> = {
@@ -215,10 +215,6 @@ export function CreatorMeets() {
                       <h3 className="text-lg font-semibold text-[#212529]">{session.events?.title || 'Untitled Event'}</h3>
                       <p className="text-sm text-[#6C757D]">with {session.fan_profile?.display_name || session.fan_profile?.username || 'Unknown Fan'}</p>
                     </div>
-                    <div className="text-sm text-[#6C757D]">
-                      <span className="font-medium">Meeting Link: </span>
-                      <span className="break-all">{session.meeting_link || 'No link yet'}</span>
-                    </div>
                   </div>
                   <div className="flex flex-col gap-2">
                     {session.meeting_link && (
@@ -234,9 +230,9 @@ export function CreatorMeets() {
                           <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => navigate(`/messages?chatWith=${session.fan_id}`)}
+                            onClick={() => navigate(`/creator/messages?chatWith=${session.fan_id}`)}
                           >
-                            Message Fan
+                            💬 Message Fan
                           </Button>
                         </div>
                         {(() => {
@@ -250,18 +246,16 @@ export function CreatorMeets() {
                           return (
                             <Button
                               size="sm"
-                              disabled={meetingEnded || (!isLive && !onlineUsers.has(session.fan_id)) || (!isLive && !canStartEarly)}
+                              disabled={meetingEnded || (!isLive && !canStartEarly)}
                               variant={meetingEnded ? 'secondary' : 'primary'}
                               title={
                                 meetingEnded
                                   ? "This meeting has ended"
                                   : isLive
                                     ? "Rejoin your live call"
-                                    : !onlineUsers.has(session.fan_id)
-                                      ? "Fan is offline. You cannot start the call."
-                                      : !canStartEarly
-                                        ? `Call starts at ${formatDateTime(session.scheduled_at)} (30s early buffer available)`
-                                        : "Start the call"
+                                    : !canStartEarly
+                                      ? `Call starts at ${formatDateTime(session.scheduled_at)} (30s early buffer available)`
+                                      : "Start the call"
                               }
                               onClick={() => window.open(session.meeting_link, '_blank', 'noopener,noreferrer')}
                             >
@@ -269,9 +263,6 @@ export function CreatorMeets() {
                             </Button>
                           );
                         })()}
-                        {!onlineUsers.has(session.fan_id) && (
-                          <span className="text-[10px] text-red-500">Fan is offline</span>
-                        )}
                       </div>
                     )}
                   </div>
@@ -357,6 +348,15 @@ export function CreatorMeets() {
                       <h3 className="text-lg font-semibold text-[#212529]">{session.events?.title || 'Untitled Event'}</h3>
                       <p className="text-sm text-[#6C757D]">with {session.fan_profile?.display_name || session.fan_profile?.username || 'Unknown Fan'}</p>
                     </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => navigate(`/creator/messages?chatWith=${session.fan_id}`)}
+                    >
+                      💬 Message Fan
+                    </Button>
                   </div>
                 </div>
               </div>

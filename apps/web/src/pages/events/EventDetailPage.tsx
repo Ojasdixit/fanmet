@@ -100,20 +100,13 @@ export function EventDetailPage() {
     const amount = Number(bidAmount);
     if (!amount || Number.isNaN(amount)) return false;
     if (amount < minimumBidRequired) return false;
-    if (isFirstBidOnEvent) {
-      // First bid on event must be exactly base price
-      return amount === event!.basePrice;
-    }
-    // All bids must be multiples of 50
+    // All bids must be in multiples of 50
     return amount % BID_STEP === 0;
   })();
   const validationError = (() => {
     const amount = Number(bidAmount);
     if (!amount || Number.isNaN(amount)) return 'Enter a valid amount';
     if (amount < minimumBidRequired) return `Minimum bid is ${formatCurrency(minimumBidRequired)}`;
-    if (isFirstBidOnEvent && amount !== event!.basePrice) {
-      return `First bid must be exactly ₹${event!.basePrice}`;
-    }
     if (amount % BID_STEP !== 0) return `Bid must be multiple of ${formatCurrency(BID_STEP)}`;
     return null;
   })();
@@ -239,14 +232,9 @@ export function EventDetailPage() {
         return;
       }
     } else {
-      // For user's first bid, must be at least the minimum required
+      // For user's first bid, must be at least the base price
       if (rawAmount < minimumBidRequired) {
-        window.alert(`Your bid must be at least ${formatCurrency(minimumBidRequired)}. The current highest bid is ${formatCurrency(displayedHighestBid)}.`);
-        return;
-      }
-      // If this is the first bid on the event, it must be exactly base price
-      if (isFirstBidOnEvent && rawAmount !== event.basePrice) {
-        window.alert(`The first bid on this event must be exactly ₹${event.basePrice}.`);
+        window.alert(`Your bid must be at least ${formatCurrency(minimumBidRequired)}.`);
         return;
       }
     }
@@ -472,10 +460,6 @@ export function EventDetailPage() {
             <CardHeader title="About this event" />
             <CardContent className="gap-3">
               <p className="text-sm text-[#495057]">{event.description}</p>
-              <p className="text-xs text-[#6C757D]">
-                This is a demo environment. In a real product, this section would outline the exact flow of the
-                experience, how long the interaction lasts, and any preparation required before joining.
-              </p>
             </CardContent>
           </Card>
         ) : null}
@@ -512,32 +496,29 @@ export function EventDetailPage() {
           </Card>
         )}
 
-        {/* What you'll get - dummy content */}
+        {/* How it works */}
         <Card>
-          <CardHeader title="What you'll get" />
+          <CardHeader title="How Bidding Works" />
           <CardContent className="gap-3 text-sm text-[#495057]">
             <ul className="space-y-1 text-xs text-[#495057]">
-              <li>• A 1:1 micro-meet with the creator with room for your questions.</li>
-              <li>• Optional screenshot / selfie moment at the end of the call.</li>
-              <li>• Priority chat placement during the live session.</li>
+              <li>• Place a bid at or above the base price. Highest bidder wins the 1:1 meet.</li>
+              <li>• Payment is collected immediately when you bid.</li>
+              <li>• If you don't win, 90% of your bid is automatically refunded after bidding closes.</li>
+              <li>• The winner gets a private meeting link with the creator.</li>
             </ul>
-            <p className="text-[11px] text-[#6C757D]">
-              Exact perks are for demo only and can be customised per creator event.
-            </p>
           </CardContent>
         </Card>
 
-        {/* Small print - dummy terms */}
+        {/* Terms */}
         <Card>
-          <CardHeader title="Small print" />
+          <CardHeader title="Terms" />
           <CardContent className="gap-2 text-[11px] text-[#6C757D]">
             <p>
-              Bids placed in this sandbox are not real payments. In production, only the top bidders would be charged
-              after the auction window ends.
+              By placing a bid you agree to follow community guidelines and respect the creator&apos;s time and
+              boundaries. All payments are processed securely via Razorpay.
             </p>
             <p>
-              By placing a bid you agree to follow community guidelines and respect the creator&apos;s time and
-              boundaries.
+              Losing bidders receive a 90% refund to their original payment method within 5-7 business days after the auction closes.
             </p>
           </CardContent>
         </Card>
@@ -577,7 +558,7 @@ export function EventDetailPage() {
                 />
                 {isFirstBidOnEvent && (
                   <div className="mt-2 text-[11px] text-[#6C757D]">
-                    First bid on this event must be exactly the creator&apos;s base price (₹{event.basePrice}).
+                    Minimum bid is the base price (₹{event.basePrice}). Bids must be in multiples of ₹50.
                   </div>
                 )}
                 {!isFirstBidOnEvent && isFirstBidForUser && (

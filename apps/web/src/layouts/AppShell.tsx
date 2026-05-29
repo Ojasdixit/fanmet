@@ -32,7 +32,7 @@ export const AppShell = () => {
         <>
           <header className="sticky top-0 z-50 flex h-[70px] items-center justify-between border-b border-[#E9ECEF] bg-white px-6 md:px-12">
             <div className="flex items-center gap-6 md:gap-10">
-              <NavLink to="/" className="flex items-center gap-2 text-2xl font-bold text-[#C045FF]">
+              <NavLink to={isAuthenticated ? (user?.role === 'fan' ? '/fan' : user?.role === 'creator' ? '/creator' : '/admin') : '/'} className="flex items-center gap-2 text-2xl font-bold text-[#C045FF]">
                 FanMeet
               </NavLink>
               <nav className="hidden gap-6 md:flex">

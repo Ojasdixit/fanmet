@@ -146,7 +146,7 @@ export function FanMeets() {
                       </h3>
                       <div className="mt-2 flex flex-wrap items-center gap-3">
                         <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${isRecent ? 'bg-[#FF6B35] text-white' : 'bg-[#F4E6FF] text-[#C045FF]'}`}>
-                          <span className="text-lg">📅</span>
+                          <span className="text-lg">�️</span>
                           <div className="flex flex-col">
                             <span className="text-xs font-medium opacity-90">Date & Time</span>
                             <span className="text-sm font-bold">{formatDateTime(meet.scheduledAt)}</span>
@@ -185,6 +185,13 @@ export function FanMeets() {
                         {meet.status !== 'completed' && meet.status !== 'cancelled' && meet.status !== 'cancelled_no_show_creator' && (
                           <Button variant="secondary">Add to Calendar</Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => navigate(`/fan/messages?chatWith=${meet.creatorId}`)}
+                        >
+                          💬 Message Creator
+                        </Button>
                         <button
                           disabled={!meet.meetingLink || meet.status === 'completed' || meet.status === 'cancelled' || meet.status === 'cancelled_no_show_creator'}
                           onClick={() => handleJoin(meet.meetingLink)}

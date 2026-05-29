@@ -570,45 +570,6 @@ export function CreatorOverview() {
               </span>
             </div>
           </div>
-          <div className="mt-4 w-full max-w-md rounded-[20px] bg-white/90 p-4 shadow-[0_18px_45px_rgba(15,23,42,0.18)] md:ml-auto md:mt-0">
-            <div className="flex items-center justify-between">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-[#6C757D]">
-                Top creators this month
-              </div>
-            </div>
-            <div className="mt-3 space-y-3">
-              {isLoadingTopCreators ? (
-                <div className="text-xs text-[#6C757D]">Loading top creators…</div>
-              ) : topCreators.length === 0 ? (
-                <div className="text-xs text-[#6C757D]">No earnings data yet this month.</div>
-              ) : (
-                topCreators.map((creator) => (
-                  <div
-                    key={creator.id}
-                    className="flex items-center justify-between rounded-[12px] bg-[#F8F9FA] px-3 py-2 text-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#C045FF] via-[#FF6B9D] to-[#8B3FFF] text-xs font-semibold text-white">
-                        {creator.initials}
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[#212529]">{creator.displayName}</span>
-                        <span className="text-xs text-[#6C757D]">
-                          {creator.handle} • {creator.category}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold text-[#050014]">
-                        {formatCurrency(creator.earnings)}
-                      </div>
-                      <div className="text-xs text-[#6C757D]">This month</div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
         </div>
       </Card>
 

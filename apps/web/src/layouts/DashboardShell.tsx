@@ -342,6 +342,11 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
       return;
     }
 
+    if (!inlineProfile.instagram_url.trim()) {
+      alert('Instagram handle is required for creator accounts. Please add your Instagram URL.');
+      return;
+    }
+
     setIsSavingInlineProfile(true);
     try {
       const { error } = await supabase.from('profiles').upsert({
@@ -811,7 +816,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
                     />
                     <div className="grid gap-3 md:grid-cols-2">
                       <TextInput
-                        label="Instagram"
+                        label="Instagram *"
                         placeholder="https://instagram.com/yourhandle"
                         value={inlineProfile.instagram_url}
                         onChange={(e) =>
@@ -1126,7 +1131,7 @@ export const DashboardShell = ({ role }: DashboardShellProps) => {
                 variant="secondary"
                 size="icon"
                 className="bg-black text-white border-none hover:bg-black/90 relative"
-                onClick={() => setActiveRightPanel(activeRightPanel === 'notifications' ? 'none' : 'notifications')}
+                onClick={() => navigate(`/${role}/notifications`)}
               >
                 🔔
                 {unreadNotificationsCount > 0 && (

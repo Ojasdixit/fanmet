@@ -125,10 +125,14 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) {
         console.error('Error fetching events:', error);
+        setIsLoading(false);
         return;
       }
 
-      if (!data) return;
+      if (!data) {
+        setIsLoading(false);
+        return;
+      }
 
       // Fetch bids for all events
       const { data: allBids } = await supabase.from('bids').select('*');
@@ -506,15 +510,10 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const currentMaxBid = topBidRow?.amount ?? 0;
+    const minimumBid = Math.max(eventRow.base_price || 0, currentMaxBid);
 
-    if (currentMaxBid === 0) {
-      if (amount !== eventRow.base_price) {
-        throw new Error(`The first bid must be exactly ${eventRow.base_price}.`);
-      }
-    } else {
-      if (amount < currentMaxBid) {
-        throw new Error(`Your bid must be at least ${currentMaxBid}.`);
-      }
+    if (amount < minimumBid) {
+      throw new Error(`Your bid must be at least ${minimumBid}.`);
     }
 
     // Place the bid (payment already completed via Razorpay)

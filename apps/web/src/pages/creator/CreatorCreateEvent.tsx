@@ -4,7 +4,7 @@ import { Button, Card, CardContent, CardHeader, TextInput, TextArea, Badge } fro
 import { useAuth } from '../../contexts/AuthContext';
 import { useEvents } from '../../contexts/EventContext';
 
-const priceOptions = ['₹50', '₹100', '₹150'];
+const priceOptions = ['Free', '₹200', '₹300', '₹500', 'Custom'];
 const durationOptions = ['5 minutes', '10 minutes', '15 minutes'];
 
 export function CreatorCreateEvent() {
@@ -45,7 +45,7 @@ export function CreatorCreateEvent() {
     }
 
     const BID_STEP = 50;
-    if (basePrice % BID_STEP !== 0) {
+    if (basePrice > 0 && basePrice % BID_STEP !== 0) {
       setFormError(`Base price must be in multiples of ${BID_STEP}.`);
       return;
     }
@@ -153,11 +153,11 @@ export function CreatorCreateEvent() {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="flex flex-col gap-3">
                 <span className="text-sm font-semibold text-[#212529]">Base Price *</span>
-                <p className="text-xs text-[#6C757D]">All creator events must be paid. Select a starting bid.</p>
+                <p className="text-xs text-[#6C757D]">Select a starting bid price or set a custom amount.</p>
                 <div className="flex flex-wrap gap-3">
                   {priceOptions.map((price) => {
-                    const numeric = parseInt(price.replace(/[^0-9]/g, ''), 10) || 0;
-                    const isActive = basePrice === numeric;
+                    const numeric = price === 'Free' ? 0 : price === 'Custom' ? -1 : parseInt(price.replace(/[^0-9]/g, ''), 10) || 0;
+                    const isActive = price === 'Custom' ? (basePrice !== null && basePrice !== 0 && ![200, 300, 500].includes(basePrice)) : basePrice === numeric;
 
                     return (
                       <Button
@@ -165,13 +165,26 @@ export function CreatorCreateEvent() {
                         variant={isActive ? 'primary' : 'secondary'}
                         size="sm"
                         className="rounded-[8px]"
-                        onClick={() => setBasePrice(numeric)}
+                        onClick={() => {
+                          if (price === 'Custom') {
+                            const custom = window.prompt('Enter custom base price (in multiples of ₹50):');
+                            if (custom) {
+                              const val = parseInt(custom, 10);
+                              if (!isNaN(val) && val > 0) setBasePrice(val);
+                            }
+                          } else {
+                            setBasePrice(numeric);
+                          }
+                        }}
                       >
                         {price}
                       </Button>
                     );
                   })}
                 </div>
+                {basePrice !== null && basePrice > 0 && ![200, 300, 500].includes(basePrice) && (
+                  <p className="text-xs text-[#C045FF] mt-1">Custom price: ₹{basePrice}</p>
+                )}
               </div>
 
               <div className="flex flex-col gap-3">

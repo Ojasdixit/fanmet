@@ -148,19 +148,74 @@ async function processRazorpayRefund(
     throw new Error("Razorpay credentials not configured");
   }
 
-  console.log("Calling Razorpay refund API: payment_id=" + payment.razorpay_payment_id + ", refund_amount_paise=" + refundAmountPaise + " (" + refundPercent + "% of Rs." + bid.amount + ")");
+  const authHeader = "Basic " + btoa(RAZORPAY_KEY_ID + ":" + RAZORPAY_KEY_SECRET);
 
-  // Call Razorpay Partial Refund API
+  // Step 1: Fetch payment details from Razorpay to verify status
+  console.log("Fetching payment status from Razorpay: payment_id=" + payment.razorpay_payment_id);
+  const paymentStatusRes = await fetch(
+    "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id,
+    {
+      method: "GET",
+      headers: { "Authorization": authHeader },
+    }
+  );
+
+  if (!paymentStatusRes.ok) {
+    const errBody = await paymentStatusRes.text();
+    console.error("Failed to fetch payment " + payment.razorpay_payment_id + " from Razorpay: status=" + paymentStatusRes.status + ", body=" + errBody);
+    throw new Error("Could not fetch payment from Razorpay: " + paymentStatusRes.status);
+  }
+
+  const paymentInfo = await paymentStatusRes.json();
+  console.log("Payment " + payment.razorpay_payment_id + " status=" + paymentInfo.status + ", amount=" + paymentInfo.amount + " paise");
+
+  // Step 2: If payment is only authorized (not captured), capture it first
+  if (paymentInfo.status === "authorized") {
+    console.log("Payment is authorized but not captured. Capturing payment first...");
+    const captureRes = await fetch(
+      "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id + "/capture",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({ amount: paymentInfo.amount, currency: "INR" }),
+      }
+    );
+
+    if (!captureRes.ok) {
+      const captureErr = await captureRes.json();
+      console.error("Failed to capture payment " + payment.razorpay_payment_id + ":", captureErr);
+      throw new Error("Payment capture failed: " + (captureErr.error?.description || JSON.stringify(captureErr)));
+    }
+
+    const captureData = await captureRes.json();
+    console.log("Payment captured successfully: status=" + captureData.status);
+  } else if (paymentInfo.status !== "captured") {
+    // Payment is in an unexpected state (failed, refunded, etc.)
+    console.error("Payment " + payment.razorpay_payment_id + " is in non-refundable state: " + paymentInfo.status);
+    throw new Error("Payment is in state '" + paymentInfo.status + "' and cannot be refunded");
+  }
+
+  // Step 3: Ensure refund amount doesn't exceed captured amount
+  const capturedAmountPaise = paymentInfo.amount;
+  const actualRefundPaise = Math.min(refundAmountPaise, capturedAmountPaise);
+  const actualRefundRupees = Math.floor(actualRefundPaise / 100);
+
+  console.log("Calling Razorpay refund API: payment_id=" + payment.razorpay_payment_id + ", refund_amount_paise=" + actualRefundPaise + " (" + refundPercent + "% of Rs." + bid.amount + ", capped at captured=" + capturedAmountPaise + ")");
+
+  // Step 4: Issue the refund
   const refundResponse = await fetch(
     "https://api.razorpay.com/v1/payments/" + payment.razorpay_payment_id + "/refund",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Basic " + btoa(RAZORPAY_KEY_ID + ":" + RAZORPAY_KEY_SECRET),
+        "Authorization": authHeader,
       },
       body: JSON.stringify({
-        amount: refundAmountPaise,
+        amount: actualRefundPaise,
         speed: "normal",
         notes: {
           reason: "losing_bid_partial_refund",
@@ -175,7 +230,7 @@ async function processRazorpayRefund(
   const refundData = await refundResponse.json();
 
   if (!refundResponse.ok) {
-    console.error("Razorpay refund failed for payment " + payment.razorpay_payment_id + ":", refundData);
+    console.error("Razorpay refund failed for payment " + payment.razorpay_payment_id + ": status=" + refundResponse.status + ", error=", refundData);
     await supabase
       .from("bids")
       .update({
@@ -183,16 +238,16 @@ async function processRazorpayRefund(
         refunded_at: now,
       })
       .eq("id", bid.id);
-    throw new Error("Razorpay refund API error: " + (refundData.error?.description || JSON.stringify(refundData)));
+    throw new Error("Razorpay refund API error: " + (refundData.error?.description || refundData.description || JSON.stringify(refundData)));
   }
 
-  console.log("Razorpay refund successful: refund_id=" + refundData.id + ", amount=" + refundData.amount);
+  console.log("Razorpay refund successful: refund_id=" + refundData.id + ", amount=" + refundData.amount + " paise, status=" + refundData.status);
 
   // Update bid with refund details
   await supabase
     .from("bids")
     .update({
-      refund_amount: refundAmountRupees,
+      refund_amount: actualRefundRupees,
       refund_status: "refunded",
       refunded_at: now,
     })
@@ -210,7 +265,7 @@ async function processRazorpayRefund(
     user_id: bid.fan_id,
     type: "bid_refund",
     title: "Bid Refund Processed",
-    message: "You did not win the auction for \"" + (eventData?.title || "Event") + "\". A refund of Rs." + refundAmountRupees + " (" + refundPercent + "% of your bid) has been initiated to your original payment method.",
+    message: "You did not win the auction for \"" + (eventData?.title || "Event") + "\". A refund of Rs." + actualRefundRupees + " (" + refundPercent + "% of your bid) has been initiated to your original payment method.",
     event_id: eventId,
   });
 }
@@ -274,7 +329,60 @@ async function finalizeExpiredEvents(supabase: any) {
 
       if (meetError) {
         console.error("Error creating meet for event", event.id, meetError);
+      } else {
+        // Create an initial welcome message so the chat room appears for both creator and fan
+        const { data: newMeet } = await supabase
+          .from("meets")
+          .select("id")
+          .eq("event_id", event.id)
+          .eq("fan_id", winnerBid.fan_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (newMeet) {
+          const { error: msgError } = await supabase.from("messages").insert({
+            sender_id: event.creator_id,
+            receiver_id: winnerBid.fan_id,
+            message: "Hey! I'm excited for our upcoming FanMeet. Feel free to reach out if you have any questions!",
+            meet_id: newMeet.id,
+            event_id: event.id,
+          });
+
+          if (msgError) {
+            console.error("Error creating welcome message for meet", newMeet.id, msgError);
+          } else {
+            console.log("Welcome message created for meet", newMeet.id);
+          }
+        }
       }
+
+      // Get event title for notification
+      const { data: eventInfo } = await supabase
+        .from("events")
+        .select("title")
+        .eq("id", event.id)
+        .maybeSingle();
+
+      const eventTitle = eventInfo?.title || "Event";
+
+      // Notify winner fan
+      await supabase.from("notifications").insert({
+        user_id: winnerBid.fan_id,
+        type: "bid_won",
+        title: "🎉 You Won!",
+        message: "Congratulations! You won the auction for \"" + eventTitle + "\" with a bid of Rs." + winnerBid.amount + ". Your meeting has been scheduled. Check your Upcoming Meets for the meeting link.",
+        event_id: event.id,
+      });
+
+      // Notify creator
+      await supabase.from("notifications").insert({
+        user_id: event.creator_id,
+        type: "event_finalized",
+        title: "Auction Closed",
+        message: "The auction for \"" + eventTitle + "\" has closed. The winning bid is Rs." + winnerBid.amount + ". Check your Upcoming Meets to start the session.",
+        event_id: event.id,
+      });
     } else if (event.is_paid) {
       console.log("No bids for paid event", event.id, "- skipping meet creation");
     }

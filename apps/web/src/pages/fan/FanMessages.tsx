@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, Button, Avatar } from '@fanmeet/ui';
 import { MoreVertical, MoreHorizontal, Reply, Copy, Trash2, Flag, UserMinus2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '../../lib/supabaseClient';
 import { useNotifications } from '../../contexts/NotificationsContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -42,8 +44,10 @@ function StatusBadge({ status }: { status: StatusType }) {
 export function FanMessages() {
   const [draft, setDraft] = useState('');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [tempConversation, setTempConversation] = useState<ConversationSummary | null>(null);
   const { messages, sendMessage, markMessageAsRead } = useNotifications();
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
 
   // Group messages into conversations
   const conversations = useMemo(() => {
@@ -90,9 +94,50 @@ export function FanMessages() {
     );
   }, [messages, user]);
 
+  useEffect(() => {
+    const chatWith = searchParams.get('chatWith');
+    if (chatWith) {
+      setActiveConversationId(chatWith);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const conversationExists = conversations.some(c => c.id === activeConversationId);
+
+    if (activeConversationId && !conversationExists) {
+      const fetchProfile = async () => {
+        if (tempConversation?.id === activeConversationId) return;
+
+        const { data } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, username')
+          .eq('user_id', activeConversationId)
+          .single();
+
+        if (data) {
+          setTempConversation({
+            id: data.user_id,
+            participant: {
+              id: data.user_id,
+              name: data.display_name || data.username || 'User',
+              username: data.username || 'user',
+              avatar: `https://api.dicebear.com/9.x/initials/svg?seed=${data.display_name || data.username || 'User'}`,
+              status: 'offline',
+            },
+            lastMessage: '',
+            lastTime: new Date().toISOString(),
+            unread: 0,
+          });
+        }
+      };
+
+      fetchProfile();
+    }
+  }, [activeConversationId, conversations, tempConversation]);
+
   const activeConversation = useMemo(
-    () => conversations.find((c) => c.id === activeConversationId) || null,
-    [conversations, activeConversationId]
+    () => conversations.find((c) => c.id === activeConversationId) || tempConversation || null,
+    [conversations, activeConversationId, tempConversation]
   );
 
   const activeMessages = useMemo(
@@ -127,6 +172,13 @@ export function FanMessages() {
     }
   };
 
+  const allConversations = useMemo(() => {
+    if (tempConversation && !conversations.some(c => c.id === tempConversation.id)) {
+      return [...conversations, tempConversation];
+    }
+    return conversations;
+  }, [conversations, tempConversation]);
+
   return (
     <div className="flex h-[calc(100vh-140px)] flex-col gap-4 md:flex-row">
       <div
@@ -149,8 +201,9 @@ export function FanMessages() {
           </CardHeader>
           <CardContent className="min-h-0 flex-1 gap-2 p-0">
             <div className="flex-1 overflow-y-auto p-2">
-              {conversations.map((conversation) => {
+              {allConversations.map((conversation) => {
                 const isActive = conversation.id === activeConversationId;
+                const isTemp = tempConversation?.id === conversation.id;
                 return (
                   <button
                     key={conversation.id}
@@ -177,7 +230,7 @@ export function FanMessages() {
                         </span>
                       </div>
                       <span className="mt-0.5 line-clamp-1 text-[12px] text-[#6C757D]">
-                        {conversation.lastMessage}
+                        {isTemp ? 'Tap to start messaging' : conversation.lastMessage}
                       </span>
                     </div>
                     {conversation.unread > 0 && (
