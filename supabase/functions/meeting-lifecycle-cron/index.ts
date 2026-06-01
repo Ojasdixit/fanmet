@@ -507,7 +507,7 @@ async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
         bidAmount = bid.amount;
       }
     } else {
-      // Fallback: find winning bid for this event
+      // Fallback 1: find winning bid by status=won for this event
       const { data: bids, error: bidsError } = await supabase
         .from("bids")
         .select("id, amount, fan_id")
@@ -519,6 +519,25 @@ async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
       if (!bidsError && bids && bids.length > 0) {
         bidAmount = bids[0].amount;
         bidId = bids[0].id;
+        console.log("processRefund fallback1: found won bid " + bidId + " amount=" + bidAmount);
+      } else {
+        // Fallback 2: find any active/won bid for the meet's fan (handles cases where bids were never marked won)
+        const { data: fanBids } = await supabase
+          .from("bids")
+          .select("id, amount, fan_id")
+          .eq("event_id", meet.event_id)
+          .eq("fan_id", meet.fan_id)
+          .in("status", ["active", "won", "lost"])
+          .order("amount", { ascending: false })
+          .limit(1);
+
+        if (fanBids && fanBids.length > 0) {
+          bidAmount = fanBids[0].amount;
+          bidId = fanBids[0].id;
+          console.log("processRefund fallback2: found bid by fan_id=" + meet.fan_id + ", bid=" + bidId + ", amount=" + bidAmount);
+        } else {
+          console.warn("processRefund: no bid found for meet " + meet.id + " (event=" + meet.event_id + ", fan=" + meet.fan_id + ")");
+        }
       }
     }
 

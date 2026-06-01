@@ -295,8 +295,11 @@ export function EventDetailPage() {
         description: `Bid of ${formatCurrency(actualBidAmount)} for ${event.title}`,
         onSuccess: async (response: any) => {
           try {
-            // Place the bid first so we can link the payment record
-            await placeBid(event.id, actualBidAmount);
+            // Place the bid first so we can link the payment record.
+            // Skip the deadline check here: the fan clicked while the button was
+            // still open (validated pre-payment above), so a payment that confirms
+            // slightly after the deadline must still be honored.
+            await placeBid(event.id, actualBidAmount, { skipDeadlineCheck: true });
 
             // Find the bid we just placed to link it
             const { data: latestBid } = await supabase

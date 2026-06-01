@@ -86,7 +86,7 @@ interface EventContextValue {
   isLoading: boolean;
   createEvent: (input: CreateEventInput) => Promise<CreatorEvent>;
   getEventsForCreator: (creatorUsername: string) => CreatorEvent[];
-  placeBid: (eventId: string, amount: number) => Promise<void>;
+  placeBid: (eventId: string, amount: number, options?: { skipDeadlineCheck?: boolean }) => Promise<void>;
   placeBidWithPayment: (eventId: string, amount: number, userEmail: string) => Promise<void>;
   updateMeetStatus: (meetId: string, status: 'scheduled' | 'live' | 'completed' | 'cancelled' | 'cancelled_no_show_creator' | 'no_show') => Promise<void>;
   refreshMeets: () => Promise<void>;
@@ -475,7 +475,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Place bid - payment is handled directly via Razorpay before this is called
-  const placeBid: EventContextValue['placeBid'] = async (eventId, amount) => {
+  const placeBid: EventContextValue['placeBid'] = async (eventId, amount, options) => {
     if (!amount || Number.isNaN(amount)) return;
     if (!user) {
       console.error("User must be logged in to bid");
@@ -497,12 +497,19 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Could not load event for bidding.');
     }
 
-    // Block bids after deadline or if event is already finalized
+    // Block bids after deadline or if event is already finalized.
+    // skipDeadlineCheck is used when the bid is placed AFTER a successful payment:
+    // the fan clicked while the button was still open (validated pre-payment), so a
+    // payment that confirms slightly after the deadline must still be honored.
     const now = new Date();
     if (eventRow.status === 'completed' || eventRow.status === 'cancelled') {
       throw new Error('Bidding is closed for this event.');
     }
-    if (eventRow.bidding_closes_at && new Date(eventRow.bidding_closes_at) <= now) {
+    if (
+      !options?.skipDeadlineCheck &&
+      eventRow.bidding_closes_at &&
+      new Date(eventRow.bidding_closes_at) <= now
+    ) {
       throw new Error('Bidding deadline has passed. No more bids can be placed.');
     }
 
