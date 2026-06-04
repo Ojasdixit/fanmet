@@ -399,21 +399,18 @@ export function EventDetailPage() {
         </div>
       )}
 
-      {/* Cover + compact header */}
-      <div className="relative">
-        <div className="h-40 w-full bg-gradient-to-br from-[#FFE5D9] via-white to-[#F4E6FF] md:h-48" />
-        <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/40 to-transparent px-4 py-3 text-xs font-medium text-white">
-          <button
-            type="button"
-            className="rounded-full bg-black/30 px-3 py-1"
-            onClick={() => navigate(-1)}
-          >
-            ← Back
-          </button>
-          <div className="flex flex-col items-end gap-1 text-right">
-            <span className="text-[11px] uppercase tracking-wide text-white/80">Bidding event</span>
-            <span className="text-sm font-semibold">{event.title}</span>
-          </div>
+      {/* Compact header */}
+      <div className="flex items-center justify-between bg-[#1B1C1F] px-4 py-3 text-xs font-medium text-white">
+        <button
+          type="button"
+          className="rounded-full bg-white/10 px-3 py-1 hover:bg-white/20 transition-colors"
+          onClick={() => navigate(-1)}
+        >
+          ← Back
+        </button>
+        <div className="flex flex-col items-end gap-1 text-right">
+          <span className="text-[11px] uppercase tracking-wide text-white/60">Bidding event</span>
+          <span className="text-sm font-semibold">{event.title}</span>
         </div>
       </div>
 

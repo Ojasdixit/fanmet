@@ -186,13 +186,24 @@ export function AdminWithdrawalRequests() {
         return;
       }
 
+      // Notify creator
+      const request = pendingRequests.find((r) => r.id === requestId);
+      if (request) {
+        await supabase.from('notifications').insert({
+          user_id: request.creatorId,
+          type: 'withdrawal_processed',
+          title: 'Money Transferred',
+          message: `Your withdrawal request for ${formatCurrency(request.amount)} has been processed and the money has been transferred. Reference: ${form.gatewayReference.trim()}`,
+        });
+      }
+
       await fetchData();
       setPaymentForms((prev) => {
         const copy = { ...prev };
         delete copy[requestId];
         return copy;
       });
-      alert('Withdrawal approved and marked as completed!');
+      alert('Withdrawal approved and marked as completed! Creator has been notified.');
     } finally {
       setIsLoading(false);
     }

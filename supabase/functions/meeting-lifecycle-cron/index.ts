@@ -546,8 +546,8 @@ async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
       return { success: true, refundId, amount: 0 };
     }
 
-    // 3. Try to refund via Razorpay (90% refund for no-show) — no wallet involved
-    const REFUND_PERCENT = 90;
+    // 3. Try to refund via Razorpay (100% refund for no-show) — no wallet involved
+    const REFUND_PERCENT = 100;
     const refundAmount = Math.floor(bidAmount * REFUND_PERCENT / 100);
     let razorpayRefunded = false;
     let razorpayRefundError = "";
@@ -598,11 +598,11 @@ async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
                   amount: Math.min(refundAmountPaise, paymentInfo.amount),
                   speed: "normal",
                   notes: {
-                    reason: "creator_no_show_refund_90_percent",
+                    reason: "creator_no_show_refund_100_percent",
                     bid_id: bidId,
                     event_id: meet.event_id,
                     meet_id: meet.id,
-                    refund_percent: "90",
+                    refund_percent: "100",
                   },
                 }),
               }
@@ -670,7 +670,7 @@ async function processRefund(supabase: any, meet: Meet): Promise<RefundResult> {
 
     // 5. Send notification to fan
     const notificationMessage = razorpayRefunded
-      ? "The creator did not join your scheduled meeting for \"" + (event.title || "Event") + "\". A refund of Rs." + refundAmount + " (90% of your bid) has been processed to your original payment method."
+      ? "The creator did not join your scheduled meeting for \"" + (event.title || "Event") + "\". A full refund of Rs." + refundAmount + " (100% of your bid) has been processed to your original payment method."
       : "The creator did not join your scheduled meeting for \"" + (event.title || "Event") + "\". We could not process your refund automatically." + (razorpayRefundError ? " (Error: " + razorpayRefundError + ")" : "");
 
     await supabase.from("notifications").insert({

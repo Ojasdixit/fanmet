@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, CardContent, CardHeader, Badge, TextInput } from '@fanmeet/ui';
+import { formatCurrency } from '@fanmeet/utils';
 import { Pagination } from '../../components/Pagination';
 import { supabase } from '../../lib/supabaseClient';
 
@@ -57,6 +58,7 @@ export function AdminCreators() {
   const [selectedCreatorId, setSelectedCreatorId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [creatorEarnings, setCreatorEarnings] = useState<{ total: number; thisMonth: number } | null>(null);
 
   const fetchCreators = async () => {
     setIsLoading(true);
@@ -207,6 +209,66 @@ export function AdminCreators() {
     void fetchCreators();
   }, []);
 
+  const fetchCreatorEarnings = async (creatorId: string) => {
+    try {
+      // Fetch completed meets for this creator
+      const { data: meetsData } = await supabase
+        .from('meets')
+        .select('event_id, completed_at')
+        .eq('creator_id', creatorId)
+        .eq('status', 'completed');
+
+      const eventIds = Array.from(new Set((meetsData ?? []).map((m: any) => m.event_id).filter(Boolean)));
+      if (eventIds.length === 0) {
+        setCreatorEarnings({ total: 0, thisMonth: 0 });
+        return;
+      }
+
+      const { data: bidsData } = await supabase
+        .from('bids')
+        .select('event_id, amount')
+        .in('event_id', eventIds)
+        .eq('status', 'won');
+
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+      let total = 0;
+      let thisMonth = 0;
+
+      // Map completed meets to their completion dates
+      const meetDateMap = new Map<string, Date>();
+      for (const m of (meetsData ?? []) as any[]) {
+        if (m.completed_at) {
+          meetDateMap.set(m.event_id, new Date(m.completed_at));
+        }
+      }
+
+      for (const b of (bidsData ?? []) as any[]) {
+        const earned = Math.floor((b.amount ?? 0) * 0.9);
+        total += earned;
+
+        const completedAt = meetDateMap.get(b.event_id);
+        if (completedAt && completedAt >= monthStart) {
+          thisMonth += earned;
+        }
+      }
+
+      setCreatorEarnings({ total, thisMonth });
+    } catch (err) {
+      console.error('Error fetching creator earnings:', err);
+      setCreatorEarnings({ total: 0, thisMonth: 0 });
+    }
+  };
+
+  useEffect(() => {
+    if (selectedCreatorId) {
+      void fetchCreatorEarnings(selectedCreatorId);
+    } else {
+      setCreatorEarnings(null);
+    }
+  }, [selectedCreatorId]);
+
   const filteredCreators = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -253,24 +315,35 @@ export function AdminCreators() {
 
     setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .update({ creator_profile_status: nextStatus })
-        .eq('id', creator.id);
-
-      if (error) {
-        console.error('Error updating creator status:', error);
-        alert('Failed to update creator status.');
-        return;
-      }
-
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ creator_profile_status: nextStatus })
-        .eq('user_id', creator.id);
-
-      if (profileError) {
-        console.error('Error updating creator status on profile:', profileError);
+      if (nextStatus === 'suspended') {
+        // Suspend uses account_status (creator_profile_status enum does not include 'suspended')
+        const { error } = await supabase
+          .from('users')
+          .update({ account_status: 'suspended', suspension_reason: 'Suspended by admin' })
+          .eq('id', creator.id);
+        if (error) {
+          console.error('Error suspending creator:', error);
+          alert('Failed to suspend creator.');
+          return;
+        }
+      } else {
+        // Approve / Reject update creator_profile_status
+        const { error } = await supabase
+          .from('users')
+          .update({ creator_profile_status: nextStatus, account_status: 'active', suspension_reason: null })
+          .eq('id', creator.id);
+        if (error) {
+          console.error('Error updating creator status:', error);
+          alert('Failed to update creator status.');
+          return;
+        }
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ creator_profile_status: nextStatus })
+          .eq('user_id', creator.id);
+        if (profileError) {
+          console.error('Error updating creator status on profile:', profileError);
+        }
       }
 
       setCreators((prev) =>
@@ -523,6 +596,14 @@ export function AdminCreators() {
                   <div>
                     <p className="text-[#6C757D]">Total Events</p>
                     <p className="text-white">{selectedCreator.totalEvents}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#6C757D]">Total Earnings</p>
+                    <p className="text-white">{creatorEarnings ? formatCurrency(creatorEarnings.total) : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[#6C757D]">This Month</p>
+                    <p className="text-white">{creatorEarnings ? formatCurrency(creatorEarnings.thisMonth) : '—'}</p>
                   </div>
                   <div>
                     <p className="text-[#6C757D]">Category</p>

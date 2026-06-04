@@ -8,7 +8,7 @@ const fanFilters = {
   sortOptions: ['Total Spent', 'Number of Bids', 'Wins Count', 'Join Date', 'Last Activity'],
 };
 
-type FanStatus = 'Active' | 'Inactive' | 'At risk';
+type FanStatus = 'Active' | 'Inactive' | 'At risk' | 'Suspended';
 
 interface FanRow {
   id: string; // user id (uuid)
@@ -500,6 +500,53 @@ export function AdminFans() {
     }
   };
 
+  const handleSuspendFan = async () => {
+    if (!selectedFanId || !selectedFanDetail) return;
+
+    const currentSuspended = selectedFanDetail.profile.status === 'Suspended';
+    const action = currentSuspended ? 'unsuspend' : 'suspend';
+    const confirmed = window.confirm(
+      `${action === 'suspend' ? 'Suspend' : 'Unsuspend'} ${selectedFanDetail.profile.name}? This will ${action === 'suspend' ? 'block them from bidding and logging in' : 'restore their account access'}.`,
+    );
+    if (!confirmed) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          account_status: currentSuspended ? 'active' : 'suspended',
+          suspension_reason: currentSuspended ? null : 'Suspended by admin',
+        })
+        .eq('id', selectedFanId);
+
+      if (error) {
+        console.error(`Error ${action}ing fan:`, error);
+        alert(`Failed to ${action} fan.`);
+        return;
+      }
+
+      // Update local state
+      setFans((prev) =>
+        prev.map((f) => (f.id === selectedFanId ? { ...f, status: currentSuspended ? 'Active' : 'Suspended' as any } : f)),
+      );
+      setSelectedFanDetail((prev) =>
+        prev
+          ? {
+              ...prev,
+              profile: { ...prev.profile, status: currentSuspended ? 'Active' : 'Suspended' },
+            }
+          : null,
+      );
+
+      alert(
+        `${selectedFanDetail.profile.name} has been ${currentSuspended ? 'unsuspended' : 'suspended'}!`,
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -744,6 +791,14 @@ export function AdminFans() {
                     disabled={isLoading}
                   >
                     {selectedFanDetail.profile.isFlagged ? '✅ Unflag' : '🚩 Flag for Review'}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    className={selectedFanDetail.profile.status === 'Suspended' ? 'bg-green-600 hover:bg-green-700 text-white border-green-600' : ''}
+                    onClick={handleSuspendFan}
+                    disabled={isLoading}
+                  >
+                    {selectedFanDetail.profile.status === 'Suspended' ? '✅ Unsuspend Fan' : '🚫 Suspend Fan'}
                   </Button>
                 </div>
               </div>
