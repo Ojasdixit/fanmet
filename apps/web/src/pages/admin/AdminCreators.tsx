@@ -317,38 +317,56 @@ export function AdminCreators() {
     try {
       if (nextStatus === 'suspended') {
         // Suspend uses account_status (creator_profile_status enum does not include 'suspended')
-        const { error } = await supabase
+        const { data: updatedUsers, error } = await supabase
           .from('users')
           .update({ account_status: 'suspended', suspension_reason: 'Suspended by admin' })
-          .eq('id', creator.id);
+          .eq('id', creator.id)
+          .select('id, account_status');
         if (error) {
           console.error('Error suspending creator:', error);
-          alert('Failed to suspend creator.');
+          alert('Failed to suspend creator: ' + error.message);
+          return;
+        }
+        if (!updatedUsers || updatedUsers.length === 0) {
+          alert('Suspend was blocked (no rows affected). This is usually an RLS policy issue. Please contact support.');
           return;
         }
       } else {
         // Approve / Reject update creator_profile_status
-        const { error } = await supabase
+        const { data: updatedUsers, error } = await supabase
           .from('users')
           .update({ creator_profile_status: nextStatus, account_status: 'active', suspension_reason: null })
-          .eq('id', creator.id);
+          .eq('id', creator.id)
+          .select('id, creator_profile_status');
         if (error) {
           console.error('Error updating creator status:', error);
-          alert('Failed to update creator status.');
+          alert('Failed to update creator status: ' + error.message);
           return;
         }
-        const { error: profileError } = await supabase
+        if (!updatedUsers || updatedUsers.length === 0) {
+          alert('Update was blocked (no rows affected). This is usually an RLS policy issue. Please contact support.');
+          return;
+        }
+        const { data: updatedProfiles, error: profileError } = await supabase
           .from('profiles')
           .update({ creator_profile_status: nextStatus })
-          .eq('user_id', creator.id);
+          .eq('user_id', creator.id)
+          .select('user_id, creator_profile_status');
         if (profileError) {
           console.error('Error updating creator status on profile:', profileError);
+          alert('Failed to update profile status: ' + profileError.message);
+          return;
+        }
+        if (!updatedProfiles || updatedProfiles.length === 0) {
+          console.warn('Profile update returned no rows for user_id:', creator.id);
         }
       }
 
-      setCreators((prev) =>
-        prev.map((c) => (c.id === creator.id ? { ...c, status: nextStatus } : c)),
-      );
+      // Re-fetch creators from DB to ensure state is fully synced
+      await fetchCreators();
+    } catch (err) {
+      console.error('Unexpected error updating creator status:', err);
+      alert('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }

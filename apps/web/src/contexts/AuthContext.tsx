@@ -250,9 +250,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error('Please verify your email before logging in.');
     }
 
-    const fallbackUser = toFallbackAuthUser(data.user);
-    setUser(fallbackUser);
-    return fallbackUser;
+    // Resolve full user from DB so role is correct (not from stale user_metadata)
+    const resolvedUser = await resolveAuthUser(data.user);
+    setUser(resolvedUser);
+    return resolvedUser;
   };
 
   const signup: AuthContextValue['signup'] = async ({ email, password, role }) => {

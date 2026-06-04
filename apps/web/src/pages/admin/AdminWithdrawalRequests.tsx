@@ -46,21 +46,35 @@ export function AdminWithdrawalRequests() {
   const [isLoading, setIsLoading] = useState(false);
   const [paymentForms, setPaymentForms] = useState<Record<string, PaymentForm>>({});
   const [rejectForms, setRejectForms] = useState<Record<string, RejectForm>>({});
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
+    setFetchError(null);
     try {
       // Fetch withdrawal requests
-      const { data: requestsData } = await supabase
+      const { data: requestsData, error: requestsError } = await supabase
         .from('withdrawal_requests')
         .select('*')
         .order('requested_at', { ascending: false });
 
+      if (requestsError) {
+        console.error('Error fetching withdrawal requests:', requestsError);
+        setFetchError('Failed to load withdrawal requests: ' + requestsError.message);
+        setPendingRequests([]);
+        setHistoryRequests([]);
+        return;
+      }
+
       // Fetch creator info with bank details
       const creatorIds = Array.from(new Set((requestsData ?? []).map((r: any) => r.creator_id)));
-      const { data: profilesData } = creatorIds.length
+      const { data: profilesData, error: profilesError } = creatorIds.length
         ? await supabase.from('profiles').select('user_id, display_name, username, bank_account_name, bank_account_number, bank_ifsc, upi_id').in('user_id', creatorIds)
-        : { data: [] };
+        : { data: [], error: null };
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+      }
 
       const profileMap = new Map<string, { displayName: string; username: string; bankDetails: any }>();
       for (const p of (profilesData ?? []) as any[]) {
@@ -77,14 +91,22 @@ export function AdminWithdrawalRequests() {
       }
 
       // Fetch total earnings per creator (from won bids)
-      const { data: bidsData } = await supabase
+      const { data: bidsData, error: bidsError } = await supabase
         .from('bids')
         .select('event_id, amount, status')
         .eq('status', 'won');
 
-      const { data: eventsData } = await supabase
+      if (bidsError) {
+        console.error('Error fetching bids:', bidsError);
+      }
+
+      const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('id, creator_id');
+
+      if (eventsError) {
+        console.error('Error fetching events:', eventsError);
+      }
 
       const eventCreatorMap = new Map<string, string>();
       for (const e of (eventsData ?? []) as any[]) {
@@ -148,6 +170,11 @@ export function AdminWithdrawalRequests() {
 
       setPendingRequests(pending);
       setHistoryRequests(history);
+    } catch (err: any) {
+      console.error('Unexpected error fetching withdrawals:', err);
+      setFetchError('Unexpected error: ' + (err?.message || String(err)));
+      setPendingRequests([]);
+      setHistoryRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -277,6 +304,20 @@ export function AdminWithdrawalRequests() {
         </div>
         <Badge variant="warning">{pendingRequests.length} pending</Badge>
       </div>
+
+      {fetchError && (
+        <div className="rounded-[12px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <p className="font-semibold">Error loading data</p>
+          <p>{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => fetchData()}
+            className="mt-2 text-red-700 underline hover:text-red-900"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <Card>
         <CardHeader title="Pending" subtitle="Requests needing manual review or payment confirmation." />
