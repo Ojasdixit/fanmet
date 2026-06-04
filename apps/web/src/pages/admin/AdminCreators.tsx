@@ -67,7 +67,7 @@ export function AdminCreators() {
       // Base creator records
       const { data: usersData, error: usersError } = await supabase
         .from('users')
-        .select('id, email, display_name, role, creator_profile_status, created_at')
+        .select('id, email, display_name, role, creator_profile_status, account_status, created_at')
         .eq('role', 'creator');
 
       if (usersError || !usersData || usersData.length === 0) {
@@ -173,7 +173,7 @@ export function AdminCreators() {
         const name =
           profile?.display_name || u.display_name || (u.email ? u.email.split('@')[0] : 'Creator');
         const username = profile?.username ? `@${profile.username}` : '@creator';
-        const status = (u.creator_profile_status as CreatorStatus) ?? 'pending';
+        const status = (u.account_status === 'suspended' ? 'suspended' : u.creator_profile_status as CreatorStatus) ?? 'pending';
 
         return {
           id: u.id as string,

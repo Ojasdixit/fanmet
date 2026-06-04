@@ -254,7 +254,9 @@ export function AdminFans() {
           const lastBidAt = lastBid ? lastBid.createdAt : null;
 
           let status: FanStatus = 'Inactive';
-          if (!lastBidAt) {
+          if (u.account_status === 'suspended') {
+            status = 'Suspended';
+          } else if (!lastBidAt) {
             status = 'Inactive';
           } else {
             const diffDays =
