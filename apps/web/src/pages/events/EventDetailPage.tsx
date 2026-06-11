@@ -222,7 +222,10 @@ export function EventDetailPage() {
     }
 
     const rawAmount = Number(bidAmount);
-    const actualBidAmount = userCurrentBid > 0 ? cumulativeTotal : rawAmount;
+    // For first bid, payment = raw amount. For increments, payment = just the increment.
+    const paymentAmount = userCurrentBid > 0 ? rawAmount : rawAmount;
+    // The bid stored in DB is always the new cumulative total
+    const bidAmountToStore = userCurrentBid > 0 ? cumulativeTotal : rawAmount;
 
     // Validate bid amounts
     if (userCurrentBid > 0) {
@@ -239,12 +242,12 @@ export function EventDetailPage() {
       }
     }
 
-    if (!actualBidAmount || Number.isNaN(actualBidAmount)) {
+    if (!bidAmountToStore || Number.isNaN(bidAmountToStore)) {
       window.alert('Enter a valid bid amount to continue.');
       return;
     }
 
-    if (actualBidAmount < event.currentBid) {
+    if (bidAmountToStore < event.currentBid) {
       window.alert(`Your bid must be at least the current bid of ${formatCurrency(event.currentBid)}.`);
       return;
     }
@@ -282,24 +285,24 @@ export function EventDetailPage() {
       }
 
       const { orderId, keyId } = await createRazorpayOrder({
-        amount: actualBidAmount,
+        amount: paymentAmount,
         userId: user!.id,
         userEmail: user!.email,
       });
 
       openRazorpayCheckout({
-        amount: actualBidAmount,
+        amount: paymentAmount,
         orderId,
         keyId,
         userEmail: user!.email,
-        description: `Bid of ${formatCurrency(actualBidAmount)} for ${event.title}`,
+        description: `Bid payment of ${formatCurrency(paymentAmount)} for ${event.title}`,
         onSuccess: async (response: any) => {
           try {
             // Place the bid first so we can link the payment record.
             // Skip the deadline check here: the fan clicked while the button was
             // still open (validated pre-payment above), so a payment that confirms
             // slightly after the deadline must still be honored.
-            await placeBid(event.id, actualBidAmount, { skipDeadlineCheck: true });
+            await placeBid(event.id, bidAmountToStore, { skipDeadlineCheck: true });
 
             // Find the bid we just placed to link it
             const { data: latestBid } = await supabase
@@ -307,7 +310,7 @@ export function EventDetailPage() {
               .select('id')
               .eq('event_id', event.id)
               .eq('fan_id', user!.id)
-              .eq('amount', actualBidAmount)
+              .eq('amount', bidAmountToStore)
               .order('created_at', { ascending: false })
               .limit(1)
               .maybeSingle();
@@ -318,7 +321,7 @@ export function EventDetailPage() {
               event_id: event.id,
               fan_id: user!.id,
               bid_id: latestBid?.id || undefined,
-              amount: actualBidAmount,
+              amount: paymentAmount,
             });
 
             // Fallback: if server didn't save, insert locally
@@ -326,7 +329,7 @@ export function EventDetailPage() {
               await supabase.from('bid_payments').insert({
                 event_id: event.id,
                 fan_id: user!.id,
-                amount: actualBidAmount,
+                amount: paymentAmount,
                 razorpay_order_id: orderId,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
@@ -336,7 +339,7 @@ export function EventDetailPage() {
               });
             }
 
-            window.alert(`✅ Payment successful! Bid of ${formatCurrency(actualBidAmount)} placed!\n\nYou'll be notified if someone outbids you.\n\n💡 If you don't win, 90% will be auto-refunded.`);
+            window.alert(`✅ Payment successful! Bid of ${formatCurrency(bidAmountToStore)} placed!\n\nYou'll be notified if someone outbids you.\n\n💡 If you don't win, 90% will be auto-refunded.`);
             setBidAmount('');
           } catch (err) {
             console.error('Error after payment:', err);
