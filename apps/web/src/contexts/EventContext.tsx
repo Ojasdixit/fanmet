@@ -213,6 +213,16 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     fetchEvents();
+  }, [user?.id]);
+
+  // Also re-fetch events when auth state changes from unauthenticated to authenticated
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        fetchEvents();
+      }
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   // Set up Realtime subscription for bids table (global updates)
@@ -413,6 +423,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
 
   // Get bid history for an event (last 5 bids)
   const getBidHistory: EventContextValue['getBidHistory'] = async (eventId) => {
+    console.log('[getBidHistory] Fetching bids for event:', eventId);
     const { data: bidsData, error } = await supabase
       .from('bids')
       .select('id, fan_id, amount, created_at')
@@ -424,6 +435,8 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       console.error('Error fetching bid history:', error);
       return [];
     }
+
+    console.log('[getBidHistory] Found', bidsData.length, 'bids for event', eventId, bidsData);
 
     const fanIds = bidsData.map(b => b.fan_id);
     const { data: profilesData } = await supabase

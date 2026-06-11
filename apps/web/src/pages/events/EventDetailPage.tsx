@@ -142,12 +142,12 @@ export function EventDetailPage() {
       delay: Math.random() * 0.4,
     })), []);
 
-  // Fetch bid history when event loads
+  // Fetch bid history when event loads or auth state changes
   useEffect(() => {
     if (event?.id && !event.id.startsWith('synthetic-')) {
       getBidHistory(event.id);
     }
-  }, [event?.id]);
+  }, [event?.id, isAuthenticated]);
 
   // Periodic refresh for bid history and events (every 3 seconds)
   useEffect(() => {
@@ -495,11 +495,11 @@ export function EventDetailPage() {
         ) : null}
 
         {/* Bidding History */}
-        {bidHistory.length > 0 && (
-          <Card>
-            <CardHeader title="Recent Bids" subtitle="Live bidding activity" />
-            <CardContent className="gap-3">
-              {bidHistory.map((bid) => (
+        <Card>
+          <CardHeader title="Recent Bids" subtitle="Live bidding activity" />
+          <CardContent className="gap-3">
+            {bidHistory.length > 0 ? (
+              bidHistory.map((bid) => (
                 <div
                   key={bid.id}
                   className={`flex items-center justify-between p-3 rounded-[12px] ${
@@ -521,10 +521,12 @@ export function EventDetailPage() {
                     )}
                   </div>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+              ))
+            ) : (
+              <p className="text-sm text-[#6C757D]">No bids yet. Be the first to bid!</p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* How it works */}
         <Card>
