@@ -142,6 +142,26 @@ export function EventDetailPage() {
       delay: Math.random() * 0.4,
     })), []);
 
+  // Countdown timer for bidding deadline
+  const [countdown, setCountdown] = useState('');
+  useEffect(() => {
+    if (!event?.biddingClosesAt) return;
+    const update = () => {
+      const diff = new Date(event.biddingClosesAt!).getTime() - Date.now();
+      if (diff <= 0) { setCountdown('Bidding closed'); return; }
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const s = Math.floor((diff % (1000 * 60)) / 1000);
+      if (d > 0) setCountdown(`${d}d ${h}h ${m}m left`);
+      else if (h > 0) setCountdown(`${h}h ${m}m ${s}s left`);
+      else setCountdown(`${m}m ${s}s left`);
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [event?.biddingClosesAt]);
+
   // Fetch bid history when event loads or auth state changes
   useEffect(() => {
     if (event?.id && !event.id.startsWith('synthetic-')) {
@@ -276,6 +296,14 @@ export function EventDetailPage() {
       }
       if (freshEvent.bidding_closes_at && new Date(freshEvent.bidding_closes_at) <= new Date()) {
         throw new Error('Bidding deadline has just passed. No more bids can be placed.');
+      }
+      // Block bidding 1 minute before deadline to prevent ghost payments
+      if (freshEvent.bidding_closes_at) {
+        const deadline = new Date(freshEvent.bidding_closes_at);
+        const oneMinuteBefore = new Date(deadline.getTime() - 60 * 1000);
+        if (new Date() >= oneMinuteBefore) {
+          throw new Error('Bidding closes in less than 1 minute. Please try another event.');
+        }
       }
 
       // Always pay directly via Razorpay (auto-refund system handles unsuccessful bids)
@@ -417,6 +445,15 @@ export function EventDetailPage() {
         </div>
       </div>
 
+      {/* Sign up banner for unauthenticated users */}
+      {!isAuthenticated && (
+        <div className="mx-4 mt-4 rounded-[12px] bg-gradient-to-r from-[#FF8FB1] to-[#C045FF] px-4 py-3 text-center text-white shadow-md">
+          <p className="text-sm font-semibold uppercase tracking-wide">
+            👋 Sign up as a fan to see bids and place your own!
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-1 flex-col gap-4 px-4 pt-4">
         {/* Host + quick facts */}
         <Card elevated className="border-none">
@@ -467,7 +504,7 @@ export function EventDetailPage() {
               </div>
               <div className="rounded-[12px] bg-[#F8F9FA] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wide">Status</div>
-                <div className="mt-1 flex items-center gap-2 text-sm text-[#212529]">
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[#212529]">
                   {event.status === 'Accepting Bids' ? (
                     <div className="rounded-[8px] bg-[#1E4620] px-3 py-1.5">
                       <span className="text-sm font-semibold text-[#4ADE80]">✓ Accepting Bids</span>
@@ -478,6 +515,11 @@ export function EventDetailPage() {
                     </Badge>
                   )}
                   <span className="text-xs text-[#6C757D]">{event.endsIn}</span>
+                  {countdown && event.status === 'Accepting Bids' && (
+                    <span className="rounded-full bg-[#DC3545]/10 px-2 py-0.5 text-[10px] font-bold text-[#DC3545]">
+                      ⏰ {countdown}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

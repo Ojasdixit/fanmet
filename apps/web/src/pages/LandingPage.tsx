@@ -1155,39 +1155,23 @@ export function LandingPage() {
           <div className="relative mx-auto w-full max-w-3xl">
             <div className="relative overflow-hidden rounded-[28px] bg-black/40 p-[2px] shadow-[0_20px_60px_rgba(5,0,20,0.7)]">
               <div className="relative aspect-video w-full overflow-hidden rounded-[24px] bg-black">
-                {!videoPlaying ? (
-                  <button
-                    type="button"
-                    onClick={() => setVideoPlaying(true)}
-                    className="group relative h-full w-full"
-                  >
-                    <img
-                      src="https://cdn.prod.website-files.com/62c48d78ef34931f8a604ef5/67630876396363c467036ede_video-poster.webp"
-                      alt="FanMeet overview video preview"
-                      className="h-full w-full object-cover opacity-90 transition-opacity group-hover:opacity-100"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center text-white">
-                      <div className="inline-flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 text-xs font-medium backdrop-blur-md">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#C045FF] shadow-lg">
-                          ▶
-                        </span>
-                        <span className="text-xs sm:text-sm">Play 2 min overview</span>
-                      </div>
-                      <p className="max-w-md text-xs text-white/80 sm:text-sm">
-                        "This feels like a private show with your favourite creator. I forgot we were on camera." – real fan
-                      </p>
-                    </div>
-                  </button>
-                ) : (
-                  <iframe
-                    className="h-full w-full"
-                    src="https://www.youtube.com/embed/S5IQtZlgNC8?autoplay=1&rel=0&modestbranding=1"
-                    title="FanMeet overview video"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                )}
+                <img
+                  src="https://cdn.prod.website-files.com/62c48d78ef34931f8a604ef5/67630876396363c467036ede_video-poster.webp"
+                  alt="FanMeet overview"
+                  className="h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center text-white">
+                  <div className="inline-flex items-center gap-3 rounded-full bg-white/10 px-4 py-2 text-xs font-medium backdrop-blur-md">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-semibold text-[#C045FF] shadow-lg">
+                      ✨
+                    </span>
+                    <span className="text-xs sm:text-sm">FanMeet in action</span>
+                  </div>
+                  <p className="max-w-md text-xs text-white/80 sm:text-sm">
+                    "This feels like a private show with your favourite creator. I forgot we were on camera." – real fan
+                  </p>
+                </div>
               </div>
             </div>
           </div>

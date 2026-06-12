@@ -18,6 +18,7 @@ export interface CreatorEvent {
   participants: number;
   endsIn: string;
   startsAt: string;
+  biddingClosesAt?: string;
 }
 
 export interface Bid {
@@ -205,6 +206,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
           participants: uniqueParticipants,
           endsIn: endsIn,
           startsAt: e.starts_at,
+          biddingClosesAt: e.bidding_closes_at,
         };
       });
       setEvents(mappedEvents);
@@ -518,12 +520,13 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
     if (eventRow.status === 'completed' || eventRow.status === 'cancelled') {
       throw new Error('Bidding is closed for this event.');
     }
-    if (
-      !options?.skipDeadlineCheck &&
-      eventRow.bidding_closes_at &&
-      new Date(eventRow.bidding_closes_at) <= now
-    ) {
-      throw new Error('Bidding deadline has passed. No more bids can be placed.');
+    // Block bidding 1 minute before deadline to prevent ghost payments
+    if (!options?.skipDeadlineCheck && eventRow.bidding_closes_at) {
+      const deadline = new Date(eventRow.bidding_closes_at);
+      const oneMinuteBefore = new Date(deadline.getTime() - 60 * 1000);
+      if (now >= oneMinuteBefore) {
+        throw new Error('Bidding closes in less than 1 minute. No new bids can be placed to ensure all bids are processed.');
+      }
     }
 
     const { data: topBidRow, error: topBidError } = await supabase

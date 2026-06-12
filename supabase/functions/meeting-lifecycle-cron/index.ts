@@ -78,48 +78,81 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
           .eq("id", bid.id);
         if (lostError) console.error("Error marking bid " + bid.id + " as lost:", lostError);
 
-        // Find the Razorpay payment for this bid
-        const { data: payment, error: paymentError } = await supabase
+        // Find ALL Razorpay payments for this fan on this event (incremental bidding
+        // creates multiple payment rows; we must refund every single one).
+        const { data: allPayments, error: paymentsError } = await supabase
           .from("bid_payments")
-          .select("razorpay_payment_id, amount")
-          .eq("bid_id", bid.id)
-          .eq("status", "paid")
-          .maybeSingle();
+          .select("id, razorpay_payment_id, amount")
+          .eq("event_id", eventId)
+          .eq("fan_id", bid.fan_id)
+          .eq("status", "paid");
 
-        console.log("Bid " + bid.id + " payment lookup: found=" + !!payment + ", payment_id=" + (payment?.razorpay_payment_id || "none") + ", error=" + (paymentError ? JSON.stringify(paymentError) : "none"));
+        const validPayments = (allPayments || []).filter((p: any) => p.razorpay_payment_id);
+        console.log("Bid " + bid.id + " (fan: " + bid.fan_id + ") found " + validPayments.length + " payment(s)" + (paymentsError ? ", error=" + JSON.stringify(paymentsError) : ""));
 
-        if (paymentError || !payment || !payment.razorpay_payment_id) {
-          // Fallback: find by event_id + fan_id (amount may differ from bid.amount since
-          // bid increments now charge only the increment, not the cumulative total)
-          console.log("Trying fallback payment lookup for bid " + bid.id + "...");
-          const { data: fallbackPayment } = await supabase
-            .from("bid_payments")
-            .select("razorpay_payment_id, amount")
-            .eq("event_id", eventId)
-            .eq("fan_id", bid.fan_id)
-            .eq("status", "paid")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (!fallbackPayment || !fallbackPayment.razorpay_payment_id) {
-            console.error("No Razorpay payment found for bid " + bid.id + " (fan: " + bid.fan_id + ", amount: " + bid.amount + ")");
-            failedCount++;
-            await supabase
-              .from("bids")
-              .update({ refund_status: "failed" })
-              .eq("id", bid.id);
-            continue;
-          }
-
-          // Use fallback payment
-          await processRazorpayRefund(supabase, bid, fallbackPayment, eventId, REFUND_PERCENT, now);
-          refundedCount++;
+        if (validPayments.length === 0) {
+          console.error("No Razorpay payments found for bid " + bid.id + " (fan: " + bid.fan_id + ", amount: " + bid.amount + ")");
+          failedCount++;
+          await supabase
+            .from("bids")
+            .update({ refund_status: "failed" })
+            .eq("id", bid.id);
           continue;
         }
 
-        await processRazorpayRefund(supabase, bid, payment, eventId, REFUND_PERCENT, now);
-        refundedCount++;
+        let paymentRefunded = 0;
+        let paymentFailed = 0;
+        let totalRefundRupees = 0;
+        const refundErrors: string[] = [];
+
+        for (const payment of validPayments) {
+          try {
+            const result = await processRazorpayRefund(supabase, bid, payment, eventId, REFUND_PERCENT, now);
+            if (result) {
+              paymentRefunded++;
+              totalRefundRupees += Math.floor(payment.amount * REFUND_PERCENT / 100);
+            }
+          } catch (err: any) {
+            console.error("Refund failed for payment " + payment.razorpay_payment_id + ":", err);
+            paymentFailed++;
+            refundErrors.push(err.message || String(err));
+          }
+        }
+
+        // Update bid with aggregate refund result
+        const dbRefundStatus = paymentFailed > 0 ? (paymentRefunded > 0 ? "partial" : "failed") : "completed";
+        await supabase
+          .from("bids")
+          .update({
+            refund_amount: totalRefundRupees,
+            refund_status: dbRefundStatus,
+            refunded_at: now,
+          })
+          .eq("id", bid.id);
+
+        // Send ONE notification with total refund amount
+        const { data: eventData } = await supabase
+          .from("events")
+          .select("title")
+          .eq("id", eventId)
+          .maybeSingle();
+
+        const refundErrorMsg = refundErrors.length > 0 ? " (Issues: " + refundErrors.join("; ") + ")" : "";
+        const notifTitle = paymentFailed > 0 && paymentRefunded === 0 ? "Refund Failed - Contact Support" : "Bid Refund Processed";
+        const notifMsg = paymentFailed > 0 && paymentRefunded === 0
+          ? "We could not process your refund for \"" + (eventData?.title || "Event") + "\"." + refundErrorMsg
+          : "You did not win the auction for \"" + (eventData?.title || "Event") + "\". A refund of Rs." + totalRefundRupees + " (" + REFUND_PERCENT + "% of your total bid) has been initiated to your original payment method." + refundErrorMsg;
+
+        await supabase.from("notifications").insert({
+          user_id: bid.fan_id,
+          type: "bid_refund",
+          title: notifTitle,
+          message: notifMsg,
+          event_id: eventId,
+        });
+
+        refundedCount += paymentRefunded;
+        failedCount += paymentFailed;
       } catch (err) {
         console.error("Error refunding bid " + bid.id + ":", err);
         failedCount++;
@@ -138,16 +171,16 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
   }
 }
 
+// Pure Razorpay refund API call. Does NOT touch DB or send notifications.
+// Returns true on success, throws on failure.
 async function processRazorpayRefund(
-  supabase: any,
+  _supabase: any,
   bid: { id: string; fan_id: string; amount: number },
   payment: { razorpay_payment_id: string; amount: number },
   eventId: string,
   refundPercent: number,
-  now: string
-) {
-  // Calculate refund based on the ACTUAL payment amount (not bid.amount which is cumulative total).
-  // payment.amount is the real rupees charged for this specific transaction.
+  _now: string
+): Promise<boolean> {
   const refundAmountRupees = Math.floor(payment.amount * refundPercent / 100);
   const refundAmountPaise = refundAmountRupees * 100;
 
@@ -200,7 +233,6 @@ async function processRazorpayRefund(
     const captureData = await captureRes.json();
     console.log("Payment captured successfully: status=" + captureData.status);
   } else if (paymentInfo.status !== "captured") {
-    // Payment is in an unexpected state (failed, refunded, etc.)
     console.error("Payment " + payment.razorpay_payment_id + " is in non-refundable state: " + paymentInfo.status);
     throw new Error("Payment is in state '" + paymentInfo.status + "' and cannot be refunded");
   }
@@ -208,7 +240,6 @@ async function processRazorpayRefund(
   // Step 3: Ensure refund amount doesn't exceed captured amount
   const capturedAmountPaise = paymentInfo.amount;
   const actualRefundPaise = Math.min(refundAmountPaise, capturedAmountPaise);
-  const actualRefundRupees = Math.floor(actualRefundPaise / 100);
 
   console.log("Calling Razorpay refund API: payment_id=" + payment.razorpay_payment_id + ", refund_amount_paise=" + actualRefundPaise + " (" + refundPercent + "% of Rs." + payment.amount + ", capped at captured=" + capturedAmountPaise + ")");
 
@@ -238,13 +269,6 @@ async function processRazorpayRefund(
 
   if (!refundResponse.ok) {
     console.error("Razorpay refund failed for payment " + payment.razorpay_payment_id + ": status=" + refundResponse.status + ", error=", refundData);
-    await supabase
-      .from("bids")
-      .update({
-        refund_status: "failed",
-        refunded_at: now,
-      })
-      .eq("id", bid.id);
     throw new Error("Razorpay refund API error: " + (refundData.error?.description || refundData.description || JSON.stringify(refundData)));
   }
 
@@ -258,47 +282,13 @@ async function processRazorpayRefund(
   const verifyData = verifyRes.ok ? await verifyRes.json() : null;
   const finalRefundStatus = verifyData?.status || refundData.status;
 
-  // Accept any non-failed status: processed, refunded, pending, initiated are all valid
   if (finalRefundStatus === "failed") {
     console.error("Razorpay refund failed. Status: " + finalRefundStatus);
-    await supabase
-      .from("bids")
-      .update({
-        refund_status: "failed",
-        refund_amount: 0,
-        refunded_at: now,
-      })
-      .eq("id", bid.id);
     throw new Error("Refund status is 'failed' after verification");
   }
 
   console.log("Razorpay refund VERIFIED: refund_id=" + refundData.id + ", status=" + finalRefundStatus);
-
-  // Update bid with refund details
-  await supabase
-    .from("bids")
-    .update({
-      refund_amount: actualRefundRupees,
-      refund_status: "completed",
-      refunded_at: now,
-    })
-    .eq("id", bid.id);
-
-  // Get event title for notification
-  const { data: eventData } = await supabase
-    .from("events")
-    .select("title")
-    .eq("id", eventId)
-    .maybeSingle();
-
-  // Send notification to losing bidder
-  await supabase.from("notifications").insert({
-    user_id: bid.fan_id,
-    type: "bid_refund",
-    title: "Bid Refund Processed",
-    message: "You did not win the auction for \"" + (eventData?.title || "Event") + "\". A refund of Rs." + actualRefundRupees + " (" + refundPercent + "% of your bid) has been initiated to your original payment method.",
-    event_id: eventId,
-  });
+  return true;
 }
 
 async function finalizeExpiredEvents(supabase: any) {
