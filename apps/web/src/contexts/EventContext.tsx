@@ -405,7 +405,7 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
       startsAt,
     };
 
-    setEvents((prev) => [...prev, newEvent]);
+    await fetchEvents();
 
     return newEvent;
   };
@@ -735,69 +735,28 @@ export const EventProvider = ({ children }: { children: ReactNode }) => {
   const finalizeEvent: EventContextValue['finalizeEvent'] = async (eventId) => {
     if (!user) return;
 
-    // 1. Get the event
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
-      .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error('Not authenticated');
 
-    if (eventError || !event) {
-      console.error('Error fetching event to finalize:', eventError);
-      throw new Error('Event not found');
+    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL as string;
+    const response = await fetch(`${supabaseUrl}/functions/v1/finalize-event`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ eventId }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      console.error('Error calling finalize-event:', result);
+      throw new Error(result.error || 'Failed to finalize event');
     }
 
-    // 2. Get highest bid
-    const { data: bids, error: bidsError } = await supabase
-      .from('bids')
-      .select('*')
-      .eq('event_id', eventId)
-      .eq('status', 'active')
-      .order('amount', { ascending: false })
-      .limit(1);
-
-    if (bidsError) {
-      console.error('Error fetching winning bid:', bidsError);
-      throw new Error('Could not determine winner');
-    }
-
-    const winnerBid = bids && bids.length > 0 ? bids[0] : null;
-
-    if (!winnerBid && event.is_paid) {
-      console.log('No bids for event, closing without meet.');
-    }
-
-    // 3. Create Meet if there is a winner
-    if (winnerBid) {
-      const { error: meetError } = await supabase
-        .from('meets')
-        .insert({
-          event_id: eventId,
-          creator_id: user.id,
-          fan_id: winnerBid.fan_id,
-          scheduled_at: event.starts_at,
-          duration_minutes: event.duration_minutes,
-          meeting_link: event.meeting_link,
-          status: 'scheduled'
-        });
-
-      if (meetError) {
-        console.error('Error creating meet:', meetError);
-        throw new Error('Failed to create meet');
-      }
-    }
-
-    // 4. Update event status
-    const { error: updateError } = await supabase
-      .from('events')
-      .update({ status: 'completed' })
-      .eq('id', eventId);
-
-    if (updateError) {
-      console.error('Error updating event status:', updateError);
-    }
-
+    console.log('✅ Event finalized:', result);
     await refreshMeets();
+    await fetchEvents();
   };
 
   const value = useMemo(

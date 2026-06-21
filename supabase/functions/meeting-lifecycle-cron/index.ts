@@ -34,69 +34,78 @@ interface EventRow {
   is_paid: boolean;
 }
 
-async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: string | null) {
+async function refundLosingBidders(supabase: any, eventId: string, winnerFanId: string | null) {
   const now = new Date().toISOString();
   const REFUND_PERCENT = 90;
 
   try {
-    // Get ALL active bids for this event EXCEPT the winner
-    let query = supabase
+    // Get ALL bids for this event regardless of status (active/outbid/etc).
+    // A losing fan's bids are marked 'outbid' by the update_outbid_status trigger,
+    // so filtering by status='active' would miss them entirely. We identify losers
+    // by FAN (everyone except the winning fan) and refund 90% of ALL their payments.
+    const { data: allBids, error: bidsError } = await supabase
       .from("bids")
       .select("id, fan_id, amount")
-      .eq("event_id", eventId)
-      .eq("status", "active");
-
-    if (winnerBidId) {
-      query = query.neq("id", winnerBidId);
-    }
-
-    const { data: losingBids, error: bidsError } = await query;
+      .eq("event_id", eventId);
 
     if (bidsError) {
-      console.error("Error fetching losing bids for event " + eventId + ":", bidsError);
+      console.error("Error fetching bids for event " + eventId + ":", bidsError);
       return { refunded: 0, failed: 0 };
     }
 
-    if (!losingBids || losingBids.length === 0) {
+    const losingBids = (allBids || []).filter((b: any) => b.fan_id !== winnerFanId);
+
+    if (losingBids.length === 0) {
       console.log("No losing bids to refund for event " + eventId);
       return { refunded: 0, failed: 0 };
     }
 
-    console.log("Found " + losingBids.length + " losing bid(s) to refund for event " + eventId);
+    // Mark ALL losing bid rows as lost upfront
+    const losingBidIds = losingBids.map((b: any) => b.id);
+    await supabase.from("bids").update({ status: "lost" }).in("id", losingBidIds);
+
+    // Group losing bids by fan_id — each fan should be refunded exactly once
+    // for the sum of ALL their payments, regardless of how many bid rows they have.
+    const fanBidMap = new Map<string, { bidIds: string[] }>();
+    for (const bid of losingBids) {
+      const entry = fanBidMap.get(bid.fan_id);
+      if (entry) {
+        entry.bidIds.push(bid.id);
+      } else {
+        fanBidMap.set(bid.fan_id, { bidIds: [bid.id] });
+      }
+    }
+
+    console.log("Found " + losingBids.length + " losing bid row(s) across " + fanBidMap.size + " unique fan(s) to refund for event " + eventId);
+
+    // Fetch event title once
+    const { data: eventData } = await supabase
+      .from("events")
+      .select("title")
+      .eq("id", eventId)
+      .maybeSingle();
+    const eventTitle = eventData?.title || "Event";
 
     let refundedCount = 0;
     let failedCount = 0;
 
-    for (const bid of losingBids) {
+    for (const [fanId, { bidIds }] of fanBidMap) {
       try {
-        console.log("Processing losing bid " + bid.id + " (fan: " + bid.fan_id + ", amount: Rs." + bid.amount + ")");
-
-        // Mark bid as lost
-        const { error: lostError } = await supabase
-          .from("bids")
-          .update({ status: "lost" })
-          .eq("id", bid.id);
-        if (lostError) console.error("Error marking bid " + bid.id + " as lost:", lostError);
-
-        // Find ALL Razorpay payments for this fan on this event (incremental bidding
-        // creates multiple payment rows; we must refund every single one).
+        // Fetch ALL paid payments for this fan on this event in one query
         const { data: allPayments, error: paymentsError } = await supabase
           .from("bid_payments")
           .select("id, razorpay_payment_id, amount")
           .eq("event_id", eventId)
-          .eq("fan_id", bid.fan_id)
+          .eq("fan_id", fanId)
           .eq("status", "paid");
 
         const validPayments = (allPayments || []).filter((p: any) => p.razorpay_payment_id);
-        console.log("Bid " + bid.id + " (fan: " + bid.fan_id + ") found " + validPayments.length + " payment(s)" + (paymentsError ? ", error=" + JSON.stringify(paymentsError) : ""));
+        console.log("Fan " + fanId + " has " + validPayments.length + " payment(s) to refund across " + bidIds.length + " bid row(s)" + (paymentsError ? ", error=" + JSON.stringify(paymentsError) : ""));
 
         if (validPayments.length === 0) {
-          console.error("No Razorpay payments found for bid " + bid.id + " (fan: " + bid.fan_id + ", amount: " + bid.amount + ")");
+          console.error("No Razorpay payments found for fan " + fanId + " on event " + eventId);
           failedCount++;
-          await supabase
-            .from("bids")
-            .update({ refund_status: "failed" })
-            .eq("id", bid.id);
+          await supabase.from("bids").update({ refund_status: "failed" }).in("id", bidIds);
           continue;
         }
 
@@ -105,21 +114,23 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
         let totalRefundRupees = 0;
         const refundErrors: string[] = [];
 
+        // Refund every payment this fan made — 90% of each
         for (const payment of validPayments) {
           try {
-            const result = await processRazorpayRefund(supabase, bid, payment, eventId, REFUND_PERCENT, now);
+            const dummyBid = { id: bidIds[0], fan_id: fanId, amount: payment.amount };
+            const result = await processRazorpayRefund(supabase, dummyBid, payment, eventId, REFUND_PERCENT, now);
             if (result) {
               paymentRefunded++;
               totalRefundRupees += Math.floor(payment.amount * REFUND_PERCENT / 100);
             }
           } catch (err: any) {
-            console.error("Refund failed for payment " + payment.razorpay_payment_id + ":", err);
+            console.error("Refund failed for payment " + payment.razorpay_payment_id + " (fan: " + fanId + "):", err);
             paymentFailed++;
             refundErrors.push(err.message || String(err));
           }
         }
 
-        // Update bid with aggregate refund result
+        // Update ALL bid rows for this fan with the aggregate refund result
         const dbRefundStatus = paymentFailed > 0 ? (paymentRefunded > 0 ? "partial" : "failed") : "completed";
         await supabase
           .from("bids")
@@ -128,23 +139,17 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
             refund_status: dbRefundStatus,
             refunded_at: now,
           })
-          .eq("id", bid.id);
+          .in("id", bidIds);
 
-        // Send ONE notification with total refund amount
-        const { data: eventData } = await supabase
-          .from("events")
-          .select("title")
-          .eq("id", eventId)
-          .maybeSingle();
-
+        // Send ONE notification per fan summarising their total refund
         const refundErrorMsg = refundErrors.length > 0 ? " (Issues: " + refundErrors.join("; ") + ")" : "";
         const notifTitle = paymentFailed > 0 && paymentRefunded === 0 ? "Refund Failed - Contact Support" : "Bid Refund Processed";
         const notifMsg = paymentFailed > 0 && paymentRefunded === 0
-          ? "We could not process your refund for \"" + (eventData?.title || "Event") + "\"." + refundErrorMsg
-          : "You did not win the auction for \"" + (eventData?.title || "Event") + "\". A refund of Rs." + totalRefundRupees + " (" + REFUND_PERCENT + "% of your total bid) has been initiated to your original payment method." + refundErrorMsg;
+          ? "We could not process your refund for \"" + eventTitle + "\"." + refundErrorMsg
+          : "You did not win the auction for \"" + eventTitle + "\". A refund of Rs." + totalRefundRupees + " (" + REFUND_PERCENT + "% of your total payments) has been initiated to your original payment method." + refundErrorMsg;
 
         await supabase.from("notifications").insert({
-          user_id: bid.fan_id,
+          user_id: fanId,
           type: "bid_refund",
           title: notifTitle,
           message: notifMsg,
@@ -154,16 +159,13 @@ async function refundLosingBidders(supabase: any, eventId: string, winnerBidId: 
         refundedCount += paymentRefunded;
         failedCount += paymentFailed;
       } catch (err) {
-        console.error("Error refunding bid " + bid.id + ":", err);
+        console.error("Error refunding fan " + fanId + " for event " + eventId + ":", err);
         failedCount++;
-        await supabase
-          .from("bids")
-          .update({ refund_status: "failed" })
-          .eq("id", bid.id);
+        await supabase.from("bids").update({ refund_status: "failed" }).in("id", bidIds);
       }
     }
 
-    console.log("Refund results for event " + eventId + ": refunded=" + refundedCount + ", failed=" + failedCount);
+    console.log("Refund results for event " + eventId + ": refunded=" + refundedCount + " payment(s), failed=" + failedCount);
     return { refunded: refundedCount, failed: failedCount };
   } catch (err) {
     console.error("Error in refundLosingBidders:", err);
@@ -298,7 +300,7 @@ async function finalizeExpiredEvents(supabase: any) {
   const { data: events, error } = await supabase
     .from("events")
     .select("id, creator_id, starts_at, duration_minutes, bidding_closes_at, meeting_link, status, is_paid")
-    .in("status", ["upcoming", "live"])
+    .in("status", ["upcoming", "live", "completed"])
     .lte("bidding_closes_at", nowIso);
 
   if (error) {
@@ -433,7 +435,7 @@ async function finalizeExpiredEvents(supabase: any) {
       .eq("id", event.id);
 
     // AFTER bidding is closed and winner determined, refund 90% to all losing bidders via Razorpay
-    const refundResults = await refundLosingBidders(supabase, event.id, winnerBid?.id ?? null);
+    const refundResults = await refundLosingBidders(supabase, event.id, winnerBid?.fan_id ?? null);
     console.log("Event " + event.id + " refund results:", refundResults);
 
     finalized += 1;

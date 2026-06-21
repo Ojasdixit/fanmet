@@ -1156,8 +1156,8 @@ export function LandingPage() {
             <div className="relative overflow-hidden rounded-[28px] bg-black/40 p-[2px] shadow-[0_20px_60px_rgba(5,0,20,0.7)]">
               <div className="relative aspect-video w-full overflow-hidden rounded-[24px] bg-black">
                 <img
-                  src="https://cdn.prod.website-files.com/62c48d78ef34931f8a604ef5/67630876396363c467036ede_video-poster.webp"
-                  alt="FanMeet overview"
+                  src="https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=1200&q=80&fit=crop"
+                  alt="FanMeet in action – fan on a live video call with their favourite creator"
                   className="h-full w-full object-cover"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
