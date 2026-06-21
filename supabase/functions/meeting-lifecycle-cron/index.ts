@@ -297,10 +297,14 @@ async function finalizeExpiredEvents(supabase: any) {
   console.log("Checking for events past bidding deadline...");
   const nowIso = new Date().toISOString();
 
+  // Only select events that have NOT yet been finalized. Once an event is
+  // finalized it becomes "completed"; re-selecting completed events would
+  // re-run finalization, find no active bid (the winner is now "won"), and
+  // wrongly null winning_bid_id and mark the winner as a loser. So exclude it.
   const { data: events, error } = await supabase
     .from("events")
     .select("id, creator_id, starts_at, duration_minutes, bidding_closes_at, meeting_link, status, is_paid")
-    .in("status", ["upcoming", "live", "completed"])
+    .in("status", ["upcoming", "live"])
     .lte("bidding_closes_at", nowIso);
 
   if (error) {
@@ -316,6 +320,24 @@ async function finalizeExpiredEvents(supabase: any) {
   let finalized = 0;
 
   for (const event of events as EventRow[]) {
+    // Idempotency guard: if a meet already exists for this event, it has already
+    // been finalized (possibly by the client finalize-event path). Skip to avoid
+    // double-processing and corrupting the winner/refund state.
+    const { data: existingMeet } = await supabase
+      .from("meets")
+      .select("id")
+      .eq("event_id", event.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingMeet) {
+      console.log("Event " + event.id + " already has a meet; skipping finalization");
+      if (event.status !== "completed") {
+        await supabase.from("events").update({ status: "completed" }).eq("id", event.id);
+      }
+      continue;
+    }
+
     // Find highest active bid
     const { data: bids, error: bidsError } = await supabase
       .from("bids")
@@ -428,10 +450,16 @@ async function finalizeExpiredEvents(supabase: any) {
       console.log("No bids for paid event", event.id, "- skipping meet creation");
     }
 
-    // Update event status and winning bid reference
+    // Update event status and winning bid reference.
+    // Only set winning_bid_id when we actually have a winner — never overwrite
+    // an existing reference with null.
+    const eventUpdate: Record<string, unknown> = { status: "completed" };
+    if (winnerBid) {
+      eventUpdate.winning_bid_id = winnerBid.id;
+    }
     await supabase
       .from("events")
-      .update({ status: "completed", winning_bid_id: winnerBid?.id ?? null })
+      .update(eventUpdate)
       .eq("id", event.id);
 
     // AFTER bidding is closed and winner determined, refund 90% to all losing bidders via Razorpay
